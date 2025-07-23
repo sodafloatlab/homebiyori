@@ -39,9 +39,27 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 開発コマンド
 
-**注意：** このプロジェクトは仕様策定段階で、まだ実装は開始されていません。以下のコマンドは実装開始後に使用予定です：
+**現在の状況：** インフラストラクチャ定義が完了しており、アプリケーション実装待ち状態
 
-**フロントエンド（Next.js）：**
+**インフラストラクチャ（Terraform）：**
+```bash
+# 各レイヤーを順番にデプロイ
+cd terraform/environments/prod/datastore
+terraform init && terraform plan && terraform apply
+
+cd ../backend  
+terraform init && terraform plan && terraform apply
+
+cd ../frontend
+terraform init && terraform plan && terraform apply
+
+# 全インフラ削除（逆順）
+cd terraform/environments/prod/frontend && terraform destroy
+cd ../backend && terraform destroy  
+cd ../datastore && terraform destroy
+```
+
+**フロントエンド（Next.js）- 実装開始時：**
 ```bash
 npm run dev          # 開発サーバー起動
 npm run build        # 本番ビルド
@@ -51,20 +69,12 @@ npm run typecheck    # TypeScript型チェック
 npm test             # Jestテスト実行
 ```
 
-**バックエンド（FastAPI + Lambda）：**
+**バックエンド（FastAPI + Lambda）- 実装開始時：**
 ```bash
 pytest               # Pythonテスト実行
 ruff check          # Pythonコードリント
 ruff format         # Pythonコードフォーマット
 python -m pytest --cov  # カバレッジ付きテスト
-```
-
-**インフラストラクチャ：**
-```bash
-terraform init       # Terraform初期化
-terraform plan       # インフラ変更プレビュー
-terraform apply      # インフラ変更適用
-terraform destroy    # インフラ削除
 ```
 
 ## 主要機能とアーキテクチャ設計
@@ -111,7 +121,7 @@ terraform destroy    # インフラ削除
 src/
 ├── app/                   # Next.js App Routerページ
 │   ├── (auth)/           # 認証関連ルート
-│   ├── dashboard/        # 花畑UIメインダッシュボード
+│   ├── dashboard/        # 木の成長UIメインダッシュボード
 │   ├── post/            # 投稿作成ページ
 │   └── settings/        # ユーザー設定
 ├── components/
@@ -139,7 +149,7 @@ app/
 1. **認証フロー：** Amazon Cognito経由のGoogle OAuth
 2. **コンテンツ作成：** テキスト/画像投稿とAI分析
 3. **AI処理：** Bedrock APIでパーソナライズされた褒め生成
-4. **可視化：** 花畑UIで育児努力の進捗表示
+4. **可視化：** 木の成長UIで育児努力の進捗表示（年輪と光る実システム）
 5. **レスポンシブデザイン：** 忙しい親のためのモバイルファースト
 
 ## テスト戦略
@@ -170,6 +180,12 @@ app/
 - **監視：** アプリケーションパフォーマンス監視にNew Relic
 - **インフラ：** 再現可能なデプロイのためのTerraform
 - **コスト目標：** アクティブユーザー100名で月額約9ドル
+
+### Terraformインフラストラクチャの詳細
+- **3層アーキテクチャ：** datastore → backend → frontend の順序でデプロイ
+- **ステート管理：** S3 + DynamoDB ロックを使用
+- **前提条件：** Amazon Bedrockモデル（Claude 3 Haiku）の事前有効化が必要
+- **セキュリティ：** WAF、IAM最小権限、全通信HTTPS、S3プライベート設定
 
 ## 実装優先順位
 
