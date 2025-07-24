@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef } from 'react';
-import SimplifiedCanvasTree from '@/components/ui/SimplifiedCanvasTree';
+import WatercolorTree from '@/components/ui/WatercolorTree';
 import PremiumPostButtons from '@/components/ui/PremiumPostButtons';
 import FloatingMessage from '@/components/ui/FloatingMessage';
 import CelebrationOverlay from '@/components/ui/CelebrationOverlay';
@@ -12,16 +12,16 @@ interface MockFruit {
   id: string;
   x: number;
   y: number;
-  color: 'pink' | 'blue' | 'gold';
+  type: 'encouragement' | 'reflection';
   aiRole: 'たまさん' | 'まどか姉さん' | 'ヒデじい';
   message: string;
-  date: string;
+  createdAt: string;
   isGlowing: boolean;
 }
 
 export default function TreeGrowthDemo() {
-  // 育児日数（モック）
-  const [parentingDays] = useState(45);
+  // 育児日数（モック）- 成長段階を切り替え可能に
+  const [parentingDays, setParentingDays] = useState(45);
   
   // 演出状態管理
   const [showFloatingMessage, setShowFloatingMessage] = useState(false);
@@ -40,30 +40,30 @@ export default function TreeGrowthDemo() {
       id: '1',
       x: 45,
       y: 35,
-      color: 'pink',
+      type: 'encouragement',
       aiRole: 'たまさん',
       message: '今日もお疲れ様でした。お子さんの笑顔を大切にするあなた、とても素敵です。',
-      date: '2025-07-22',
+      createdAt: '2025-07-22',
       isGlowing: true
     },
     {
       id: '2',
       x: 65,
       y: 40,
-      color: 'blue',
+      type: 'reflection',
       aiRole: 'まどか姉さん',
       message: '育児は大変だけど、あなたなら大丈夫。一歩一歩、確実に前に進んでいますね。',
-      date: '2025-07-21',
+      createdAt: '2025-07-21',
       isGlowing: true
     },
     {
       id: '3',
       x: 55,
       y: 50,
-      color: 'gold',
+      type: 'encouragement',
       aiRole: 'ヒデじい',
       message: 'おつかれさん。君の子育ては立派じゃよ。昔も今も、親の愛は変わらんからのう。',
-      date: '2025-07-20',
+      createdAt: '2025-07-20',
       isGlowing: true
     },
     // 今日の分（未投稿）
@@ -71,10 +71,10 @@ export default function TreeGrowthDemo() {
       id: '4',
       x: 50,
       y: 30,
-      color: 'pink',
+      type: 'encouragement',
       aiRole: 'たまさん',
       message: '',
-      date: '2025-07-23',
+      createdAt: '2025-07-23',
       isGlowing: false
     }
   ]);
@@ -129,11 +129,80 @@ export default function TreeGrowthDemo() {
   };
 
   return (
-    <div className="flex flex-col items-center space-y-12">
+    <div className="min-h-screen bg-gradient-to-b from-blue-50 via-green-50 to-yellow-50">
+      <div className="flex flex-col items-center space-y-8 p-4">
+
+        {/* 成長段階コントロール */}
+        <div className="bg-white/70 backdrop-blur-sm rounded-2xl p-6 shadow-lg border border-green-100">
+          <h3 className="text-base font-medium text-green-700 mb-4 text-center">成長段階をお試しください</h3>
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-2 max-w-4xl">
+            <button
+              onClick={() => setParentingDays(5)}
+              className={`px-3 py-2 rounded-full text-xs font-medium transition-all shadow-sm ${
+                parentingDays <= 7 
+                  ? 'bg-green-200 text-green-800 shadow-green-200/50' 
+                  : 'bg-white/80 text-green-600 hover:bg-green-50 hover:text-green-700'
+              }`}
+            >
+              🌱 芽
+            </button>
+            <button
+              onClick={() => setParentingDays(20)}
+              className={`px-3 py-2 rounded-full text-xs font-medium transition-all shadow-sm ${
+                parentingDays > 7 && parentingDays <= 30 
+                  ? 'bg-green-200 text-green-800 shadow-green-200/50' 
+                  : 'bg-white/80 text-green-600 hover:bg-green-50 hover:text-green-700'
+              }`}
+            >
+              🌿 苗
+            </button>
+            <button
+              onClick={() => setParentingDays(60)}
+              className={`px-3 py-2 rounded-full text-xs font-medium transition-all shadow-sm ${
+                parentingDays > 30 && parentingDays <= 90 
+                  ? 'bg-green-200 text-green-800 shadow-green-200/50' 
+                  : 'bg-white/80 text-green-600 hover:bg-green-50 hover:text-green-700'
+              }`}
+            >
+              🌱 若木
+            </button>
+            <button
+              onClick={() => setParentingDays(120)}
+              className={`px-3 py-2 rounded-full text-xs font-medium transition-all shadow-sm ${
+                parentingDays > 90 && parentingDays <= 180 
+                  ? 'bg-green-200 text-green-800 shadow-green-200/50' 
+                  : 'bg-white/80 text-green-600 hover:bg-green-50 hover:text-green-700'
+              }`}
+            >
+              🌿 中木
+            </button>
+            <button
+              onClick={() => setParentingDays(200)}
+              className={`px-3 py-2 rounded-full text-xs font-medium transition-all shadow-sm ${
+                parentingDays > 180 && parentingDays <= 365 
+                  ? 'bg-green-200 text-green-800 shadow-green-200/50' 
+                  : 'bg-white/80 text-green-600 hover:bg-green-50 hover:text-green-700'
+              }`}
+            >
+              🌳 大木
+            </button>
+            <button
+              onClick={() => setParentingDays(800)}
+              className={`px-3 py-2 rounded-full text-xs font-medium transition-all shadow-sm ${
+                parentingDays > 365 
+                  ? 'bg-green-200 text-green-800 shadow-green-200/50' 
+                  : 'bg-white/80 text-green-600 hover:bg-green-50 hover:text-green-700'
+              }`}
+            >
+              🌳 巨木
+            </button>
+          </div>
+        </div>
+
       {/* 木の成長UI */}
       <div className="w-full">
-        <SimplifiedCanvasTree
-          parentingDays={parentingDays}
+        <WatercolorTree
+          ageInDays={parentingDays}
           fruits={fruits}
           childrenNames={childrenNames}
           onFruitClick={handleFruitClick}
@@ -149,7 +218,7 @@ export default function TreeGrowthDemo() {
           isVisible={showFloatingMessage}
           message={selectedFruit.message}
           aiRole={selectedFruit.aiRole}
-          date={selectedFruit.date}
+          date={selectedFruit.createdAt}
           position={floatingPosition}
           onClose={() => setShowFloatingMessage(false)}
         />
@@ -168,6 +237,7 @@ export default function TreeGrowthDemo() {
           onClose={() => setShowLetter(false)}
         />
       )}
+      </div>
     </div>
   );
 }

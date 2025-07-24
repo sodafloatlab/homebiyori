@@ -14,22 +14,22 @@ export default function PremiumPostButtons({ onPost }: PremiumPostButtonsProps) 
       transition={{ delay: 1.5, duration: 0.8 }}
       className="w-full max-w-3xl mx-auto"
     >
-      {/* 主行動ボタン */}
+      {/* 水彩風投稿ボタン */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
         <motion.button
           onClick={() => onPost('photo')}
           whileHover={{ scale: 1.02, y: -2 }}
           whileTap={{ scale: 0.98 }}
-          className="group relative overflow-hidden bg-gradient-to-br from-blue-500 via-blue-600 to-indigo-600 text-white font-semibold py-8 px-8 rounded-2xl shadow-xl transition-all duration-300 hover:shadow-2xl"
+          className="group relative overflow-hidden bg-white/80 backdrop-blur-sm border-2 border-blue-200 text-blue-700 font-semibold py-8 px-8 rounded-2xl shadow-lg transition-all duration-300 hover:shadow-xl hover:bg-blue-50/80"
         >
-          {/* 背景エフェクト */}
-          <div className="absolute inset-0 bg-gradient-to-br from-blue-400/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+          {/* 水彩風背景エフェクト */}
+          <div className="absolute inset-0 bg-gradient-to-br from-blue-100/30 to-blue-200/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300 rounded-2xl" />
           
-          {/* グロー効果 */}
+          {/* 柔らかなグロー効果 */}
           <div className="absolute inset-0 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-300" 
                style={{
-                 background: 'radial-gradient(circle at center, rgba(59, 130, 246, 0.3) 0%, transparent 70%)',
-                 filter: 'blur(8px)'
+                 background: 'radial-gradient(circle at center, rgba(59, 130, 246, 0.1) 0%, transparent 70%)',
+                 filter: 'blur(10px)'
                }} />
           
           <div className="relative z-10 flex flex-col items-center space-y-4">
@@ -49,7 +49,7 @@ export default function PremiumPostButtons({ onPost }: PremiumPostButtonsProps) 
             </motion.div>
             <div className="text-center">
               <h3 className="text-lg font-bold mb-1">写真から投稿する</h3>
-              <p className="text-blue-100 text-sm opacity-90">子供の笑顔や日常の一コマを</p>
+              <p className="text-blue-600 text-sm opacity-90">子供の笑顔や日常の一コマを</p>
             </div>
           </div>
           
@@ -63,16 +63,16 @@ export default function PremiumPostButtons({ onPost }: PremiumPostButtonsProps) 
           onClick={() => onPost('text')}
           whileHover={{ scale: 1.02, y: -2 }}
           whileTap={{ scale: 0.98 }}
-          className="group relative overflow-hidden bg-gradient-to-br from-emerald-500 via-green-600 to-teal-600 text-white font-semibold py-8 px-8 rounded-2xl shadow-xl transition-all duration-300 hover:shadow-2xl"
+          className="group relative overflow-hidden bg-white/80 backdrop-blur-sm border-2 border-green-200 text-green-700 font-semibold py-8 px-8 rounded-2xl shadow-lg transition-all duration-300 hover:shadow-xl hover:bg-green-50/80"
         >
-          {/* 背景エフェクト */}
-          <div className="absolute inset-0 bg-gradient-to-br from-emerald-400/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+          {/* 水彩風背景エフェクト */}
+          <div className="absolute inset-0 bg-gradient-to-br from-green-100/30 to-green-200/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300 rounded-2xl" />
           
-          {/* グロー効果 */}
+          {/* 柔らかなグロー効果 */}
           <div className="absolute inset-0 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-300" 
                style={{
-                 background: 'radial-gradient(circle at center, rgba(34, 197, 94, 0.3) 0%, transparent 70%)',
-                 filter: 'blur(8px)'
+                 background: 'radial-gradient(circle at center, rgba(34, 197, 94, 0.1) 0%, transparent 70%)',
+                 filter: 'blur(10px)'
                }} />
           
           <div className="relative z-10 flex flex-col items-center space-y-4">
@@ -93,7 +93,7 @@ export default function PremiumPostButtons({ onPost }: PremiumPostButtonsProps) 
             </motion.div>
             <div className="text-center">  
               <h3 className="text-lg font-bold mb-1">今日のえらいを書く</h3>
-              <p className="text-emerald-100 text-sm opacity-90">頑張ったことを文字で記録</p>
+              <p className="text-green-600 text-sm opacity-90">頑張ったことを文字で記録</p>
             </div>
           </div>
           
