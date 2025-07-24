@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef } from 'react';
+import { motion } from 'framer-motion';
 import WatercolorTree from '@/components/ui/WatercolorTree';
 import PremiumPostButtons from '@/components/ui/PremiumPostButtons';
 import FloatingMessage from '@/components/ui/FloatingMessage';
@@ -131,14 +132,15 @@ export default function TreeGrowthDemo() {
   return (
     <div className="min-h-screen bg-gradient-to-b from-blue-50 via-green-50 to-yellow-50">
       <div className="flex flex-col items-center space-y-8 p-4">
+        
 
         {/* 成長段階コントロール */}
         <div className="bg-white/70 backdrop-blur-sm rounded-2xl p-6 shadow-lg border border-green-100">
-          <h3 className="text-base font-medium text-green-700 mb-4 text-center">成長段階をお試しください</h3>
+          <h3 className="font-kaisei-tokumin text-lg font-bold text-green-700 mb-4 text-center">成長段階をお試しください</h3>
           <div className="grid grid-cols-2 md:grid-cols-3 gap-2 max-w-4xl">
             <button
               onClick={() => setParentingDays(5)}
-              className={`px-3 py-2 rounded-full text-xs font-medium transition-all shadow-sm ${
+              className={`font-kaisei-tokumin px-3 py-2 rounded-full text-sm font-bold transition-all shadow-sm ${
                 parentingDays <= 7 
                   ? 'bg-green-200 text-green-800 shadow-green-200/50' 
                   : 'bg-white/80 text-green-600 hover:bg-green-50 hover:text-green-700'
@@ -148,7 +150,7 @@ export default function TreeGrowthDemo() {
             </button>
             <button
               onClick={() => setParentingDays(20)}
-              className={`px-3 py-2 rounded-full text-xs font-medium transition-all shadow-sm ${
+              className={`font-kaisei-tokumin px-3 py-2 rounded-full text-sm font-bold transition-all shadow-sm ${
                 parentingDays > 7 && parentingDays <= 30 
                   ? 'bg-green-200 text-green-800 shadow-green-200/50' 
                   : 'bg-white/80 text-green-600 hover:bg-green-50 hover:text-green-700'
@@ -158,7 +160,7 @@ export default function TreeGrowthDemo() {
             </button>
             <button
               onClick={() => setParentingDays(60)}
-              className={`px-3 py-2 rounded-full text-xs font-medium transition-all shadow-sm ${
+              className={`font-kaisei-tokumin px-3 py-2 rounded-full text-sm font-bold transition-all shadow-sm ${
                 parentingDays > 30 && parentingDays <= 90 
                   ? 'bg-green-200 text-green-800 shadow-green-200/50' 
                   : 'bg-white/80 text-green-600 hover:bg-green-50 hover:text-green-700'
@@ -168,7 +170,7 @@ export default function TreeGrowthDemo() {
             </button>
             <button
               onClick={() => setParentingDays(120)}
-              className={`px-3 py-2 rounded-full text-xs font-medium transition-all shadow-sm ${
+              className={`font-kaisei-tokumin px-3 py-2 rounded-full text-sm font-bold transition-all shadow-sm ${
                 parentingDays > 90 && parentingDays <= 180 
                   ? 'bg-green-200 text-green-800 shadow-green-200/50' 
                   : 'bg-white/80 text-green-600 hover:bg-green-50 hover:text-green-700'
@@ -178,7 +180,7 @@ export default function TreeGrowthDemo() {
             </button>
             <button
               onClick={() => setParentingDays(200)}
-              className={`px-3 py-2 rounded-full text-xs font-medium transition-all shadow-sm ${
+              className={`font-kaisei-tokumin px-3 py-2 rounded-full text-sm font-bold transition-all shadow-sm ${
                 parentingDays > 180 && parentingDays <= 365 
                   ? 'bg-green-200 text-green-800 shadow-green-200/50' 
                   : 'bg-white/80 text-green-600 hover:bg-green-50 hover:text-green-700'
@@ -188,7 +190,7 @@ export default function TreeGrowthDemo() {
             </button>
             <button
               onClick={() => setParentingDays(800)}
-              className={`px-3 py-2 rounded-full text-xs font-medium transition-all shadow-sm ${
+              className={`font-kaisei-tokumin px-3 py-2 rounded-full text-sm font-bold transition-all shadow-sm ${
                 parentingDays > 365 
                   ? 'bg-green-200 text-green-800 shadow-green-200/50' 
                   : 'bg-white/80 text-green-600 hover:bg-green-50 hover:text-green-700'

@@ -56,7 +56,7 @@ export default function PremiumLayout({ children }: PremiumLayoutProps) {
             animate={{ scale: [1, 1.02, 1] }}
             transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
           >
-            <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600 bg-clip-text text-transparent mb-3 tracking-tight">
+            <h1 className="font-kaisei-tokumin text-4xl md:text-5xl font-bold bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600 bg-clip-text text-transparent mb-3 tracking-tight">
               ほめびより
             </h1>
             <div className="w-16 h-0.5 bg-gradient-to-r from-transparent via-emerald-400 to-transparent mx-auto mb-4" />
@@ -69,17 +69,17 @@ export default function PremiumLayout({ children }: PremiumLayoutProps) {
             className={`inline-flex items-center px-6 py-3 rounded-full bg-gradient-to-r ${greeting.color} text-white shadow-lg backdrop-blur-sm`}
           >
             <span className="text-lg mr-2">{greeting.emoji}</span>
-            <span className="font-medium text-sm md:text-base">{greeting.text}</span>
+            <span className="font-kaisei-tokumin font-bold text-sm md:text-base">{greeting.text}</span>
           </motion.div>
           
           <motion.p 
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 0.8, duration: 0.8 }}
-            className="text-slate-600 text-sm md:text-base mt-4 max-w-md mx-auto leading-relaxed"
+            className="font-kaisei-tokumin text-slate-600 text-sm md:text-base mt-4 max-w-md mx-auto leading-relaxed"
           >
             木は今日も静かに育っています<br />
-            <span className="text-emerald-600 font-medium">あなたの育児の頑張りが小さな実になっていきます</span>
+            <span className="text-emerald-600 font-bold">あなたの育児の頑張りが小さな実になっていきます</span>
           </motion.p>
         </motion.header>
 
@@ -119,7 +119,7 @@ export default function PremiumLayout({ children }: PremiumLayoutProps) {
                   transition={{ delay: 1.4 + index * 0.1, duration: 0.5 }}
                 >
                   <span className="text-xl">{item.icon}</span>
-                  <span className="text-xs font-medium">{item.label}</span>
+                  <span className="font-kaisei-tokumin text-xs font-bold text-gray-700">{item.label}</span>
                 </motion.button>
               ))}
             </div>

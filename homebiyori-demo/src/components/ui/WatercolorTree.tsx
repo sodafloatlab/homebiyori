@@ -18,7 +18,7 @@ interface Props {
   ageInDays: number;
   fruits: Fruit[];
   childrenNames: string[];
-  onFruitClick?: (fruit: Fruit) => void;
+  onFruitClick?: (fruit: Fruit, event?: MouseEvent) => void;
 }
 
 const WatercolorTree = ({ ageInDays, fruits, childrenNames, onFruitClick }: Props) => {
@@ -127,6 +127,7 @@ const WatercolorTree = ({ ageInDays, fruits, childrenNames, onFruitClick }: Prop
   return (
     <div className={`relative w-full ${getContainerHeight()} rounded-2xl overflow-hidden bg-gradient-to-b from-blue-50 via-green-50 to-yellow-50 shadow-lg`}>
       
+      
       {/* 水彩風の背景効果 */}
       <div className="absolute inset-0 bg-gradient-radial from-white/30 via-transparent to-transparent opacity-70"></div>
       
@@ -193,7 +194,7 @@ const WatercolorTree = ({ ageInDays, fruits, childrenNames, onFruitClick }: Prop
               }
             }}
             whileHover={{ scale: 1.3, y: -5 }}
-            onClick={() => onFruitClick?.(fruit)}
+            onClick={(e) => onFruitClick?.(fruit, e.nativeEvent)}
           >
             {fruit.isGlowing ? (
               <motion.div
@@ -258,7 +259,7 @@ const WatercolorTree = ({ ageInDays, fruits, childrenNames, onFruitClick }: Prop
         animate={{ opacity: 1, scale: 1 }}
         transition={{ delay: 1.5, duration: 0.8 }}
       >
-        <div className="text-xs font-medium text-green-700">親になって{ageInDays}日目</div>
+        <div className="font-kaisei-tokumin text-sm font-bold text-green-700">親になって{ageInDays}日目</div>
       </motion.div>
 
       {/* 水彩風の装飾効果 */}
@@ -284,6 +285,7 @@ const WatercolorTree = ({ ageInDays, fruits, childrenNames, onFruitClick }: Prop
         ))}
       </div>
 
+
       {/* 子供の名前（水彩風カード） */}
       {childrenNames.length > 0 && (
         <motion.div 
@@ -292,7 +294,7 @@ const WatercolorTree = ({ ageInDays, fruits, childrenNames, onFruitClick }: Prop
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 2, duration: 0.8 }}
         >
-          <span className="text-sm font-medium text-green-700">
+          <span className="font-kaisei-tokumin text-base font-bold text-green-700">
             {childrenNames.join(' ・ ')}
           </span>
         </motion.div>
