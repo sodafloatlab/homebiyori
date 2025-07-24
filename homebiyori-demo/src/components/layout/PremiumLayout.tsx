@@ -1,32 +1,12 @@
 'use client';
 
 import { motion } from 'framer-motion';
-import { useState, useEffect } from 'react';
 
 interface PremiumLayoutProps {
   children: React.ReactNode;
 }
 
 export default function PremiumLayout({ children }: PremiumLayoutProps) {
-  const [currentTime, setCurrentTime] = useState(new Date());
-
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setCurrentTime(new Date());
-    }, 60000);
-
-    return () => clearInterval(timer);
-  }, []);
-
-  const getTimeGreeting = () => {
-    const hours = currentTime.getHours();
-    if (hours < 10) return { text: "おはようございます", emoji: "🌅", color: "from-amber-400 to-orange-500" };
-    if (hours < 17) return { text: "今日もお疲れ様です", emoji: "☀️", color: "from-sky-400 to-blue-500" };
-    if (hours < 21) return { text: "夕方のひとときを", emoji: "🌇", color: "from-orange-400 to-pink-500" };
-    return { text: "今日もお疲れ様でした", emoji: "🌙", color: "from-indigo-500 to-purple-600" };
-  };
-
-  const greeting = getTimeGreeting();
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-stone-50 to-green-50 relative overflow-hidden">
@@ -56,31 +36,38 @@ export default function PremiumLayout({ children }: PremiumLayoutProps) {
             animate={{ scale: [1, 1.02, 1] }}
             transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
           >
-            <h1 className="font-kaisei-tokumin text-4xl md:text-5xl font-bold bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600 bg-clip-text text-transparent mb-3 tracking-tight">
+            <h1 className="font-zen-maru-gothic text-4xl md:text-5xl font-bold bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600 bg-clip-text text-transparent mb-3 tracking-tight">
               ほめびより
             </h1>
             <div className="w-16 h-0.5 bg-gradient-to-r from-transparent via-emerald-400 to-transparent mx-auto mb-4" />
           </motion.div>
           
           <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.5, duration: 0.8 }}
-            className={`inline-flex items-center px-6 py-3 rounded-full bg-gradient-to-r ${greeting.color} text-white shadow-lg backdrop-blur-sm`}
+            className="mt-6 space-y-3"
           >
-            <span className="text-lg mr-2">{greeting.emoji}</span>
-            <span className="font-kaisei-tokumin font-bold text-sm md:text-base">{greeting.text}</span>
+            <motion.p 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.8, duration: 0.8 }}
+              className="font-zen-maru-gothic text-slate-700 text-base md:text-lg font-medium max-w-lg mx-auto"
+            >
+              育児を頑張るあなたを、AIが優しく褒めてくれる
+            </motion.p>
+            
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ delay: 1.0, duration: 0.6 }}
+              className="flex items-center justify-center space-x-2 text-emerald-600"
+            >
+              <span className="w-8 h-px bg-gradient-to-r from-transparent to-emerald-400"></span>
+              <span className="text-sm font-zen-maru-gothic font-bold">今日も一歩ずつ</span>
+              <span className="w-8 h-px bg-gradient-to-l from-transparent to-emerald-400"></span>
+            </motion.div>
           </motion.div>
-          
-          <motion.p 
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.8, duration: 0.8 }}
-            className="font-kaisei-tokumin text-slate-600 text-sm md:text-base mt-4 max-w-md mx-auto leading-relaxed"
-          >
-            木は今日も静かに育っています<br />
-            <span className="text-emerald-600 font-bold">あなたの育児の頑張りが小さな実になっていきます</span>
-          </motion.p>
         </motion.header>
 
         {/* メインコンテンツ */}
@@ -119,7 +106,7 @@ export default function PremiumLayout({ children }: PremiumLayoutProps) {
                   transition={{ delay: 1.4 + index * 0.1, duration: 0.5 }}
                 >
                   <span className="text-xl">{item.icon}</span>
-                  <span className="font-kaisei-tokumin text-xs font-bold text-gray-700">{item.label}</span>
+                  <span className="font-zen-maru-gothic text-xs font-bold text-gray-700">{item.label}</span>
                 </motion.button>
               ))}
             </div>

@@ -2,6 +2,7 @@
 
 import { motion, AnimatePresence } from 'framer-motion';
 import { useState } from 'react';
+import { getAIRoleStyle } from '@/lib/aiRoleStyles';
 
 interface LetterModalProps {
   isVisible: boolean;
@@ -12,6 +13,7 @@ interface LetterModalProps {
 
 export default function LetterModal({ isVisible, message, aiRole, onClose }: LetterModalProps) {
   const [isOpened, setIsOpened] = useState(false);
+  const roleStyle = getAIRoleStyle(aiRole);
 
   const handleEnvelopeClick = () => {
     setIsOpened(true);
@@ -79,8 +81,8 @@ export default function LetterModal({ isVisible, message, aiRole, onClose }: Let
                       {/* 差出人（シンプルに） */}
                       <div className="absolute bottom-6 right-6 text-right z-10">
                         <p className="text-xs font-medium text-green-700/80 mb-1">あなたへの手紙</p>
-                        <p className="text-lg font-bold text-green-800 drop-shadow-sm">
-                          {aiRole}より
+                        <p className={`text-lg font-bold ${roleStyle.textColor} drop-shadow-sm`}>
+                          {roleStyle.displayName}より
                         </p>
                       </div>
                       
@@ -147,12 +149,12 @@ export default function LetterModal({ isVisible, message, aiRole, onClose }: Let
                   {/* 手紙のヘッダー（静的） */}
                   <div className="relative z-10 flex items-center justify-between mb-6 pb-4 border-b border-green-200/50">
                     <div className="flex items-center">
-                      <div className="w-12 h-12 rounded-full bg-gradient-to-br from-green-200 via-blue-200 to-yellow-200 flex items-center justify-center text-green-800 font-bold mr-4 shadow-lg border border-white/50">
-                        {aiRole.charAt(0)}
+                      <div className={`w-12 h-12 rounded-full bg-gradient-to-br ${roleStyle.iconBg} flex items-center justify-center ${roleStyle.textColor} font-bold mr-4 shadow-lg border border-white/50`}>
+                        {roleStyle.displayName.charAt(0)}
                       </div>
                       <div>
-                        <p className="font-bold text-green-800 text-lg">{aiRole}</p>
-                        <p className="text-sm text-green-600/80">あなたへの温かなメッセージ</p>
+                        <p className={`font-bold ${roleStyle.textColor} text-lg`}>{roleStyle.displayName}</p>
+                        <p className={`text-sm ${roleStyle.textColor.replace('800', '600')}/80`}>あなたへの温かなメッセージ</p>
                       </div>
                     </div>
                     <div className="text-yellow-500 text-2xl drop-shadow-sm">
@@ -163,7 +165,7 @@ export default function LetterModal({ isVisible, message, aiRole, onClose }: Let
                   {/* メッセージ本文（水彩風カード） */}
                   <div className="relative z-10 mb-8">
                     <div className="bg-white/60 backdrop-blur-sm rounded-2xl p-6 border border-white/50 shadow-inner">
-                      <p className="text-green-800 leading-relaxed text-base font-medium">
+                      <p className={`${roleStyle.textColor} leading-relaxed text-base font-medium`}>
                         {message}
                       </p>
                     </div>

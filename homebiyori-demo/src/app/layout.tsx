@@ -9,8 +9,8 @@ import {
   Sawarabi_Mincho,
   Shippori_Mincho,
   M_PLUS_Rounded_1c,
-  Zen_Maru_Gothic,
-  Kaisei_Tokumin
+  Zen_Maru_Gothic
+  // Kaisei_Tokumin - Turbopack issue, temporarily disabled
 } from "next/font/google";
 import "./globals.css";
 
@@ -73,11 +73,11 @@ const zenMaruGothic = Zen_Maru_Gothic({
   weight: ["400", "700"],
 });
 
-const kaiseiTokumin = Kaisei_Tokumin({
-  variable: "--font-kaisei-tokumin",
-  subsets: ["latin"],
-  weight: ["400", "700"],
-});
+// const kaiseiTokumin = Kaisei_Tokumin({
+//   variable: "--font-kaisei-tokumin", 
+//   subsets: ["latin"],
+//   weight: ["400", "700"],
+// });
 
 export const metadata: Metadata = {
   title: "Create Next App",
@@ -92,7 +92,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body
-        className={`${geistSans.variable} ${geistMono.variable} ${kleeOne.variable} ${hachiMaruPop.variable} ${kosugiMaru.variable} ${notoSerifJP.variable} ${sawarabiMincho.variable} ${shipporiMincho.variable} ${mPlusRounded1c.variable} ${zenMaruGothic.variable} ${kaiseiTokumin.variable} antialiased`}
+        className={`${geistSans.variable} ${geistMono.variable} ${kleeOne.variable} ${hachiMaruPop.variable} ${kosugiMaru.variable} ${notoSerifJP.variable} ${sawarabiMincho.variable} ${shipporiMincho.variable} ${mPlusRounded1c.variable} ${zenMaruGothic.variable} antialiased`}
       >
         {children}
       </body>

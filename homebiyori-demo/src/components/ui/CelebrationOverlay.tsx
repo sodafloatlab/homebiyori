@@ -2,13 +2,16 @@
 
 import { motion, AnimatePresence } from 'framer-motion';
 import { useEffect } from 'react';
+import { getAIRoleStyle } from '@/lib/aiRoleStyles';
 
 interface CelebrationOverlayProps {
   isVisible: boolean;
+  aiRole?: string;
   onClose: () => void;
 }
 
-export default function CelebrationOverlay({ isVisible, onClose }: CelebrationOverlayProps) {
+export default function CelebrationOverlay({ isVisible, aiRole = 'tama', onClose }: CelebrationOverlayProps) {
+  const roleStyle = getAIRoleStyle(aiRole);
   useEffect(() => {
     if (isVisible) {
       const timer = setTimeout(() => {
@@ -103,10 +106,7 @@ export default function CelebrationOverlay({ isVisible, onClose }: CelebrationOv
                   <div 
                     className="w-4 h-4 rounded-full border border-white/50"
                     style={{
-                      background: `radial-gradient(circle at 30% 30%, 
-                        rgba(255, 255, 255, 0.9) 0%, 
-                        rgba(187, 247, 208, 0.4) 40%, 
-                        rgba(134, 239, 172, 0.7) 100%)`,
+                      background: roleStyle.gradientStyle,
                     }}
                   />
                 ) : i % 3 === 1 ? (

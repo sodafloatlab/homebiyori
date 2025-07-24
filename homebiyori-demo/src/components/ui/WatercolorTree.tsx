@@ -2,13 +2,14 @@
 
 import { motion } from 'framer-motion';
 import Image from 'next/image';
+import { getAIRoleStyle } from '@/lib/aiRoleStyles';
 
 interface Fruit {
   id: string;
   x: number;
   y: number;
   type: 'encouragement' | 'reflection';
-  aiRole: 'たまさん' | 'まどか姉さん' | 'ヒデじい';
+  aiRole: string;
   message: string;
   createdAt: string;
   isGlowing: boolean;
@@ -19,9 +20,10 @@ interface Props {
   fruits: Fruit[];
   childrenNames: string[];
   onFruitClick?: (fruit: Fruit, event?: MouseEvent) => void;
+  newlyAddedFruitId?: string | null;
 }
 
-const WatercolorTree = ({ ageInDays, fruits, childrenNames, onFruitClick }: Props) => {
+const WatercolorTree = ({ ageInDays, fruits, childrenNames, onFruitClick, newlyAddedFruitId }: Props) => {
   // 成長段階に応じて木の画像を選択（生後期間ベース）
   const getTreeImage = () => {
     if (ageInDays <= 7) return '/images/trees/tree_1.png';    // 生後1週間まで - 芽
@@ -158,6 +160,7 @@ const WatercolorTree = ({ ageInDays, fruits, childrenNames, onFruitClick }: Prop
       {fruits.map((fruit, index) => {
         const position = getBubblePosition(fruit);
         const floatDelay = index * 0.5;
+        const roleStyle = getAIRoleStyle(fruit.aiRole);
         return (
           <motion.div
             key={fruit.id}
@@ -200,24 +203,29 @@ const WatercolorTree = ({ ageInDays, fruits, childrenNames, onFruitClick }: Prop
               <motion.div
                 className="relative w-8 h-8 rounded-full cursor-pointer"
                 style={{
-                  background: `radial-gradient(circle at 30% 30%, 
-                    rgba(255, 255, 255, 0.8) 0%, 
-                    ${fruit.type === 'encouragement' ? 'rgba(255, 215, 0, 0.7)' : 'rgba(135, 206, 235, 0.7)'} 40%, 
-                    ${fruit.type === 'encouragement' ? 'rgba(255, 165, 0, 0.9)' : 'rgba(70, 130, 180, 0.9)'} 100%)`,
-                  boxShadow: `0 4px 15px ${fruit.type === 'encouragement' ? 'rgba(255, 215, 0, 0.4)' : 'rgba(135, 206, 235, 0.4)'}`,
+                  background: roleStyle.gradientStyle,
+                  boxShadow: `0 4px 15px ${roleStyle.bubbleColors.primary}`,
                   border: '1px solid rgba(255, 255, 255, 0.3)'
                 }}
+                initial={newlyAddedFruitId === fruit.id ? { scale: 0, opacity: 0 } : false}
                 animate={{
+                  // 新しく追加された実の場合の特別なアニメーション
+                  ...(newlyAddedFruitId === fruit.id ? {
+                    scale: [0, 1.3, 1],
+                    opacity: [0, 1, 1],
+                  } : {}),
                   // シャボン玉のような光る効果
                   boxShadow: [
-                    `0 4px 15px ${fruit.type === 'encouragement' ? 'rgba(255, 215, 0, 0.4)' : 'rgba(135, 206, 235, 0.4)'}`,
-                    `0 6px 25px ${fruit.type === 'encouragement' ? 'rgba(255, 215, 0, 0.6)' : 'rgba(135, 206, 235, 0.6)'}`,
-                    `0 4px 15px ${fruit.type === 'encouragement' ? 'rgba(255, 215, 0, 0.4)' : 'rgba(135, 206, 235, 0.4)'}`
+                    `0 4px 15px ${roleStyle.bubbleColors.primary}`,
+                    `0 6px 25px ${roleStyle.bubbleColors.secondary}`,
+                    `0 4px 15px ${roleStyle.bubbleColors.primary}`
                   ],
                   // ゆっくりとした上下の浮遊
                   y: [-2, 2, -2]
                 }}
                 transition={{ 
+                  scale: newlyAddedFruitId === fruit.id ? { duration: 0.8, ease: "easeOut" } : undefined,
+                  opacity: newlyAddedFruitId === fruit.id ? { duration: 0.8, ease: "easeOut" } : undefined,
                   boxShadow: { duration: 2, repeat: Infinity, ease: "easeInOut" },
                   y: { duration: 3, repeat: Infinity, ease: "easeInOut", delay: index * 0.3 }
                 }}
@@ -230,6 +238,58 @@ const WatercolorTree = ({ ageInDays, fruits, childrenNames, onFruitClick }: Prop
                 <div 
                   className="absolute top-2 left-1 w-1 h-1 bg-white rounded-full opacity-80"
                 />
+
+                {/* 新しく追加された実の特別エフェクト */}
+                {newlyAddedFruitId === fruit.id && (
+                  <>
+                    {[...Array(6)].map((_, particleIndex) => (
+                      <motion.div
+                        key={particleIndex}
+                        className="absolute w-1 h-1 rounded-full"
+                        style={{
+                          background: roleStyle.bubbleColors.secondary,
+                          left: '50%',
+                          top: '50%'
+                        }}
+                        initial={{ 
+                          opacity: 0,
+                          scale: 0,
+                          x: 0,
+                          y: 0
+                        }}
+                        animate={{ 
+                          opacity: [0, 1, 0],
+                          scale: [0, 1.5, 0],
+                          x: (Math.cos(particleIndex * 60 * Math.PI / 180) * 20),
+                          y: (Math.sin(particleIndex * 60 * Math.PI / 180) * 20)
+                        }}
+                        transition={{ 
+                          duration: 1.5,
+                          delay: 0.3,
+                          ease: "easeOut"
+                        }}
+                      />
+                    ))}
+                    
+                    {/* キラキラエフェクト */}
+                    <motion.div
+                      className="absolute -top-2 -right-2 text-yellow-400 text-lg"
+                      initial={{ opacity: 0, scale: 0, rotate: 0 }}
+                      animate={{ 
+                        opacity: [0, 1, 0],
+                        scale: [0, 1.2, 0],
+                        rotate: [0, 180, 360]
+                      }}
+                      transition={{ 
+                        duration: 2,
+                        delay: 0.5,
+                        ease: "easeOut"
+                      }}
+                    >
+                      ✨
+                    </motion.div>
+                  </>
+                )}
               </motion.div>
             ) : (
               <motion.div 
@@ -259,7 +319,7 @@ const WatercolorTree = ({ ageInDays, fruits, childrenNames, onFruitClick }: Prop
         animate={{ opacity: 1, scale: 1 }}
         transition={{ delay: 1.5, duration: 0.8 }}
       >
-        <div className="font-kaisei-tokumin text-sm font-bold text-green-700">親になって{ageInDays}日目</div>
+        <div className="font-zen-maru-gothic text-sm font-bold text-green-700">親になって{ageInDays}日目</div>
       </motion.div>
 
       {/* 水彩風の装飾効果 */}
@@ -294,7 +354,7 @@ const WatercolorTree = ({ ageInDays, fruits, childrenNames, onFruitClick }: Prop
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 2, duration: 0.8 }}
         >
-          <span className="font-kaisei-tokumin text-base font-bold text-green-700">
+          <span className="font-zen-maru-gothic text-base font-bold text-green-700">
             {childrenNames.join(' ・ ')}
           </span>
         </motion.div>
