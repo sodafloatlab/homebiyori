@@ -2,11 +2,7 @@
 
 import { motion, AnimatePresence } from 'framer-motion';
 import { useEffect } from 'react';
-<<<<<<< Updated upstream
-import { getAIRoleStyle } from '@/lib/aiRoleStyles';
-=======
 import AiIcon from './AiIcon';
->>>>>>> Stashed changes
 
 interface FloatingMessageProps {
   isVisible: boolean;
@@ -17,7 +13,6 @@ interface FloatingMessageProps {
   position: { x: number; y: number };
 }
 
-
 export default function FloatingMessage({ 
   isVisible, 
   message, 
@@ -26,8 +21,6 @@ export default function FloatingMessage({
   onClose, 
   position 
 }: FloatingMessageProps) {
-  const roleStyle = getAIRoleStyle(aiRole);
-
   useEffect(() => {
     if (isVisible) {
       const timer = setTimeout(() => {
@@ -117,20 +110,14 @@ export default function FloatingMessage({
             
             {/* AIキャラクター表示（静的） */}
             <div className="relative z-10 flex items-center mb-3">
-<<<<<<< Updated upstream
-              <div className={`w-10 h-10 rounded-full bg-gradient-to-br ${roleStyle.iconBg} flex items-center justify-center ${roleStyle.textColor} text-sm font-bold mr-3 shadow-lg border border-white/50`}>
-                {roleStyle.displayName.charAt(0)}
-              </div>
-=======
               <AiIcon 
                 aiRole={aiRole} 
                 size={40} 
                 className="border-2 border-white/70 shadow-lg mr-3" 
               />
->>>>>>> Stashed changes
               <div>
-                <p className={`text-sm font-semibold ${roleStyle.textColor}`}>{roleStyle.displayName}</p>
-                <p className={`text-xs ${roleStyle.textColor.replace('800', '600')}/80`}>{date}</p>
+                <p className="text-sm font-semibold text-green-800">{aiRole}</p>
+                <p className="text-xs text-green-600/80">{date}</p>
               </div>
               <div className="ml-auto text-yellow-500 text-lg">
                 ✨
@@ -139,7 +126,7 @@ export default function FloatingMessage({
             
             {/* メッセージ（水彩風カード） */}
             <div className="relative z-10 bg-white/50 backdrop-blur-sm rounded-xl p-3 border border-white/40 shadow-inner">
-              <p className={`text-sm ${roleStyle.textColor} leading-relaxed font-medium`}>
+              <p className="text-sm text-green-800 leading-relaxed font-medium">
                 {message}
               </p>
             </div>
@@ -157,7 +144,10 @@ export default function FloatingMessage({
                 <div 
                   className="w-2 h-2 rounded-full border border-white/40"
                   style={{
-                    background: roleStyle.gradientStyle,
+                    background: `radial-gradient(circle at 30% 30%, 
+                      rgba(255, 255, 255, 0.8) 0%, 
+                      rgba(187, 247, 208, 0.3) 40%, 
+                      rgba(134, 239, 172, 0.6) 100%)`,
                   }}
                 />
               </div>
