@@ -2,7 +2,11 @@
 
 import { motion, AnimatePresence } from 'framer-motion';
 import { useEffect } from 'react';
+<<<<<<< Updated upstream
 import { getAIRoleStyle } from '@/lib/aiRoleStyles';
+=======
+import AiIcon from './AiIcon';
+>>>>>>> Stashed changes
 
 interface FloatingMessageProps {
   isVisible: boolean;
@@ -12,6 +16,7 @@ interface FloatingMessageProps {
   onClose: () => void;
   position: { x: number; y: number };
 }
+
 
 export default function FloatingMessage({ 
   isVisible, 
@@ -112,9 +117,17 @@ export default function FloatingMessage({
             
             {/* AIキャラクター表示（静的） */}
             <div className="relative z-10 flex items-center mb-3">
+<<<<<<< Updated upstream
               <div className={`w-10 h-10 rounded-full bg-gradient-to-br ${roleStyle.iconBg} flex items-center justify-center ${roleStyle.textColor} text-sm font-bold mr-3 shadow-lg border border-white/50`}>
                 {roleStyle.displayName.charAt(0)}
               </div>
+=======
+              <AiIcon 
+                aiRole={aiRole} 
+                size={40} 
+                className="border-2 border-white/70 shadow-lg mr-3" 
+              />
+>>>>>>> Stashed changes
               <div>
                 <p className={`text-sm font-semibold ${roleStyle.textColor}`}>{roleStyle.displayName}</p>
                 <p className={`text-xs ${roleStyle.textColor.replace('800', '600')}/80`}>{date}</p>

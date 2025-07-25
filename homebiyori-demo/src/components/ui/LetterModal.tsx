@@ -2,7 +2,11 @@
 
 import { motion, AnimatePresence } from 'framer-motion';
 import { useState } from 'react';
+<<<<<<< Updated upstream
 import { getAIRoleStyle } from '@/lib/aiRoleStyles';
+=======
+import AiIcon from './AiIcon';
+>>>>>>> Stashed changes
 
 interface LetterModalProps {
   isVisible: boolean;
@@ -10,6 +14,7 @@ interface LetterModalProps {
   aiRole: string;
   onClose: () => void;
 }
+
 
 export default function LetterModal({ isVisible, message, aiRole, onClose }: LetterModalProps) {
   const [isOpened, setIsOpened] = useState(false);
@@ -81,9 +86,22 @@ export default function LetterModal({ isVisible, message, aiRole, onClose }: Let
                       {/* 差出人（シンプルに） */}
                       <div className="absolute bottom-6 right-6 text-right z-10">
                         <p className="text-xs font-medium text-green-700/80 mb-1">あなたへの手紙</p>
+<<<<<<< Updated upstream
                         <p className={`text-lg font-bold ${roleStyle.textColor} drop-shadow-sm`}>
                           {roleStyle.displayName}より
                         </p>
+=======
+                        <div className="flex items-center justify-end space-x-2">
+                          <AiIcon 
+                            aiRole={aiRole} 
+                            size={40} 
+                            className="border border-green-200 shadow-sm" 
+                          />
+                          <p className="text-lg font-bold text-green-800 drop-shadow-sm">
+                            {aiRole}より
+                          </p>
+                        </div>
+>>>>>>> Stashed changes
                       </div>
                       
                       {/* 開封を促すメッセージ（洗練） */}
@@ -149,9 +167,17 @@ export default function LetterModal({ isVisible, message, aiRole, onClose }: Let
                   {/* 手紙のヘッダー（静的） */}
                   <div className="relative z-10 flex items-center justify-between mb-6 pb-4 border-b border-green-200/50">
                     <div className="flex items-center">
+<<<<<<< Updated upstream
                       <div className={`w-12 h-12 rounded-full bg-gradient-to-br ${roleStyle.iconBg} flex items-center justify-center ${roleStyle.textColor} font-bold mr-4 shadow-lg border border-white/50`}>
                         {roleStyle.displayName.charAt(0)}
                       </div>
+=======
+                      <AiIcon 
+                        aiRole={aiRole} 
+                        size={48} 
+                        className="border-2 border-green-200 shadow-lg mr-4" 
+                      />
+>>>>>>> Stashed changes
                       <div>
                         <p className={`font-bold ${roleStyle.textColor} text-lg`}>{roleStyle.displayName}</p>
                         <p className={`text-sm ${roleStyle.textColor.replace('800', '600')}/80`}>あなたへの温かなメッセージ</p>

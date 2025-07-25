@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { 
   Geist, 
   Geist_Mono,
+<<<<<<< Updated upstream
   Klee_One,
   Hachi_Maru_Pop,
   Kosugi_Maru,
@@ -11,6 +12,9 @@ import {
   M_PLUS_Rounded_1c,
   Zen_Maru_Gothic
   // Kaisei_Tokumin - Turbopack issue, temporarily disabled
+=======
+  Kaisei_Tokumin
+>>>>>>> Stashed changes
 } from "next/font/google";
 import "./globals.css";
 
@@ -24,6 +28,7 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+<<<<<<< Updated upstream
 // 日本語フォント設定
 const kleeOne = Klee_One({
   variable: "--font-klee-one",
@@ -78,6 +83,13 @@ const zenMaruGothic = Zen_Maru_Gothic({
 //   subsets: ["latin"],
 //   weight: ["400", "700"],
 // });
+=======
+const kaiseiTokumin = Kaisei_Tokumin({
+  variable: "--font-kaisei-tokumin",
+  subsets: ["latin"],
+  weight: ["400", "700"],
+});
+>>>>>>> Stashed changes
 
 export const metadata: Metadata = {
   title: "Create Next App",
@@ -92,7 +104,11 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body
+<<<<<<< Updated upstream
         className={`${geistSans.variable} ${geistMono.variable} ${kleeOne.variable} ${hachiMaruPop.variable} ${kosugiMaru.variable} ${notoSerifJP.variable} ${sawarabiMincho.variable} ${shipporiMincho.variable} ${mPlusRounded1c.variable} ${zenMaruGothic.variable} antialiased`}
+=======
+        className={`${geistSans.variable} ${geistMono.variable} ${kaiseiTokumin.variable} antialiased`}
+>>>>>>> Stashed changes
       >
         {children}
       </body>

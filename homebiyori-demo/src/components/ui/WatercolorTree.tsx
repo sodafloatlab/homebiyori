@@ -20,10 +20,17 @@ interface Props {
   fruits: Fruit[];
   childrenNames: string[];
   onFruitClick?: (fruit: Fruit, event?: MouseEvent) => void;
+<<<<<<< Updated upstream
   newlyAddedFruitId?: string | null;
 }
 
 const WatercolorTree = ({ ageInDays, fruits, childrenNames, onFruitClick, newlyAddedFruitId }: Props) => {
+=======
+  onTreeShadeClick?: () => void;
+}
+
+const WatercolorTree = ({ ageInDays, fruits, childrenNames, onFruitClick, onTreeShadeClick }: Props) => {
+>>>>>>> Stashed changes
   // 成長段階に応じて木の画像を選択（生後期間ベース）
   const getTreeImage = () => {
     if (ageInDays <= 7) return '/images/trees/tree_1.png';    // 生後1週間まで - 芽
@@ -116,6 +123,36 @@ const WatercolorTree = ({ ageInDays, fruits, childrenNames, onFruitClick, newlyA
     };
   };
 
+  // AIロールに応じた色設定を取得
+  const getFruitColors = (aiRole: string) => {
+    switch (aiRole) {
+      case 'たまさん':
+        return {
+          gradient: 'rgba(255, 182, 193, 0.7) 40%, rgba(255, 105, 180, 0.9) 100%',
+          shadow: 'rgba(255, 182, 193, 0.4)',
+          glowShadow: 'rgba(255, 182, 193, 0.6)'
+        };
+      case 'まどか姉さん':
+        return {
+          gradient: 'rgba(135, 206, 235, 0.7) 40%, rgba(70, 130, 180, 0.9) 100%',
+          shadow: 'rgba(135, 206, 235, 0.4)',
+          glowShadow: 'rgba(135, 206, 235, 0.6)'
+        };
+      case 'ヒデじい':
+        return {
+          gradient: 'rgba(255, 215, 0, 0.7) 40%, rgba(255, 165, 0, 0.9) 100%',
+          shadow: 'rgba(255, 215, 0, 0.4)',
+          glowShadow: 'rgba(255, 215, 0, 0.6)'
+        };
+      default:
+        return {
+          gradient: 'rgba(255, 215, 0, 0.7) 40%, rgba(255, 165, 0, 0.9) 100%',
+          shadow: 'rgba(255, 215, 0, 0.4)',
+          glowShadow: 'rgba(255, 215, 0, 0.6)'
+        };
+    }
+  };
+
   // コンテナの高さも成長に応じて調整
   const getContainerHeight = () => {
     if (ageInDays <= 7) return 'h-[400px]';     // 400px - 芽
@@ -203,8 +240,15 @@ const WatercolorTree = ({ ageInDays, fruits, childrenNames, onFruitClick, newlyA
               <motion.div
                 className="relative w-8 h-8 rounded-full cursor-pointer"
                 style={{
+<<<<<<< Updated upstream
                   background: roleStyle.gradientStyle,
                   boxShadow: `0 4px 15px ${roleStyle.bubbleColors.primary}`,
+=======
+                  background: `radial-gradient(circle at 30% 30%, 
+                    rgba(255, 255, 255, 0.8) 0%, 
+                    ${getFruitColors(fruit.aiRole).gradient})`,
+                  boxShadow: `0 4px 15px ${getFruitColors(fruit.aiRole).shadow}`,
+>>>>>>> Stashed changes
                   border: '1px solid rgba(255, 255, 255, 0.3)'
                 }}
                 initial={newlyAddedFruitId === fruit.id ? { scale: 0, opacity: 0 } : false}
@@ -216,9 +260,15 @@ const WatercolorTree = ({ ageInDays, fruits, childrenNames, onFruitClick, newlyA
                   } : {}),
                   // シャボン玉のような光る効果
                   boxShadow: [
+<<<<<<< Updated upstream
                     `0 4px 15px ${roleStyle.bubbleColors.primary}`,
                     `0 6px 25px ${roleStyle.bubbleColors.secondary}`,
                     `0 4px 15px ${roleStyle.bubbleColors.primary}`
+=======
+                    `0 4px 15px ${getFruitColors(fruit.aiRole).shadow}`,
+                    `0 6px 25px ${getFruitColors(fruit.aiRole).glowShadow}`,
+                    `0 4px 15px ${getFruitColors(fruit.aiRole).shadow}`
+>>>>>>> Stashed changes
                   ],
                   // ゆっくりとした上下の浮遊
                   y: [-2, 2, -2]
@@ -345,6 +395,38 @@ const WatercolorTree = ({ ageInDays, fruits, childrenNames, onFruitClick, newlyA
         ))}
       </div>
 
+
+      {/* 木陰エリア（チャット起動ボタン） */}
+      {onTreeShadeClick && (
+        <motion.div
+          className="absolute bottom-8 left-4 cursor-pointer group"
+          initial={{ opacity: 0, scale: 0.8 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ delay: 2.5, duration: 0.8 }}
+          onClick={onTreeShadeClick}
+        >
+          <div className="relative bg-green-900/20 backdrop-blur-sm rounded-2xl px-4 py-3 shadow-lg border border-green-200/50 hover:bg-green-900/30 transition-all duration-300 group-hover:scale-105">
+            <div className="flex items-center space-x-2">
+              <div className="text-lg">🌳</div>
+              <div className="text-sm font-medium text-green-800">
+                木陰でおしゃべり
+              </div>
+            </div>
+            <motion.div
+              className="absolute -top-1 -right-1 w-3 h-3 bg-blue-400 rounded-full"
+              animate={{
+                scale: [1, 1.2, 1],
+                opacity: [0.7, 1, 0.7]
+              }}
+              transition={{
+                duration: 2,
+                repeat: Infinity,
+                ease: "easeInOut"
+              }}
+            />
+          </div>
+        </motion.div>
+      )}
 
       {/* 子供の名前（水彩風カード） */}
       {childrenNames.length > 0 && (
