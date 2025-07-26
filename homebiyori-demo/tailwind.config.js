@@ -8,7 +8,9 @@ module.exports = {
   theme: {
     extend: {
       fontFamily: {
-        'kaisei-tokumin': ['var(--font-kaisei-tokumin)', 'serif'],
+        'inter': ['var(--font-inter)', 'sans-serif'],
+        'noto-sans-jp': ['var(--font-noto-sans-jp)', 'sans-serif'],
+        'zen-maru-gothic': ['var(--font-noto-sans-jp)', 'sans-serif'], // fallback
       },
     },
   },

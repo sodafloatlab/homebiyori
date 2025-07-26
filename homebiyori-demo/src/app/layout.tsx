@@ -1,83 +1,17 @@
 import type { Metadata } from "next";
-import { 
-  Geist, 
-  Geist_Mono,
-  Klee_One,
-  Hachi_Maru_Pop,
-  Kosugi_Maru,
-  Noto_Serif_JP,
-  Sawarabi_Mincho,
-  Shippori_Mincho,
-  M_PLUS_Rounded_1c,
-  Zen_Maru_Gothic
-  // Kaisei_Tokumin - Turbopack issue, temporarily disabled
-} from "next/font/google";
+import { Inter, Noto_Sans_JP } from "next/font/google";
 import "./globals.css";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+const inter = Inter({ 
   subsets: ["latin"],
+  variable: "--font-inter",
 });
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
+const notoSansJP = Noto_Sans_JP({
   subsets: ["latin"],
+  weight: ["400", "500", "700"],
+  variable: "--font-noto-sans-jp",
 });
-
-// 日本語フォント設定
-const kleeOne = Klee_One({
-  variable: "--font-klee-one",
-  subsets: ["latin"],
-  weight: ["400", "600"],
-});
-
-const hachiMaruPop = Hachi_Maru_Pop({
-  variable: "--font-hachi-maru-pop",
-  subsets: ["latin"],
-  weight: ["400"],
-});
-
-const kosugiMaru = Kosugi_Maru({
-  variable: "--font-kosugi-maru",
-  subsets: ["latin"],
-  weight: ["400"],
-});
-
-const notoSerifJP = Noto_Serif_JP({
-  variable: "--font-noto-serif-jp",
-  subsets: ["latin"],
-  weight: ["400", "600"],
-});
-
-const sawarabiMincho = Sawarabi_Mincho({
-  variable: "--font-sawarabi-mincho",
-  subsets: ["latin"],
-  weight: ["400"],
-});
-
-const shipporiMincho = Shippori_Mincho({
-  variable: "--font-shippori-mincho",
-  subsets: ["latin"],
-  weight: ["400", "600"],
-});
-
-const mPlusRounded1c = M_PLUS_Rounded_1c({
-  variable: "--font-m-plus-rounded-1c",
-  subsets: ["latin"],
-  weight: ["400", "700"],
-});
-
-const zenMaruGothic = Zen_Maru_Gothic({
-  variable: "--font-zen-maru-gothic",
-  subsets: ["latin"],
-  weight: ["400", "700"],
-});
-
-// const kaiseiTokumin = Kaisei_Tokumin({
-//   variable: "--font-kaisei-tokumin", 
-//   subsets: ["latin"],
-//   weight: ["400", "700"],
-// });
 
 export const metadata: Metadata = {
   title: "Create Next App",
@@ -92,7 +26,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body
-        className={`${geistSans.variable} ${geistMono.variable} ${kleeOne.variable} ${hachiMaruPop.variable} ${kosugiMaru.variable} ${notoSerifJP.variable} ${sawarabiMincho.variable} ${shipporiMincho.variable} ${mPlusRounded1c.variable} ${zenMaruGothic.variable} antialiased`}
+        className={`${inter.variable} ${notoSansJP.variable} antialiased`}
       >
         {children}
       </body>

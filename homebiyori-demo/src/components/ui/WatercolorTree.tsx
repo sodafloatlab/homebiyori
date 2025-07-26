@@ -289,7 +289,7 @@ const WatercolorTree = ({ ageInDays, fruits, childrenNames, onFruitClick, onTree
         animate={{ opacity: 1, scale: 1 }}
         transition={{ delay: 1.5, duration: 0.8 }}
       >
-        <div className="font-zen-maru-gothic text-sm font-bold text-green-700">親になって{ageInDays}日目</div>
+        <div className="font-noto-sans-jp text-sm font-bold text-green-700">親になって{ageInDays}日目</div>
       </motion.div>
 
       {/* 水彩風の装飾効果 */}
@@ -356,7 +356,7 @@ const WatercolorTree = ({ ageInDays, fruits, childrenNames, onFruitClick, onTree
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 2, duration: 0.8 }}
         >
-          <span className="font-zen-maru-gothic text-base font-bold text-green-700">
+          <span className="font-noto-sans-jp text-base font-bold text-green-700">
             {childrenNames.join(' ・ ')}
           </span>
         </motion.div>

@@ -174,7 +174,7 @@ export default function TreeGrowthDemo() {
           <>
             {/* 統計表示 */}
             <div className="bg-white/70 backdrop-blur-sm rounded-2xl p-6 shadow-lg border border-green-100">
-              <h3 className="font-zen-maru-gothic text-lg font-bold text-green-700 mb-4 text-center">育児の記録</h3>
+              <h3 className="font-noto-sans-jp text-lg font-bold text-green-700 mb-4 text-center">育児の記録</h3>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
                 <div>
                   <div className="text-2xl font-bold text-green-700">{treeData.totalDays}</div>
@@ -206,11 +206,11 @@ export default function TreeGrowthDemo() {
 
             {/* 成長段階コントロール */}
             <div className="bg-white/70 backdrop-blur-sm rounded-2xl p-6 shadow-lg border border-green-100">
-              <h3 className="font-zen-maru-gothic text-lg font-bold text-green-700 mb-4 text-center">成長段階をお試しください</h3>
+              <h3 className="font-noto-sans-jp text-lg font-bold text-green-700 mb-4 text-center">成長段階をお試しください</h3>
               <div className="grid grid-cols-2 md:grid-cols-3 gap-2 max-w-4xl">
                 <button
                   onClick={() => setDemoParentingDays(5)}
-                  className={`font-zen-maru-gothic px-3 py-2 rounded-full text-sm font-bold transition-all shadow-sm ${
+                  className={`font-noto-sans-jp px-3 py-2 rounded-full text-sm font-bold transition-all shadow-sm ${
                     currentAgeInDays <= 7 
                       ? 'bg-green-200 text-green-800 shadow-green-200/50' 
                       : 'bg-white/80 text-green-600 hover:bg-green-50 hover:text-green-700'
@@ -220,7 +220,7 @@ export default function TreeGrowthDemo() {
                 </button>
                 <button
                   onClick={() => setDemoParentingDays(20)}
-                  className={`font-zen-maru-gothic px-3 py-2 rounded-full text-sm font-bold transition-all shadow-sm ${
+                  className={`font-noto-sans-jp px-3 py-2 rounded-full text-sm font-bold transition-all shadow-sm ${
                     currentAgeInDays > 7 && currentAgeInDays <= 30 
                       ? 'bg-green-200 text-green-800 shadow-green-200/50' 
                       : 'bg-white/80 text-green-600 hover:bg-green-50 hover:text-green-700'
@@ -230,7 +230,7 @@ export default function TreeGrowthDemo() {
                 </button>
                 <button
                   onClick={() => setDemoParentingDays(60)}
-                  className={`font-zen-maru-gothic px-3 py-2 rounded-full text-sm font-bold transition-all shadow-sm ${
+                  className={`font-noto-sans-jp px-3 py-2 rounded-full text-sm font-bold transition-all shadow-sm ${
                     currentAgeInDays > 30 && currentAgeInDays <= 90 
                       ? 'bg-green-200 text-green-800 shadow-green-200/50' 
                       : 'bg-white/80 text-green-600 hover:bg-green-50 hover:text-green-700'
@@ -240,7 +240,7 @@ export default function TreeGrowthDemo() {
                 </button>
                 <button
                   onClick={() => setDemoParentingDays(120)}
-                  className={`font-zen-maru-gothic px-3 py-2 rounded-full text-sm font-bold transition-all shadow-sm ${
+                  className={`font-noto-sans-jp px-3 py-2 rounded-full text-sm font-bold transition-all shadow-sm ${
                     currentAgeInDays > 90 && currentAgeInDays <= 180 
                       ? 'bg-green-200 text-green-800 shadow-green-200/50' 
                       : 'bg-white/80 text-green-600 hover:bg-green-50 hover:text-green-700'
@@ -250,7 +250,7 @@ export default function TreeGrowthDemo() {
                 </button>
                 <button
                   onClick={() => setDemoParentingDays(200)}
-                  className={`font-zen-maru-gothic px-3 py-2 rounded-full text-sm font-bold transition-all shadow-sm ${
+                  className={`font-noto-sans-jp px-3 py-2 rounded-full text-sm font-bold transition-all shadow-sm ${
                     currentAgeInDays > 180 && currentAgeInDays <= 365 
                       ? 'bg-green-200 text-green-800 shadow-green-200/50' 
                       : 'bg-white/80 text-green-600 hover:bg-green-50 hover:text-green-700'
@@ -260,7 +260,7 @@ export default function TreeGrowthDemo() {
                 </button>
                 <button
                   onClick={() => setDemoParentingDays(800)}
-                  className={`font-zen-maru-gothic px-3 py-2 rounded-full text-sm font-bold transition-all shadow-sm ${
+                  className={`font-noto-sans-jp px-3 py-2 rounded-full text-sm font-bold transition-all shadow-sm ${
                     currentAgeInDays > 365 
                       ? 'bg-green-200 text-green-800 shadow-green-200/50' 
                       : 'bg-white/80 text-green-600 hover:bg-green-50 hover:text-green-700'

@@ -36,7 +36,7 @@ export default function PremiumLayout({ children }: PremiumLayoutProps) {
             animate={{ scale: [1, 1.02, 1] }}
             transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
           >
-            <h1 className="font-zen-maru-gothic text-4xl md:text-5xl font-bold bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600 bg-clip-text text-transparent mb-3 tracking-tight">
+            <h1 className="font-noto-sans-jp text-4xl md:text-5xl font-bold bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600 bg-clip-text text-transparent mb-3 tracking-tight">
               ほめびより
             </h1>
             <div className="w-16 h-0.5 bg-gradient-to-r from-transparent via-emerald-400 to-transparent mx-auto mb-4" />
@@ -52,7 +52,7 @@ export default function PremiumLayout({ children }: PremiumLayoutProps) {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ delay: 0.8, duration: 0.8 }}
-              className="font-zen-maru-gothic text-slate-700 text-base md:text-lg font-medium max-w-lg mx-auto"
+              className="font-noto-sans-jp text-slate-700 text-base md:text-lg font-medium max-w-lg mx-auto"
             >
               育児を頑張るあなたを、AIが優しく褒めてくれる
             </motion.p>
@@ -64,7 +64,7 @@ export default function PremiumLayout({ children }: PremiumLayoutProps) {
               className="flex items-center justify-center space-x-2 text-emerald-600"
             >
               <span className="w-8 h-px bg-gradient-to-r from-transparent to-emerald-400"></span>
-              <span className="text-sm font-zen-maru-gothic font-bold">今日も一歩ずつ</span>
+              <span className="text-sm font-noto-sans-jp font-bold">今日も一歩ずつ</span>
               <span className="w-8 h-px bg-gradient-to-l from-transparent to-emerald-400"></span>
             </motion.div>
           </motion.div>
@@ -106,7 +106,7 @@ export default function PremiumLayout({ children }: PremiumLayoutProps) {
                   transition={{ delay: 1.4 + index * 0.1, duration: 0.5 }}
                 >
                   <span className="text-xl">{item.icon}</span>
-                  <span className="font-zen-maru-gothic text-xs font-bold text-gray-700">{item.label}</span>
+                  <span className="font-noto-sans-jp text-xs font-bold text-gray-700">{item.label}</span>
                 </motion.button>
               ))}
             </div>
