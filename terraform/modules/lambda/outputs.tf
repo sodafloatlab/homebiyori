@@ -1,31 +1,31 @@
-output "main_api_function_name" {
-  description = "Name of the main API Lambda function"
-  value       = aws_lambda_function.main_api.function_name
+output "core_service_function_name" {
+  description = "Name of the Core Service Lambda function"
+  value       = aws_lambda_function.core_service.function_name
 }
 
-output "main_api_function_arn" {
-  description = "ARN of the main API Lambda function"
-  value       = aws_lambda_function.main_api.arn
+output "core_service_function_arn" {
+  description = "ARN of the Core Service Lambda function"
+  value       = aws_lambda_function.core_service.arn
 }
 
-output "main_api_invoke_arn" {
-  description = "Invoke ARN of the main API Lambda function"
-  value       = aws_lambda_function.main_api.invoke_arn
+output "core_service_invoke_arn" {
+  description = "Invoke ARN of the Core Service Lambda function"
+  value       = aws_lambda_function.core_service.invoke_arn
 }
 
-output "ai_praise_function_name" {
-  description = "Name of the AI praise Lambda function"
-  value       = aws_lambda_function.ai_praise.function_name
+output "ai_service_function_name" {
+  description = "Name of the AI Service Lambda function"
+  value       = aws_lambda_function.ai_service.function_name
 }
 
-output "ai_praise_function_arn" {
-  description = "ARN of the AI praise Lambda function"
-  value       = aws_lambda_function.ai_praise.arn
+output "ai_service_function_arn" {
+  description = "ARN of the AI Service Lambda function"
+  value       = aws_lambda_function.ai_service.arn
 }
 
-output "ai_praise_invoke_arn" {
-  description = "Invoke ARN of the AI praise Lambda function"
-  value       = aws_lambda_function.ai_praise.invoke_arn
+output "ai_service_invoke_arn" {
+  description = "Invoke ARN of the AI Service Lambda function"
+  value       = aws_lambda_function.ai_service.invoke_arn
 }
 
 output "lambda_layer_arn" {

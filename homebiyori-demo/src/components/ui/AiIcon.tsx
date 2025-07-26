@@ -1,7 +1,8 @@
 'use client';
 
 import Image from 'next/image';
-import { AiRole } from './AiRoleSelector';
+
+export type AiRole = 'tama' | 'madoka' | 'hide';
 
 interface AiIconProps {
   aiRole: AiRole | string;

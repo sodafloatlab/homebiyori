@@ -39,9 +39,9 @@ resource "aws_dynamodb_table" "users" {
   })
 }
 
-# Posts テーブル - 投稿メタデータ（実際のコンテンツはS3）
-resource "aws_dynamodb_table" "posts" {
-  name         = "${var.project_name}-${var.environment}-posts"
+# Chat テーブル - 統合チャット機能のメタデータ
+resource "aws_dynamodb_table" "chat" {
+  name         = "${var.project_name}-${var.environment}-chat"
   billing_mode = "ON_DEMAND"
   hash_key     = "PK"
   range_key    = "SK"
@@ -57,13 +57,24 @@ resource "aws_dynamodb_table" "posts" {
   }
 
   attribute {
-    name = "post_type"
+    name = "session_id"
+    type = "S"
+  }
+
+  attribute {
+    name = "ai_role"
     type = "S"
   }
 
   global_secondary_index {
-    name     = "post-type-index"
-    hash_key = "post_type"
+    name     = "session-index"
+    hash_key = "session_id"
+    range_key = "SK"
+  }
+
+  global_secondary_index {
+    name     = "ai-role-index"
+    hash_key = "ai_role"
     range_key = "SK"
   }
 
@@ -76,14 +87,45 @@ resource "aws_dynamodb_table" "posts" {
   }
 
   tags = merge(var.common_tags, {
-    Name = "${var.project_name}-${var.environment}-posts"
-    Type = "posts"
+    Name = "${var.project_name}-${var.environment}-chat"
+    Type = "chat"
   })
 }
 
-# Praises テーブル - AI褒めメッセージ履歴
-resource "aws_dynamodb_table" "praises" {
-  name         = "${var.project_name}-${var.environment}-praises"
+# Tree テーブル - 木の成長統計情報
+resource "aws_dynamodb_table" "tree" {
+  name         = "${var.project_name}-${var.environment}-tree"
+  billing_mode = "ON_DEMAND"
+  hash_key     = "PK"
+  range_key    = "SK"
+
+  attribute {
+    name = "PK"
+    type = "S"
+  }
+
+  attribute {
+    name = "SK"
+    type = "S"
+  }
+
+  point_in_time_recovery {
+    enabled = var.enable_point_in_time_recovery
+  }
+
+  server_side_encryption {
+    enabled = true
+  }
+
+  tags = merge(var.common_tags, {
+    Name = "${var.project_name}-${var.environment}-tree"
+    Type = "tree-stats"
+  })
+}
+
+# Fruits テーブル - 実の個別管理
+resource "aws_dynamodb_table" "fruits" {
+  name         = "${var.project_name}-${var.environment}-fruits"
   billing_mode = "ON_DEMAND"
   hash_key     = "PK"
   range_key    = "SK"
@@ -103,10 +145,15 @@ resource "aws_dynamodb_table" "praises" {
     type = "S"
   }
 
+  attribute {
+    name = "creation_date"
+    type = "S"
+  }
+
   global_secondary_index {
-    name     = "ai-role-index"
+    name     = "ai-role-date-index"
     hash_key = "ai_role"
-    range_key = "SK"
+    range_key = "creation_date"
   }
 
   point_in_time_recovery {
@@ -118,39 +165,8 @@ resource "aws_dynamodb_table" "praises" {
   }
 
   tags = merge(var.common_tags, {
-    Name = "${var.project_name}-${var.environment}-praises"
-    Type = "praises"
-  })
-}
-
-# Stats テーブル - 統計情報（花畑レベル、マイルストーン等）
-resource "aws_dynamodb_table" "stats" {
-  name         = "${var.project_name}-${var.environment}-stats"
-  billing_mode = "ON_DEMAND"
-  hash_key     = "PK"
-  range_key    = "SK"
-
-  attribute {
-    name = "PK"
-    type = "S"
-  }
-
-  attribute {
-    name = "SK"
-    type = "S"
-  }
-
-  point_in_time_recovery {
-    enabled = var.enable_point_in_time_recovery
-  }
-
-  server_side_encryption {
-    enabled = true
-  }
-
-  tags = merge(var.common_tags, {
-    Name = "${var.project_name}-${var.environment}-stats"
-    Type = "stats"
+    Name = "${var.project_name}-${var.environment}-fruits"
+    Type = "fruits"
   })
 }
 

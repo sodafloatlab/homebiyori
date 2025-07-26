@@ -14,13 +14,13 @@ variable "common_tags" {
   default     = {}
 }
 
-variable "main_lambda_invoke_arn" {
-  description = "Invoke ARN of the main Lambda function"
+variable "core_service_invoke_arn" {
+  description = "Invoke ARN of the Core Service Lambda function"
   type        = string
 }
 
-variable "ai_praise_lambda_invoke_arn" {
-  description = "Invoke ARN of the AI praise Lambda function"
+variable "ai_service_invoke_arn" {
+  description = "Invoke ARN of the AI Service Lambda function"
   type        = string
 }
 

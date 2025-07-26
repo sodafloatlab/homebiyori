@@ -28,21 +28,23 @@ output "static_bucket_domain_name" {
   value       = aws_s3_bucket.static.bucket_domain_name
 }
 
-output "posts_bucket_name" {
-  description = "Name of the posts bucket"
-  value       = aws_s3_bucket.posts.bucket
+output "chat_content_bucket_name" {
+  description = "Name of the chat content bucket"
+  value       = var.create_chat_content_bucket ? aws_s3_bucket.chat_content[0].bucket : null
 }
 
-output "posts_bucket_arn" {
-  description = "ARN of the posts bucket"
-  value       = aws_s3_bucket.posts.arn
+output "chat_content_bucket_arn" {
+  description = "ARN of the chat content bucket"
+  value       = var.create_chat_content_bucket ? aws_s3_bucket.chat_content[0].arn : null
 }
 
 output "bucket_names" {
   description = "List of all bucket names"
-  value = [
-    aws_s3_bucket.images.bucket,
-    aws_s3_bucket.static.bucket,
-    aws_s3_bucket.posts.bucket
-  ]
+  value = concat(
+    [
+      aws_s3_bucket.images.bucket,
+      aws_s3_bucket.static.bucket
+    ],
+    var.create_chat_content_bucket ? [aws_s3_bucket.chat_content[0].bucket] : []
+  )
 }

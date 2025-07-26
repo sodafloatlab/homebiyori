@@ -57,64 +57,72 @@ resource "aws_api_gateway_resource" "users" {
   path_part   = "users"
 }
 
-# Posts resource
-resource "aws_api_gateway_resource" "posts" {
+# Core Service Resources (chat, tree, users, children, settings)
+resource "aws_api_gateway_resource" "core" {
   rest_api_id = aws_api_gateway_rest_api.main.id
   parent_id   = aws_api_gateway_resource.api.id
-  path_part   = "posts"
+  path_part   = "core"
 }
 
-# Praise resource
-resource "aws_api_gateway_resource" "praise" {
+# AI Service Resources (AI処理、感情検出、褒め生成)
+resource "aws_api_gateway_resource" "ai" {
   rest_api_id = aws_api_gateway_rest_api.main.id
   parent_id   = aws_api_gateway_resource.api.id
-  path_part   = "praise"
+  path_part   = "ai"
 }
 
-# Proxy resource for catch-all
-resource "aws_api_gateway_resource" "proxy" {
+# Core Service Proxy resource
+resource "aws_api_gateway_resource" "core_proxy" {
   rest_api_id = aws_api_gateway_rest_api.main.id
-  parent_id   = aws_api_gateway_resource.api.id
+  parent_id   = aws_api_gateway_resource.core.id
   path_part   = "{proxy+}"
 }
 
-# API Gateway Methods - ANY method for main API
-resource "aws_api_gateway_method" "proxy_any" {
-  rest_api_id   = aws_api_gateway_rest_api.main.id
-  resource_id   = aws_api_gateway_resource.proxy.id
-  http_method   = "ANY"
-  authorization = "NONE"
-}
-
-# Lambda integration for main API
-resource "aws_api_gateway_integration" "lambda_proxy" {
+# AI Service Proxy resource
+resource "aws_api_gateway_resource" "ai_proxy" {
   rest_api_id = aws_api_gateway_rest_api.main.id
-  resource_id = aws_api_gateway_resource.proxy.id
-  http_method = aws_api_gateway_method.proxy_any.http_method
-
-  integration_http_method = "POST"
-  type                   = "AWS_PROXY"
-  uri                    = var.main_lambda_invoke_arn
+  parent_id   = aws_api_gateway_resource.ai.id
+  path_part   = "{proxy+}"
 }
 
-# POST method for praise generation (separate Lambda)
-resource "aws_api_gateway_method" "praise_post" {
+# Core Service API Gateway Methods
+resource "aws_api_gateway_method" "core_proxy_any" {
   rest_api_id   = aws_api_gateway_rest_api.main.id
-  resource_id   = aws_api_gateway_resource.praise.id
-  http_method   = "POST"
+  resource_id   = aws_api_gateway_resource.core_proxy.id
+  http_method   = "ANY"
   authorization = "COGNITO_USER_POOLS"
   authorizer_id = aws_api_gateway_authorizer.cognito.id
 }
 
-# Lambda integration for AI praise
-resource "aws_api_gateway_integration" "praise_lambda" {
+# Core Service Lambda integration
+resource "aws_api_gateway_integration" "core_lambda_proxy" {
   rest_api_id = aws_api_gateway_rest_api.main.id
-  resource_id = aws_api_gateway_resource.praise.id
-  http_method = aws_api_gateway_method.praise_post.http_method
+  resource_id = aws_api_gateway_resource.core_proxy.id
+  http_method = aws_api_gateway_method.core_proxy_any.http_method
 
   integration_http_method = "POST"
   type                   = "AWS_PROXY"
-  uri                    = var.ai_praise_lambda_invoke_arn
+  uri                    = var.core_service_invoke_arn
+}
+
+# AI Service API Gateway Methods
+resource "aws_api_gateway_method" "ai_proxy_any" {
+  rest_api_id   = aws_api_gateway_rest_api.main.id
+  resource_id   = aws_api_gateway_resource.ai_proxy.id
+  http_method   = "ANY"
+  authorization = "COGNITO_USER_POOLS"
+  authorizer_id = aws_api_gateway_authorizer.cognito.id
+}
+
+# AI Service Lambda integration
+resource "aws_api_gateway_integration" "ai_lambda_proxy" {
+  rest_api_id = aws_api_gateway_rest_api.main.id
+  resource_id = aws_api_gateway_resource.ai_proxy.id
+  http_method = aws_api_gateway_method.ai_proxy_any.http_method
+
+  integration_http_method = "POST"
+  type                   = "AWS_PROXY"
+  uri                    = var.ai_service_invoke_arn
 }
 
 # Cognito User Pool Authorizer
@@ -129,19 +137,20 @@ resource "aws_api_gateway_authorizer" "cognito" {
 # API Gateway Deployment
 resource "aws_api_gateway_deployment" "main" {
   depends_on = [
-    aws_api_gateway_integration.lambda_proxy,
-    aws_api_gateway_integration.praise_lambda,
+    aws_api_gateway_integration.core_lambda_proxy,
+    aws_api_gateway_integration.ai_lambda_proxy,
   ]
 
   rest_api_id = aws_api_gateway_rest_api.main.id
 
   triggers = {
     redeployment = sha1(jsonencode([
-      aws_api_gateway_resource.proxy.id,
-      aws_api_gateway_method.proxy_any.id,
-      aws_api_gateway_integration.lambda_proxy.id,
-      aws_api_gateway_method.praise_post.id,
-      aws_api_gateway_integration.praise_lambda.id,
+      aws_api_gateway_resource.core_proxy.id,
+      aws_api_gateway_method.core_proxy_any.id,
+      aws_api_gateway_integration.core_lambda_proxy.id,
+      aws_api_gateway_resource.ai_proxy.id,
+      aws_api_gateway_method.ai_proxy_any.id,
+      aws_api_gateway_integration.ai_lambda_proxy.id,
     ]))
   }
 
@@ -186,18 +195,18 @@ resource "aws_api_gateway_account" "main" {
   cloudwatch_role_arn = aws_iam_role.api_gateway_cloudwatch.arn
 }
 
-# CORS configuration for browser requests
-resource "aws_api_gateway_method" "options" {
+# CORS configuration for Core Service
+resource "aws_api_gateway_method" "core_options" {
   rest_api_id   = aws_api_gateway_rest_api.main.id
-  resource_id   = aws_api_gateway_resource.proxy.id
+  resource_id   = aws_api_gateway_resource.core_proxy.id
   http_method   = "OPTIONS"
   authorization = "NONE"
 }
 
-resource "aws_api_gateway_integration" "options" {
+resource "aws_api_gateway_integration" "core_options" {
   rest_api_id = aws_api_gateway_rest_api.main.id
-  resource_id = aws_api_gateway_resource.proxy.id
-  http_method = aws_api_gateway_method.options.http_method
+  resource_id = aws_api_gateway_resource.core_proxy.id
+  http_method = aws_api_gateway_method.core_options.http_method
   type        = "MOCK"
 
   request_templates = {
@@ -207,10 +216,10 @@ resource "aws_api_gateway_integration" "options" {
   }
 }
 
-resource "aws_api_gateway_method_response" "options" {
+resource "aws_api_gateway_method_response" "core_options" {
   rest_api_id = aws_api_gateway_rest_api.main.id
-  resource_id = aws_api_gateway_resource.proxy.id
-  http_method = aws_api_gateway_method.options.http_method
+  resource_id = aws_api_gateway_resource.core_proxy.id
+  http_method = aws_api_gateway_method.core_options.http_method
   status_code = "200"
 
   response_headers = {
@@ -220,11 +229,58 @@ resource "aws_api_gateway_method_response" "options" {
   }
 }
 
-resource "aws_api_gateway_integration_response" "options" {
+resource "aws_api_gateway_integration_response" "core_options" {
   rest_api_id = aws_api_gateway_rest_api.main.id
-  resource_id = aws_api_gateway_resource.proxy.id
-  http_method = aws_api_gateway_method.options.http_method
-  status_code = aws_api_gateway_method_response.options.status_code
+  resource_id = aws_api_gateway_resource.core_proxy.id
+  http_method = aws_api_gateway_method.core_options.http_method
+  status_code = aws_api_gateway_method_response.core_options.status_code
+
+  response_headers = {
+    "Access-Control-Allow-Headers" = "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+    "Access-Control-Allow-Methods" = "'GET,OPTIONS,POST,PUT,DELETE'"
+    "Access-Control-Allow-Origin"  = "'*'"
+  }
+}
+
+# CORS configuration for AI Service
+resource "aws_api_gateway_method" "ai_options" {
+  rest_api_id   = aws_api_gateway_rest_api.main.id
+  resource_id   = aws_api_gateway_resource.ai_proxy.id
+  http_method   = "OPTIONS"
+  authorization = "NONE"
+}
+
+resource "aws_api_gateway_integration" "ai_options" {
+  rest_api_id = aws_api_gateway_rest_api.main.id
+  resource_id = aws_api_gateway_resource.ai_proxy.id
+  http_method = aws_api_gateway_method.ai_options.http_method
+  type        = "MOCK"
+
+  request_templates = {
+    "application/json" = jsonencode({
+      statusCode = 200
+    })
+  }
+}
+
+resource "aws_api_gateway_method_response" "ai_options" {
+  rest_api_id = aws_api_gateway_rest_api.main.id
+  resource_id = aws_api_gateway_resource.ai_proxy.id
+  http_method = aws_api_gateway_method.ai_options.http_method
+  status_code = "200"
+
+  response_headers = {
+    "Access-Control-Allow-Headers" = true
+    "Access-Control-Allow-Methods" = true
+    "Access-Control-Allow-Origin"  = true
+  }
+}
+
+resource "aws_api_gateway_integration_response" "ai_options" {
+  rest_api_id = aws_api_gateway_rest_api.main.id
+  resource_id = aws_api_gateway_resource.ai_proxy.id
+  http_method = aws_api_gateway_method.ai_options.http_method
+  status_code = aws_api_gateway_method_response.ai_options.status_code
 
   response_headers = {
     "Access-Control-Allow-Headers" = "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"

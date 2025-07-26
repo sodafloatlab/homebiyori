@@ -1,10 +1,10 @@
-import TreeGrowthDemo from '@/components/features/TreeGrowthDemo';
+import IntegratedChatDemo from '@/components/features/IntegratedChatDemo';
 import PremiumLayout from '@/components/layout/PremiumLayout';
 
 export default function Home() {
   return (
     <PremiumLayout>
-      <TreeGrowthDemo />
+      <IntegratedChatDemo />
     </PremiumLayout>
   );
 }

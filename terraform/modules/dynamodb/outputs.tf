@@ -8,34 +8,34 @@ output "users_table_arn" {
   value       = aws_dynamodb_table.users.arn
 }
 
-output "posts_table_name" {
-  description = "Name of the posts table"
-  value       = aws_dynamodb_table.posts.name
+output "chat_table_name" {
+  description = "Name of the chat table"
+  value       = aws_dynamodb_table.chat.name
 }
 
-output "posts_table_arn" {
-  description = "ARN of the posts table"
-  value       = aws_dynamodb_table.posts.arn
+output "chat_table_arn" {
+  description = "ARN of the chat table"
+  value       = aws_dynamodb_table.chat.arn
 }
 
-output "praises_table_name" {
-  description = "Name of the praises table"
-  value       = aws_dynamodb_table.praises.name
+output "tree_table_name" {
+  description = "Name of the tree table"
+  value       = aws_dynamodb_table.tree.name
 }
 
-output "praises_table_arn" {
-  description = "ARN of the praises table"
-  value       = aws_dynamodb_table.praises.arn
+output "tree_table_arn" {
+  description = "ARN of the tree table"
+  value       = aws_dynamodb_table.tree.arn
 }
 
-output "stats_table_name" {
-  description = "Name of the stats table"
-  value       = aws_dynamodb_table.stats.name
+output "fruits_table_name" {
+  description = "Name of the fruits table"
+  value       = aws_dynamodb_table.fruits.name
 }
 
-output "stats_table_arn" {
-  description = "ARN of the stats table"
-  value       = aws_dynamodb_table.stats.arn
+output "fruits_table_arn" {
+  description = "ARN of the fruits table"
+  value       = aws_dynamodb_table.fruits.arn
 }
 
 output "children_table_name" {
@@ -52,9 +52,9 @@ output "table_names" {
   description = "List of all table names"
   value = [
     aws_dynamodb_table.users.name,
-    aws_dynamodb_table.posts.name,
-    aws_dynamodb_table.praises.name,
-    aws_dynamodb_table.stats.name,
+    aws_dynamodb_table.chat.name,
+    aws_dynamodb_table.tree.name,
+    aws_dynamodb_table.fruits.name,
     aws_dynamodb_table.children.name
   ]
 }

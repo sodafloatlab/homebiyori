@@ -329,7 +329,7 @@ const WatercolorTree = ({ ageInDays, fruits, childrenNames, onFruitClick, onTree
             <div className="flex items-center space-x-2">
               <div className="text-lg">🌳</div>
               <div className="text-sm font-medium text-green-800">
-                木陰でおしゃべり
+                つぶやきの木陰
               </div>
             </div>
             <motion.div

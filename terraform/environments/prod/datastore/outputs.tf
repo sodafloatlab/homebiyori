@@ -3,19 +3,24 @@ output "users_table_name" {
   value       = module.dynamodb.users_table_name
 }
 
-output "posts_table_name" {
-  description = "Name of the posts table"
-  value       = module.dynamodb.posts_table_name
+output "chat_table_name" {
+  description = "Name of the chat table"
+  value       = module.dynamodb.chat_table_name
 }
 
-output "praises_table_name" {
-  description = "Name of the praises table"
-  value       = module.dynamodb.praises_table_name
+output "tree_table_name" {
+  description = "Name of the tree table"
+  value       = module.dynamodb.tree_table_name
 }
 
-output "stats_table_name" {
-  description = "Name of the stats table"
-  value       = module.dynamodb.stats_table_name
+output "fruits_table_name" {
+  description = "Name of the fruits table"
+  value       = module.dynamodb.fruits_table_name
+}
+
+output "chat_content_bucket_name" {
+  description = "Name of the chat content S3 bucket"
+  value       = module.s3.chat_content_bucket_name
 }
 
 output "children_table_name" {

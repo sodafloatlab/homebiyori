@@ -105,20 +105,23 @@ resource "aws_s3_bucket_public_access_block" "static" {
   restrict_public_buckets = true
 }
 
-# 投稿コンテンツ用S3バケット（テキスト投稿をS3に保存）
-resource "aws_s3_bucket" "posts" {
-  bucket        = "${var.project_name}-${var.environment}-posts"
+# チャットコンテンツ用S3バケット（チャット内容をS3に保存）
+resource "aws_s3_bucket" "chat_content" {
+  count         = var.create_chat_content_bucket ? 1 : 0
+  bucket        = "${var.project_name}-${var.environment}-${var.chat_content_bucket_prefix}"
   force_destroy = var.force_destroy
 
   tags = merge(var.common_tags, {
-    Name = "${var.project_name}-${var.environment}-posts"
-    Type = "posts"
+    Name = "${var.project_name}-${var.environment}-${var.chat_content_bucket_prefix}"
+    Type = "chat-content"
+    Purpose = "Store chat messages and conversation content"
   })
 }
 
-# 投稿バケットの暗号化
-resource "aws_s3_bucket_server_side_encryption_configuration" "posts" {
-  bucket = aws_s3_bucket.posts.id
+# チャットコンテンツバケットの暗号化
+resource "aws_s3_bucket_server_side_encryption_configuration" "chat_content" {
+  count  = var.create_chat_content_bucket ? 1 : 0
+  bucket = aws_s3_bucket.chat_content[0].id
 
   rule {
     apply_server_side_encryption_by_default {
@@ -127,9 +130,10 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "posts" {
   }
 }
 
-# 投稿バケットのパブリックアクセス制御
-resource "aws_s3_bucket_public_access_block" "posts" {
-  bucket = aws_s3_bucket.posts.id
+# チャットコンテンツバケットのパブリックアクセス制御
+resource "aws_s3_bucket_public_access_block" "chat_content" {
+  count  = var.create_chat_content_bucket ? 1 : 0
+  bucket = aws_s3_bucket.chat_content[0].id
 
   block_public_acls       = true
   block_public_policy     = true
@@ -137,24 +141,29 @@ resource "aws_s3_bucket_public_access_block" "posts" {
   restrict_public_buckets = true
 }
 
-# 投稿バケットのライフサイクル設定
-resource "aws_s3_bucket_lifecycle_configuration" "posts" {
-  count  = var.enable_lifecycle ? 1 : 0
-  bucket = aws_s3_bucket.posts.id
+# チャットコンテンツバケットのライフサイクル設定
+resource "aws_s3_bucket_lifecycle_configuration" "chat_content" {
+  count  = var.create_chat_content_bucket && var.enable_lifecycle ? 1 : 0
+  bucket = aws_s3_bucket.chat_content[0].id
 
   rule {
-    id     = "posts_lifecycle"
+    id     = "chat_content_lifecycle"
     status = "Enabled"
 
-    # インテリジェントティアリング移行
+    # インテリジェントティアリング移行（チャット履歴の長期保存）
     transition {
-      days          = 90
+      days          = 30
       storage_class = "STANDARD_IA"
     }
 
     transition {
-      days          = 365
+      days          = 90
       storage_class = "GLACIER_IR"
+    }
+
+    transition {
+      days          = 365
+      storage_class = "DEEP_ARCHIVE"
     }
   }
 }
@@ -224,16 +233,16 @@ resource "aws_s3_bucket_policy" "images" {
   })
 }
 
-# Lambda用の投稿バケットポリシー
-resource "aws_s3_bucket_policy" "posts" {
-  count  = var.lambda_role_arn != "" ? 1 : 0
-  bucket = aws_s3_bucket.posts.id
+# Lambda用のチャットコンテンツバケットポリシー
+resource "aws_s3_bucket_policy" "chat_content" {
+  count  = var.create_chat_content_bucket && var.lambda_role_arn != "" ? 1 : 0
+  bucket = aws_s3_bucket.chat_content[0].id
 
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [
       {
-        Sid       = "AllowApplicationAccess"
+        Sid       = "AllowCoreServiceAccess"
         Effect    = "Allow"
         Principal = {
           AWS = var.lambda_role_arn
@@ -241,9 +250,13 @@ resource "aws_s3_bucket_policy" "posts" {
         Action = [
           "s3:GetObject",
           "s3:PutObject",
-          "s3:DeleteObject"
+          "s3:DeleteObject",
+          "s3:ListBucket"
         ]
-        Resource = "${aws_s3_bucket.posts.arn}/*"
+        Resource = [
+          aws_s3_bucket.chat_content[0].arn,
+          "${aws_s3_bucket.chat_content[0].arn}/*"
+        ]
       }
     ]
   })

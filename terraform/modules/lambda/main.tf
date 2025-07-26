@@ -80,10 +80,10 @@ resource "aws_iam_role_policy" "lambda_custom" {
   })
 }
 
-# Lambda function for the main API
-resource "aws_lambda_function" "main_api" {
-  filename         = var.lambda_zip_path
-  function_name    = "${var.project_name}-${var.environment}-api"
+# Core Service Lambda (統合コアサービス)
+resource "aws_lambda_function" "core_service" {
+  filename         = var.core_service_zip_path
+  function_name    = "${var.project_name}-${var.environment}-core-service"
   role            = aws_iam_role.lambda_execution.arn
   handler         = "handler.lambda_handler"
   runtime         = "python3.11"
@@ -94,21 +94,23 @@ resource "aws_lambda_function" "main_api" {
     variables = merge(var.environment_variables, {
       ENVIRONMENT = var.environment
       PROJECT_NAME = var.project_name
+      SERVICE_TYPE = "core"
     })
   }
 
   tags = merge(var.common_tags, {
-    Name = "${var.project_name}-${var.environment}-api"
-    Type = "api"
+    Name = "${var.project_name}-${var.environment}-core-service"
+    Type = "core-api"
+    Service = "chat-tree-user"
   })
 }
 
-# Lambda function for AI praise generation (longer timeout for AI processing)
-resource "aws_lambda_function" "ai_praise" {
-  filename         = var.lambda_zip_path
-  function_name    = "${var.project_name}-${var.environment}-ai-praise"
+# AI Service Lambda (AI専用サービス)
+resource "aws_lambda_function" "ai_service" {
+  filename         = var.ai_service_zip_path
+  function_name    = "${var.project_name}-${var.environment}-ai-service"
   role            = aws_iam_role.lambda_execution.arn
-  handler         = "handler.ai_praise_handler"
+  handler         = "handler.lambda_handler"
   runtime         = "python3.11"
   timeout         = 60
   memory_size     = 1024
@@ -117,12 +119,15 @@ resource "aws_lambda_function" "ai_praise" {
     variables = merge(var.environment_variables, {
       ENVIRONMENT = var.environment
       PROJECT_NAME = var.project_name
+      SERVICE_TYPE = "ai"
+      BEDROCK_MODEL_ID = "anthropic.claude-3-haiku-20240307-v1:0"
     })
   }
 
   tags = merge(var.common_tags, {
-    Name = "${var.project_name}-${var.environment}-ai-praise"
+    Name = "${var.project_name}-${var.environment}-ai-service"
     Type = "ai-processing"
+    Service = "bedrock-emotion-chat"
   })
 }
 
@@ -139,33 +144,37 @@ resource "aws_lambda_layer_version" "dependencies" {
 }
 
 # CloudWatch Log Groups for Lambda functions
-resource "aws_cloudwatch_log_group" "main_api" {
-  name              = "/aws/lambda/${aws_lambda_function.main_api.function_name}"
+resource "aws_cloudwatch_log_group" "core_service" {
+  name              = "/aws/lambda/${aws_lambda_function.core_service.function_name}"
   retention_in_days = var.log_retention_days
 
-  tags = var.common_tags
+  tags = merge(var.common_tags, {
+    Service = "core-service"
+  })
 }
 
-resource "aws_cloudwatch_log_group" "ai_praise" {
-  name              = "/aws/lambda/${aws_lambda_function.ai_praise.function_name}"
+resource "aws_cloudwatch_log_group" "ai_service" {
+  name              = "/aws/lambda/${aws_lambda_function.ai_service.function_name}"
   retention_in_days = var.log_retention_days
 
-  tags = var.common_tags
+  tags = merge(var.common_tags, {
+    Service = "ai-service"
+  })
 }
 
 # Lambda permissions for API Gateway
-resource "aws_lambda_permission" "api_gateway_main" {
+resource "aws_lambda_permission" "api_gateway_core" {
   statement_id  = "AllowExecutionFromAPIGateway"
   action        = "lambda:InvokeFunction"
-  function_name = aws_lambda_function.main_api.function_name
+  function_name = aws_lambda_function.core_service.function_name
   principal     = "apigateway.amazonaws.com"
   source_arn    = "${var.api_gateway_execution_arn}/*/*"
 }
 
-resource "aws_lambda_permission" "api_gateway_ai_praise" {
+resource "aws_lambda_permission" "api_gateway_ai" {
   statement_id  = "AllowExecutionFromAPIGateway"
   action        = "lambda:InvokeFunction"
-  function_name = aws_lambda_function.ai_praise.function_name
+  function_name = aws_lambda_function.ai_service.function_name
   principal     = "apigateway.amazonaws.com"
   source_arn    = "${var.api_gateway_execution_arn}/*/*"
 }

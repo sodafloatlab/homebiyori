@@ -49,3 +49,15 @@ variable "lambda_role_arn" {
   type        = string
   default     = ""
 }
+
+variable "create_chat_content_bucket" {
+  description = "Whether to create a bucket for chat content storage"
+  type        = bool
+  default     = false
+}
+
+variable "chat_content_bucket_prefix" {
+  description = "Prefix for the chat content bucket name"
+  type        = string
+  default     = "chat-content"
+}

@@ -27,10 +27,16 @@ variable "common_tags" {
 }
 
 # Lambda configuration
-variable "lambda_zip_path" {
-  description = "Path to the Lambda deployment package"
+variable "core_service_zip_path" {
+  description = "Path to the Core Service Lambda deployment package"
   type        = string
-  default     = "lambda_function.zip"
+  default     = "core_service.zip"
+}
+
+variable "ai_service_zip_path" {
+  description = "Path to the AI Service Lambda deployment package"
+  type        = string
+  default     = "ai_service.zip"
 }
 
 variable "environment_variables" {
