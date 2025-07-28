@@ -158,6 +158,26 @@ const WatercolorTree = ({ ageInDays, fruits, childrenNames, onFruitClick, onTree
   return (
     <div className={`relative w-full ${getContainerHeight()} rounded-2xl overflow-hidden bg-gradient-to-b from-blue-50 via-green-50 to-yellow-50 shadow-lg`}>
       
+      {/* 木の上部メッセージ */}
+      <div className="absolute top-4 left-1/2 transform -translate-x-1/2 z-10 bg-white/80 backdrop-blur-sm rounded-full px-6 py-3 shadow-sm border border-green-100">
+        <h3 className="font-noto-sans-jp text-sm font-bold text-green-700 text-center">木は今日も静かに育っています</h3>
+        <p className="text-xs text-gray-600 text-center mt-1">
+          あなたの育児の頑張りが小さな実になっていきます
+        </p>
+      </div>
+      
+      {/* 実の数表示（右上） */}
+      <motion.div 
+        className="absolute top-4 right-4 bg-white/80 backdrop-blur-sm rounded-full px-4 py-2 shadow-sm border border-green-100/50"
+        initial={{ opacity: 0, scale: 0.8 }}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={{ delay: 1.5, duration: 0.8 }}
+      >
+        <div className="flex items-center space-x-2">
+          <div className="text-lg">✨</div>
+          <div className="font-noto-sans-jp text-sm font-bold text-green-700">{fruits.length} 個の実</div>
+        </div>
+      </motion.div>
       
       {/* 水彩風の背景効果 */}
       <div className="absolute inset-0 bg-gradient-radial from-white/30 via-transparent to-transparent opacity-70"></div>
@@ -229,75 +249,155 @@ const WatercolorTree = ({ ageInDays, fruits, childrenNames, onFruitClick, onTree
           >
             {fruit.isGlowing ? (
               <motion.div
-                className="relative w-8 h-8 rounded-full cursor-pointer"
+                className="absolute w-5 h-5 cursor-pointer transition-all duration-300 ease-in-out hover:scale-110 hover:brightness-120"
                 style={{
-                  background: `radial-gradient(circle at 30% 30%, 
-                    rgba(255, 255, 255, 0.8) 0%, 
-                    ${getFruitColors(fruit.aiRole).gradient})`,
-                  boxShadow: `0 4px 15px ${getFruitColors(fruit.aiRole).shadow}`,
-                  border: '1px solid rgba(255, 255, 255, 0.3)'
+                  animationDelay: `${index * 0.5}s`
                 }}
                 animate={{
-                  // シャボン玉のような光る効果
-                  boxShadow: [
-                    `0 4px 15px ${getFruitColors(fruit.aiRole).shadow}`,
-                    `0 6px 25px ${getFruitColors(fruit.aiRole).glowShadow}`,
-                    `0 4px 15px ${getFruitColors(fruit.aiRole).shadow}`
-                  ],
-                  // ゆっくりとした上下の浮遊
-                  y: [-2, 2, -2]
+                  y: [0, -15, -8, 0],
+                  scale: [1, 1.1, 0.9, 1],
+                  opacity: [0.4, 0.7, 0.4],
+                  filter: ['brightness(1)', 'brightness(1.1)', 'brightness(1)']
                 }}
                 transition={{ 
-                  boxShadow: { duration: 2, repeat: Infinity, ease: "easeInOut" },
-                  y: { duration: 3, repeat: Infinity, ease: "easeInOut", delay: index * 0.3 }
+                  y: { duration: 3, repeat: Infinity, ease: "easeInOut" },
+                  scale: { duration: 3, repeat: Infinity, ease: "easeInOut" },
+                  opacity: { duration: 2, repeat: Infinity, ease: "easeInOut" },
+                  filter: { duration: 2, repeat: Infinity, ease: "easeInOut" }
                 }}
+                whileHover={{ scale: 1.1, filter: "brightness(1.2)" }}
               >
-                {/* シャボン玉の光沢効果 */}
-                <div 
-                  className="absolute top-1 left-2 w-2 h-2 bg-white rounded-full opacity-60"
-                  style={{ filter: 'blur(0.5px)' }}
-                />
-                <div 
-                  className="absolute top-2 left-1 w-1 h-1 bg-white rounded-full opacity-80"
-                />
+                <div
+                  className="w-full h-full rounded-full relative overflow-hidden animate-[sparkleFloat_3s_ease-in-out_infinite,sparkle_2s_ease-in-out_infinite]"
+                  style={{
+                    background: 'radial-gradient(circle, rgba(255, 255, 255, 0.6), rgba(255, 248, 220, 0.5), rgba(240, 248, 255, 0.4))',
+                    boxShadow: '0 0 15px rgba(255, 255, 255, 0.4), 0 0 8px rgba(255, 255, 255, 0.2), inset 0 1px 2px rgba(255, 255, 255, 0.3)',
+                    filter: 'blur(0.3px)'
+                  }}
+                >
+                  {/* 内側のハイライト */}
+                  <div 
+                    className="absolute top-0.5 left-0.5 w-2 h-2 rounded-full"
+                    style={{
+                      background: 'radial-gradient(circle, rgba(255, 255, 255, 0.2), rgba(255, 255, 255, 0.05), transparent)'
+                    }}
+                  />
+                </div>
               </motion.div>
             ) : (
-              <motion.div 
-                className="w-6 h-6 rounded-full bg-white/60 border border-gray-300 flex items-center justify-center text-xs backdrop-blur-sm"
+              <motion.div
+                className="absolute w-5 h-5 cursor-pointer transition-all duration-300 ease-in-out hover:scale-110 hover:brightness-120"
+                style={{
+                  animationDelay: `${index * 0.3}s`
+                }}
                 animate={{
-                  y: [-1, 1, -1],
-                  opacity: [0.6, 0.8, 0.6]
+                  y: [0, -15, -8, 0],
+                  scale: [1, 1.1, 0.9, 1],
+                  opacity: [0.4, 0.7, 0.4],
+                  filter: ['brightness(1)', 'brightness(1.1)', 'brightness(1)']
                 }}
                 transition={{ 
-                  duration: 2, 
-                  repeat: Infinity, 
-                  ease: "easeInOut",
-                  delay: index * 0.2
+                  y: { duration: 3, repeat: Infinity, ease: "easeInOut" },
+                  scale: { duration: 3, repeat: Infinity, ease: "easeInOut" },
+                  opacity: { duration: 2, repeat: Infinity, ease: "easeInOut" },
+                  filter: { duration: 2, repeat: Infinity, ease: "easeInOut" }
                 }}
+                whileHover={{ scale: 1.1, y: -3 }}
               >
-                ✨
+                <div 
+                  className="w-full h-full rounded-full flex items-center justify-center text-sm relative overflow-hidden"
+                  style={{
+                    background: 'radial-gradient(circle, rgba(255, 255, 255, 0.7), rgba(248, 250, 252, 0.6), rgba(241, 245, 249, 0.5))',
+                    boxShadow: '0 0 8px rgba(255, 255, 255, 0.3), inset 0 1px 2px rgba(255, 255, 255, 0.4)',
+                    filter: 'blur(0.5px)'
+                  }}
+                >
+                  {/* 内側のハイライト */}
+                  <div 
+                    className="absolute top-0.5 left-0.5 w-2 h-2 rounded-full"
+                    style={{
+                      background: 'radial-gradient(circle, rgba(255, 255, 255, 0.5), rgba(255, 255, 255, 0.2), transparent)'
+                    }}
+                  />
+                  <span className="relative z-10 opacity-80">✨</span>
+                </div>
               </motion.div>
             )}
           </motion.div>
         );
       })}
 
-      {/* 育児日数表示（コンパクト） */}
-      <motion.div 
-        className="absolute top-4 right-4 bg-white/70 backdrop-blur-sm rounded-full px-4 py-2 shadow-sm border border-green-100/50"
-        initial={{ opacity: 0, scale: 0.8 }}
-        animate={{ opacity: 1, scale: 1 }}
-        transition={{ delay: 1.5, duration: 0.8 }}
-      >
-        <div className="font-noto-sans-jp text-sm font-bold text-green-700">親になって{ageInDays}日目</div>
-      </motion.div>
 
-      {/* 水彩風の装飾効果 */}
-      <div className="absolute inset-0 pointer-events-none">
+      {/* 風と木の葉の演出 */}
+      <div className="absolute inset-0 pointer-events-none overflow-hidden">
+        {/* 舞い散る木の葉 */}
+        {[...Array(12)].map((_, i) => {
+          const leafTypes = ['🍃', '🍂', '🌿'];
+          const leafType = leafTypes[i % leafTypes.length];
+          const startX = Math.random() * 100;
+          const startY = -10;
+          const endX = startX + (Math.random() - 0.5) * 40;
+          const endY = 110;
+          const duration = 8 + Math.random() * 6;
+          const delay = Math.random() * 10;
+          
+          return (
+            <motion.div
+              key={i}
+              className="absolute text-lg"
+              style={{
+                left: `${startX}%`,
+                top: `${startY}%`,
+              }}
+              animate={{
+                x: [0, (endX - startX) + '%'],
+                y: [0, (endY - startY) + '%'],
+                rotate: [0, 360 + Math.random() * 720],
+                scale: [0.8, 1, 0.6],
+                opacity: [0, 0.8, 0.6, 0],
+              }}
+              transition={{
+                duration: duration,
+                repeat: Infinity,
+                delay: delay,
+                ease: "easeInOut",
+                times: [0, 0.2, 0.8, 1],
+              }}
+            >
+              {leafType}
+            </motion.div>
+          );
+        })}
+        
+        {/* 風の軌跡（見やすい粒子） */}
+        {[...Array(8)].map((_, i) => (
+          <motion.div
+            key={`wind-${i}`}
+            className="absolute w-1.5 h-1.5 rounded-full bg-blue-300/70 shadow-sm"
+            style={{
+              left: `${Math.random() * 100}%`,
+              top: `${20 + Math.random() * 60}%`,
+            }}
+            animate={{
+              x: [0, '200px', '400px'],
+              y: [0, `${(Math.random() - 0.5) * 100}px`, `${(Math.random() - 0.5) * 200}px`],
+              scale: [0, 1, 0],
+              opacity: [0, 0.7, 0],
+            }}
+            transition={{
+              duration: 6 + Math.random() * 4,
+              repeat: Infinity,
+              delay: Math.random() * 5,
+              ease: "easeOut",
+            }}
+          />
+        ))}
+        
+        {/* 光る花びら */}
         {[...Array(6)].map((_, i) => (
           <motion.div
-            key={i}
-            className="absolute w-2 h-2 rounded-full bg-yellow-200/60"
+            key={`petal-${i}`}
+            className="absolute w-2 h-2 rounded-full bg-pink-200/60"
             style={{
               left: `${20 + Math.random() * 60}%`,
               top: `${10 + Math.random() * 30}%`,
@@ -305,62 +405,22 @@ const WatercolorTree = ({ ageInDays, fruits, childrenNames, onFruitClick, onTree
             animate={{
               scale: [0, 1, 0],
               opacity: [0, 0.6, 0],
+              y: [0, '50px', '100px'],
+              x: [0, `${(Math.random() - 0.5) * 60}px`],
+              rotate: [0, 180],
             }}
             transition={{
-              duration: 4 + Math.random() * 2,
+              duration: 5 + Math.random() * 3,
               repeat: Infinity,
-              delay: Math.random() * 3,
+              delay: Math.random() * 4,
+              ease: "easeInOut",
             }}
           />
         ))}
       </div>
 
 
-      {/* 木陰エリア（チャット起動ボタン） */}
-      {onTreeShadeClick && (
-        <motion.div
-          className="absolute bottom-8 left-4 cursor-pointer group"
-          initial={{ opacity: 0, scale: 0.8 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ delay: 2.5, duration: 0.8 }}
-          onClick={onTreeShadeClick}
-        >
-          <div className="relative bg-green-900/20 backdrop-blur-sm rounded-2xl px-4 py-3 shadow-lg border border-green-200/50 hover:bg-green-900/30 transition-all duration-300 group-hover:scale-105">
-            <div className="flex items-center space-x-2">
-              <div className="text-lg">🌳</div>
-              <div className="text-sm font-medium text-green-800">
-                つぶやきの木陰
-              </div>
-            </div>
-            <motion.div
-              className="absolute -top-1 -right-1 w-3 h-3 bg-blue-400 rounded-full"
-              animate={{
-                scale: [1, 1.2, 1],
-                opacity: [0.7, 1, 0.7]
-              }}
-              transition={{
-                duration: 2,
-                repeat: Infinity,
-                ease: "easeInOut"
-              }}
-            />
-          </div>
-        </motion.div>
-      )}
 
-      {/* 子供の名前（水彩風カード） */}
-      {childrenNames.length > 0 && (
-        <motion.div 
-          className="absolute bottom-4 left-1/2 transform -translate-x-1/2 bg-white/70 backdrop-blur-sm rounded-full px-4 py-2 shadow-sm border border-yellow-100"
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 2, duration: 0.8 }}
-        >
-          <span className="font-noto-sans-jp text-base font-bold text-green-700">
-            {childrenNames.join(' ・ ')}
-          </span>
-        </motion.div>
-      )}
     </div>
   );
 };

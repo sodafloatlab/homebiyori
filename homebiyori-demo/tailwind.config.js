@@ -12,6 +12,47 @@ module.exports = {
         'noto-sans-jp': ['var(--font-noto-sans-jp)', 'sans-serif'],
         'zen-maru-gothic': ['var(--font-noto-sans-jp)', 'sans-serif'], // fallback
       },
+      backgroundImage: {
+        'gradient-radial': 'radial-gradient(var(--tw-gradient-stops))',
+      },
+      animation: {
+        'sparkleFloat': 'sparkleFloat 3s ease-in-out infinite',
+        'sparkle': 'sparkle 2s ease-in-out infinite',
+      },
+      keyframes: {
+        sparkleFloat: {
+          '0%, 100%': { 
+            transform: 'translateY(0px) scale(1)' 
+          },
+          '33%': { 
+            transform: 'translateY(-15px) scale(1.1)' 
+          },
+          '66%': { 
+            transform: 'translateY(-8px) scale(0.9)' 
+          },
+        },
+        sparkle: {
+          '0%, 100%': { 
+            opacity: '0.8',
+            filter: 'brightness(1)'
+          },
+          '50%': { 
+            opacity: '1',
+            filter: 'brightness(1.3)'
+          },
+        },
+      },
+      scale: {
+        '110': '1.1',
+        '115': '1.15',
+      },
+      brightness: {
+        '120': '1.2',
+        '130': '1.3',
+      },
+      saturate: {
+        '120': '1.2',
+      }
     },
   },
   plugins: [],
