@@ -337,15 +337,20 @@ export default function IntegratedChatDemo() {
                 ほめびより
               </h1>
               <p className="text-gray-600 text-lg leading-relaxed">
-                育児中の親をAIが優しく褒めてくれるWebアプリケーション
+                ～育児中の親をAIが優しく褒めてくれるWebアプリケーション～
               </p>
             </div>
 
             {/* 共感を誘うメッセージ */}
             <div className="text-center mb-8 p-6 bg-gradient-to-r from-orange-50 to-pink-50 rounded-xl border border-orange-100">
               <p className="font-noto-sans-jp text-lg text-gray-700 leading-relaxed">
-                「今日もお疲れさまでした」「あなたはよくやっています」<br />
-                <span className="text-green-700 font-bold">そんな言葉をかけてもらえたら、明日も頑張れそうですね。</span>
+                子育ての努力は見えづらい。<br />
+                でも誰かに褒めてもらえると救われる事もある。<br /><br />
+
+                <span className="text-green-700 font-bold">「今日もお疲れさまでした」「あなたはよくやっています」</span><br />
+                そんな言葉をかけてもらえたら、明日も頑張れそうですね。<br /><br />
+                子育てを頑張るあなたの為に<br /><br /><span className="text-green-700 font-bold text-4xl">「ほめびより」</span><br /><br />は生まれました。<br /><br />
+                あなたに寄り添う個性豊かなAIが頑張るあなたを応援します。
               </p>
             </div>
 
@@ -355,16 +360,16 @@ export default function IntegratedChatDemo() {
                   <span className="text-2xl mr-2">🌸</span>
                   主役は子供ではなく、頑張っているあなたです
                 </h3>
-                <p className="text-gray-700 text-sm leading-relaxed">
-                  押し付けがましくない優しさで、育児のやる気や自己肯定感を高めます。
-                  あなたの小さな努力も、しっかりと認めて褒めてくれます。
+                <p className="text-center text-gray-700 text-sm leading-relaxed">
+                  あなたの小さな努力も、しっかりと認めて褒めてくれます。<br />
+                  育児のやる気や自己肯定感を高めます。
                 </p>
               </div>
 
               <div className="bg-gradient-to-r from-blue-50 to-green-50 p-6 rounded-xl border border-blue-100">
                 <h3 className="font-noto-sans-jp text-lg font-bold text-gray-800 mb-3 flex items-center justify-center text-center">
                   <span className="text-2xl mr-2">🤖</span>
-                  3つのAIキャラクターがあなたをサポート
+                  3人のAIキャラクターがあなたをサポート
                 </h3>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
                   <div className="text-center bg-pink-50 p-4 rounded-lg border border-pink-200">
@@ -406,7 +411,7 @@ export default function IntegratedChatDemo() {
                   育児の努力を木の成長として可視化
                 </h3>
                 <p className="text-gray-700 text-sm leading-relaxed text-center mb-4">
-                  あなたの日々の頑張りが、美しい木の成長として表現されます。
+                  あなたの日々の頑張りが、美しい木の成長として表現されます。<br />
                   特別な瞬間や感情は光る実となって木に宿り、育児の旅路を美しく彩ります。
                 </p>
                 
@@ -415,7 +420,7 @@ export default function IntegratedChatDemo() {
                   {/* 小さな木（育児開始時） */}
                   <div className="md:col-span-2 relative h-[40rem] bg-gradient-to-b from-blue-50 via-green-50 to-yellow-50 rounded-xl border border-green-200">
                     <div className="absolute top-4 left-1/2 transform -translate-x-1/2 bg-white/90 rounded-full px-4 py-2 text-sm font-bold text-green-700">
-                      育児開始
+                      アプリ開始時
                     </div>
                     <div className="absolute inset-0 flex items-end justify-center pb-8">
                       <motion.div
@@ -432,99 +437,12 @@ export default function IntegratedChatDemo() {
                       </motion.div>
                     </div>
                     
-                    {/* 少数の光る実 */}
-                    {[
-                      { id: '1', x: 50, y: 45, aiRole: 'たまさん' }
-                    ].map((fruit, index) => {
-                      const getFruitColors = (aiRole: string) => {
-                        switch (aiRole) {
-                          case 'たまさん':
-                            return {
-                              gradient: 'rgba(255, 182, 193, 0.7) 40%, rgba(255, 105, 180, 0.9) 100%',
-                              shadow: 'rgba(255, 182, 193, 0.4)',
-                              glowShadow: 'rgba(255, 182, 193, 0.6)'
-                            };
-                          default:
-                            return {
-                              gradient: 'rgba(255, 215, 0, 0.7) 40%, rgba(255, 165, 0, 0.9) 100%',
-                              shadow: 'rgba(255, 215, 0, 0.4)',
-                              glowShadow: 'rgba(255, 215, 0, 0.6)'
-                            };
-                        }
-                      };
-
-                      const colors = getFruitColors(fruit.aiRole);
-                      
-                      return (
-                        <motion.div
-                          key={fruit.id}
-                          className="absolute"
-                          style={{
-                            left: `${fruit.x}%`,
-                            top: `${fruit.y}%`,
-                            transform: 'translate(-50%, -50%)'
-                          }}
-                          initial={{ scale: 0, opacity: 0 }}
-                          animate={{ 
-                            scale: 1, 
-                            opacity: 1,
-                            y: [0, -5, 0],
-                          }}
-                          transition={{ 
-                            scale: { delay: 2 + index * 0.2, duration: 0.8 },
-                            opacity: { delay: 2 + index * 0.2, duration: 0.8 },
-                            y: { 
-                              delay: 2.5,
-                              duration: 3, 
-                              repeat: Infinity, 
-                              ease: "easeInOut" 
-                            }
-                          }}
-                        >
-                          <motion.div
-                            className="absolute w-5 h-5 cursor-pointer transition-all duration-300 ease-in-out"
-                            style={{
-                              animationDelay: `${2 + index * 0.2}s`
-                            }}
-                            animate={{
-                              y: [0, -15, -8, 0],
-                              scale: [1, 1.1, 0.9, 1],
-                              opacity: [0.8, 1, 0.8],
-                              filter: ['brightness(1)', 'brightness(1.3)', 'brightness(1)']
-                            }}
-                            transition={{ 
-                              y: { duration: 3, repeat: Infinity, ease: "easeInOut" },
-                              scale: { duration: 3, repeat: Infinity, ease: "easeInOut" },
-                              opacity: { duration: 2, repeat: Infinity, ease: "easeInOut" },
-                              filter: { duration: 2, repeat: Infinity, ease: "easeInOut" }
-                            }}
-                            whileHover={{ scale: 1.1, filter: "brightness(1.2)" }}
-                          >
-                            <div
-                              className="w-full h-full rounded-full relative overflow-hidden"
-                              style={{
-                                background: 'radial-gradient(circle, rgb(144, 238, 144), rgb(60, 179, 113), rgb(34, 139, 34))',
-                                boxShadow: '0 0 15px rgba(144, 238, 144, 0.6)'
-                              }}
-                            >
-                              {/* 内側のハイライト */}
-                              <div 
-                                className="absolute top-0.5 left-0.5 w-2 h-2 rounded-full"
-                                style={{
-                                  background: 'radial-gradient(circle, rgba(255, 255, 255, 0.3), rgba(255, 255, 255, 0.1), transparent)'
-                                }}
-                              />
-                            </div>
-                          </motion.div>
-                        </motion.div>
-                      );
-                    })}
                   </div>
 
                   {/* 大きな木（育児継続後） */}
                   <div className="md:col-span-3 relative h-[40rem] bg-gradient-to-b from-blue-50 via-green-50 to-yellow-50 rounded-xl border border-green-200 overflow-hidden -mx-4">
                     <div className="absolute top-4 left-1/2 transform -translate-x-1/2 bg-white/90 rounded-full px-4 py-2 text-sm font-bold text-green-700">
-                      育児継続中
+                      育児を頑張ると
                     </div>
                     <div className="absolute inset-0 flex items-end justify-center pb-[-4rem]">
                       <motion.div
@@ -543,38 +461,44 @@ export default function IntegratedChatDemo() {
 
                     {/* 多数の光る実 */}
                     {[
-                      { id: '1', x: 45, y: 25, aiRole: 'たまさん' },
-                      { id: '2', x: 60, y: 35, aiRole: 'まどか姉さん' },
-                      { id: '3', x: 35, y: 40, aiRole: 'ヒデじい' },
-                      { id: '4', x: 55, y: 20, aiRole: 'たまさん' },
-                      { id: '5', x: 40, y: 30, aiRole: 'まどか姉さん' },
-                      { id: '6', x: 65, y: 45, aiRole: 'ヒデじい' }
+                      { id: '1', x: 25, y: 25, aiRole: 'たまさん' },
+                      { id: '2', x: 75, y: 35, aiRole: 'まどか姉さん' },
+                      { id: '3', x: 15, y: 40, aiRole: 'ヒデじい' },
+                      { id: '4', x: 80, y: 20, aiRole: 'たまさん' },
+                      { id: '5', x: 20, y: 30, aiRole: 'まどか姉さん' },
+                      { id: '6', x: 85, y: 45, aiRole: 'ヒデじい' },
+                      { id: '7', x: 50, y: 15, aiRole: 'たまさん' },
+                      { id: '8', x: 10, y: 25, aiRole: 'まどか姉さん' },
+                      { id: '9', x: 90, y: 30, aiRole: 'ヒデじい' },
+                      { id: '10', x: 22, y: 45, aiRole: 'たまさん' },
+                      { id: '11', x: 78, y: 50, aiRole: 'まどか姉さん' },
+                      { id: '12', x: 12, y: 15, aiRole: 'ヒデじい' },
+                      { id: '13', x: 45, y: 35, aiRole: 'たまさん' },
+                      { id: '14', x: 55, y: 40, aiRole: 'まどか姉さん' },
+                      { id: '15', x: 35, y: 20, aiRole: 'ヒデじい' },
+                      { id: '16', x: 65, y: 25, aiRole: 'たまさん' }
                     ].map((fruit, index) => {
                       const getFruitColors = (aiRole: string) => {
                         switch (aiRole) {
                           case 'たまさん':
                             return {
-                              gradient: 'rgba(255, 182, 193, 0.7) 40%, rgba(255, 105, 180, 0.9) 100%',
-                              shadow: 'rgba(255, 182, 193, 0.4)',
-                              glowShadow: 'rgba(255, 182, 193, 0.6)'
+                              gradient: 'radial-gradient(circle, rgba(255, 182, 193, 0.8), rgba(255, 148, 179, 0.7), rgba(255, 105, 180, 0.6))',
+                              shadow: '0 0 15px rgba(255, 182, 193, 0.6), 0 0 25px rgba(255, 182, 193, 0.3), inset 0 1px 3px rgba(255, 255, 255, 0.4)'
                             };
                           case 'まどか姉さん':
                             return {
-                              gradient: 'rgba(135, 206, 235, 0.7) 40%, rgba(70, 130, 180, 0.9) 100%',
-                              shadow: 'rgba(135, 206, 235, 0.4)',
-                              glowShadow: 'rgba(135, 206, 235, 0.6)'
+                              gradient: 'radial-gradient(circle, rgba(135, 206, 235, 0.8), rgba(103, 171, 225, 0.7), rgba(70, 130, 180, 0.6))',
+                              shadow: '0 0 15px rgba(135, 206, 235, 0.6), 0 0 25px rgba(135, 206, 235, 0.3), inset 0 1px 3px rgba(255, 255, 255, 0.4)'
                             };
                           case 'ヒデじい':
                             return {
-                              gradient: 'rgba(255, 215, 0, 0.7) 40%, rgba(255, 165, 0, 0.9) 100%',
-                              shadow: 'rgba(255, 215, 0, 0.4)',
-                              glowShadow: 'rgba(255, 215, 0, 0.6)'
+                              gradient: 'radial-gradient(circle, rgba(255, 215, 0, 0.8), rgba(255, 190, 83, 0.7), rgba(255, 165, 0, 0.6))',
+                              shadow: '0 0 15px rgba(255, 215, 0, 0.6), 0 0 25px rgba(255, 215, 0, 0.3), inset 0 1px 3px rgba(255, 255, 255, 0.4)'
                             };
                           default:
                             return {
-                              gradient: 'rgba(255, 215, 0, 0.7) 40%, rgba(255, 165, 0, 0.9) 100%',
-                              shadow: 'rgba(255, 215, 0, 0.4)',
-                              glowShadow: 'rgba(255, 215, 0, 0.6)'
+                              gradient: 'radial-gradient(circle, rgba(255, 215, 0, 0.8), rgba(255, 190, 83, 0.7), rgba(255, 165, 0, 0.6))',
+                              shadow: '0 0 15px rgba(255, 215, 0, 0.6), 0 0 25px rgba(255, 215, 0, 0.3), inset 0 1px 3px rgba(255, 255, 255, 0.4)'
                             };
                         }
                       };
@@ -614,13 +538,11 @@ export default function IntegratedChatDemo() {
                             }}
                             animate={{
                               y: [0, -15, -8, 0],
-                              scale: [1, 1.1, 0.9, 1],
                               opacity: [0.8, 1, 0.8],
                               filter: ['brightness(1)', 'brightness(1.3)', 'brightness(1)']
                             }}
                             transition={{ 
                               y: { duration: 3, repeat: Infinity, ease: "easeInOut" },
-                              scale: { duration: 3, repeat: Infinity, ease: "easeInOut" },
                               opacity: { duration: 2, repeat: Infinity, ease: "easeInOut" },
                               filter: { duration: 2, repeat: Infinity, ease: "easeInOut" }
                             }}
@@ -629,15 +551,16 @@ export default function IntegratedChatDemo() {
                             <div
                               className="w-full h-full rounded-full relative overflow-hidden"
                               style={{
-                                background: 'radial-gradient(circle, rgb(144, 238, 144), rgb(60, 179, 113), rgb(34, 139, 34))',
-                                boxShadow: '0 0 15px rgba(144, 238, 144, 0.6)'
+                                background: colors.gradient,
+                                boxShadow: colors.shadow,
+                                filter: 'blur(0.3px)'
                               }}
                             >
                               {/* 内側のハイライト */}
                               <div 
                                 className="absolute top-0.5 left-0.5 w-2 h-2 rounded-full"
                                 style={{
-                                  background: 'radial-gradient(circle, rgba(255, 255, 255, 0.3), rgba(255, 255, 255, 0.1), transparent)'
+                                  background: 'radial-gradient(circle, rgba(255, 255, 255, 0.4), rgba(255, 255, 255, 0.2), transparent)'
                                 }}
                               />
                             </div>
@@ -655,7 +578,7 @@ export default function IntegratedChatDemo() {
               onClick={() => setCurrentView('setup')}
               className="w-full py-4 bg-green-500 text-white rounded-xl font-noto-sans-jp font-bold text-lg hover:bg-green-600 transition-colors shadow-lg"
             >
-              Get Started
+              ほめびよりを始める
             </button>
           </div>
         </div>

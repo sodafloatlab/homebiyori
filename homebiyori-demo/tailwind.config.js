@@ -22,13 +22,13 @@ module.exports = {
       keyframes: {
         sparkleFloat: {
           '0%, 100%': { 
-            transform: 'translateY(0px) scale(1)' 
+            transform: 'translateY(0px)' 
           },
           '33%': { 
-            transform: 'translateY(-15px) scale(1.1)' 
+            transform: 'translateY(-15px)' 
           },
           '66%': { 
-            transform: 'translateY(-8px) scale(0.9)' 
+            transform: 'translateY(-8px)' 
           },
         },
         sparkle: {

@@ -120,27 +120,23 @@ const WatercolorTree = ({ ageInDays, fruits, childrenNames, onFruitClick, onTree
     switch (aiRole) {
       case 'たまさん':
         return {
-          gradient: 'rgba(255, 182, 193, 0.7) 40%, rgba(255, 105, 180, 0.9) 100%',
-          shadow: 'rgba(255, 182, 193, 0.4)',
-          glowShadow: 'rgba(255, 182, 193, 0.6)'
+          gradient: 'radial-gradient(circle, rgba(255, 182, 193, 0.8), rgba(255, 148, 179, 0.7), rgba(255, 105, 180, 0.6))',
+          shadow: '0 0 15px rgba(255, 182, 193, 0.6), 0 0 25px rgba(255, 182, 193, 0.3), inset 0 1px 3px rgba(255, 255, 255, 0.4)'
         };
       case 'まどか姉さん':
         return {
-          gradient: 'rgba(135, 206, 235, 0.7) 40%, rgba(70, 130, 180, 0.9) 100%',
-          shadow: 'rgba(135, 206, 235, 0.4)',
-          glowShadow: 'rgba(135, 206, 235, 0.6)'
+          gradient: 'radial-gradient(circle, rgba(135, 206, 235, 0.8), rgba(103, 171, 225, 0.7), rgba(70, 130, 180, 0.6))',
+          shadow: '0 0 15px rgba(135, 206, 235, 0.6), 0 0 25px rgba(135, 206, 235, 0.3), inset 0 1px 3px rgba(255, 255, 255, 0.4)'
         };
       case 'ヒデじい':
         return {
-          gradient: 'rgba(255, 215, 0, 0.7) 40%, rgba(255, 165, 0, 0.9) 100%',
-          shadow: 'rgba(255, 215, 0, 0.4)',
-          glowShadow: 'rgba(255, 215, 0, 0.6)'
+          gradient: 'radial-gradient(circle, rgba(255, 215, 0, 0.8), rgba(255, 190, 83, 0.7), rgba(255, 165, 0, 0.6))',
+          shadow: '0 0 15px rgba(255, 215, 0, 0.6), 0 0 25px rgba(255, 215, 0, 0.3), inset 0 1px 3px rgba(255, 255, 255, 0.4)'
         };
       default:
         return {
-          gradient: 'rgba(255, 215, 0, 0.7) 40%, rgba(255, 165, 0, 0.9) 100%',
-          shadow: 'rgba(255, 215, 0, 0.4)',
-          glowShadow: 'rgba(255, 215, 0, 0.6)'
+          gradient: 'radial-gradient(circle, rgba(255, 215, 0, 0.8), rgba(255, 190, 83, 0.7), rgba(255, 165, 0, 0.6))',
+          shadow: '0 0 15px rgba(255, 215, 0, 0.6), 0 0 25px rgba(255, 215, 0, 0.3), inset 0 1px 3px rgba(255, 255, 255, 0.4)'
         };
     }
   };
@@ -209,6 +205,7 @@ const WatercolorTree = ({ ageInDays, fruits, childrenNames, onFruitClick, onTree
       {fruits.map((fruit, index) => {
         const position = getBubblePosition(fruit);
         const floatDelay = index * 0.5;
+        const colors = getFruitColors(fruit.aiRole);
         return (
           <motion.div
             key={fruit.id}
@@ -255,31 +252,29 @@ const WatercolorTree = ({ ageInDays, fruits, childrenNames, onFruitClick, onTree
                 }}
                 animate={{
                   y: [0, -15, -8, 0],
-                  scale: [1, 1.1, 0.9, 1],
-                  opacity: [0.4, 0.7, 0.4],
-                  filter: ['brightness(1)', 'brightness(1.1)', 'brightness(1)']
+                  opacity: [0.8, 1, 0.9, 0.8],
+                  filter: ['brightness(1)', 'brightness(1.3)', 'brightness(1.1)', 'brightness(1)']
                 }}
                 transition={{ 
                   y: { duration: 3, repeat: Infinity, ease: "easeInOut" },
-                  scale: { duration: 3, repeat: Infinity, ease: "easeInOut" },
                   opacity: { duration: 2, repeat: Infinity, ease: "easeInOut" },
                   filter: { duration: 2, repeat: Infinity, ease: "easeInOut" }
                 }}
                 whileHover={{ scale: 1.1, filter: "brightness(1.2)" }}
               >
                 <div
-                  className="w-full h-full rounded-full relative overflow-hidden animate-[sparkleFloat_3s_ease-in-out_infinite,sparkle_2s_ease-in-out_infinite]"
+                  className="w-full h-full rounded-full relative overflow-hidden"
                   style={{
-                    background: 'radial-gradient(circle, rgba(255, 255, 255, 0.6), rgba(255, 248, 220, 0.5), rgba(240, 248, 255, 0.4))',
-                    boxShadow: '0 0 15px rgba(255, 255, 255, 0.4), 0 0 8px rgba(255, 255, 255, 0.2), inset 0 1px 2px rgba(255, 255, 255, 0.3)',
-                    filter: 'blur(0.3px)'
+                    background: colors.gradient,
+                    boxShadow: colors.shadow,
+                    filter: 'blur(0.2px)'
                   }}
                 >
                   {/* 内側のハイライト */}
                   <div 
                     className="absolute top-0.5 left-0.5 w-2 h-2 rounded-full"
                     style={{
-                      background: 'radial-gradient(circle, rgba(255, 255, 255, 0.2), rgba(255, 255, 255, 0.05), transparent)'
+                      background: 'radial-gradient(circle, rgba(255, 255, 255, 0.4), rgba(255, 255, 255, 0.2), transparent)'
                     }}
                   />
                 </div>
@@ -292,13 +287,11 @@ const WatercolorTree = ({ ageInDays, fruits, childrenNames, onFruitClick, onTree
                 }}
                 animate={{
                   y: [0, -15, -8, 0],
-                  scale: [1, 1.1, 0.9, 1],
-                  opacity: [0.4, 0.7, 0.4],
-                  filter: ['brightness(1)', 'brightness(1.1)', 'brightness(1)']
+                  opacity: [0.8, 1, 0.9, 0.8],
+                  filter: ['brightness(1)', 'brightness(1.2)', 'brightness(1.1)', 'brightness(1)']
                 }}
                 transition={{ 
                   y: { duration: 3, repeat: Infinity, ease: "easeInOut" },
-                  scale: { duration: 3, repeat: Infinity, ease: "easeInOut" },
                   opacity: { duration: 2, repeat: Infinity, ease: "easeInOut" },
                   filter: { duration: 2, repeat: Infinity, ease: "easeInOut" }
                 }}
@@ -307,19 +300,19 @@ const WatercolorTree = ({ ageInDays, fruits, childrenNames, onFruitClick, onTree
                 <div 
                   className="w-full h-full rounded-full flex items-center justify-center text-sm relative overflow-hidden"
                   style={{
-                    background: 'radial-gradient(circle, rgba(255, 255, 255, 0.7), rgba(248, 250, 252, 0.6), rgba(241, 245, 249, 0.5))',
-                    boxShadow: '0 0 8px rgba(255, 255, 255, 0.3), inset 0 1px 2px rgba(255, 255, 255, 0.4)',
-                    filter: 'blur(0.5px)'
+                    background: 'radial-gradient(circle, rgba(255, 255, 255, 0.9), rgba(248, 250, 252, 0.8), rgba(245, 248, 252, 0.7))',
+                    boxShadow: '0 0 12px rgba(255, 255, 255, 0.5), 0 0 20px rgba(255, 255, 255, 0.2), inset 0 1px 3px rgba(255, 255, 255, 0.6)',
+                    filter: 'blur(0.3px)'
                   }}
                 >
                   {/* 内側のハイライト */}
                   <div 
                     className="absolute top-0.5 left-0.5 w-2 h-2 rounded-full"
                     style={{
-                      background: 'radial-gradient(circle, rgba(255, 255, 255, 0.5), rgba(255, 255, 255, 0.2), transparent)'
+                      background: 'radial-gradient(circle, rgba(255, 255, 255, 0.8), rgba(255, 255, 255, 0.4), transparent)'
                     }}
                   />
-                  <span className="relative z-10 opacity-80">✨</span>
+                  <span className="relative z-10 opacity-90">✨</span>
                 </div>
               </motion.div>
             )}
