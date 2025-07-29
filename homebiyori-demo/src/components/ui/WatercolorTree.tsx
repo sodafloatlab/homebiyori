@@ -6,9 +6,27 @@ import { motion } from 'framer-motion';
 
 interface Props {
   ageInDays: number;
+  isBackground?: boolean;
+  fruits?: Array<{
+    id: string;
+    userMessage: string;
+    aiResponse: string;
+    aiRole: 'tama' | 'madoka' | 'hide';
+    createdAt: string;
+    emotion: string;
+  }>;
+  onFruitClick?: (fruit: {
+    id: string;
+    userMessage: string;
+    aiResponse: string;
+    aiRole: 'tama' | 'madoka' | 'hide';
+    createdAt: string;
+    emotion: string;
+  }) => void;
 }
 
-const WatercolorTree = ({ ageInDays }: Props) => {
+
+const WatercolorTree = ({ ageInDays, isBackground = false, fruits = [], onFruitClick }: Props) => {
   const [isClient, setIsClient] = useState(false);
   const [previousAge, setPreviousAge] = useState(ageInDays);
   const [isGrowing, setIsGrowing] = useState(false);
@@ -18,34 +36,10 @@ const WatercolorTree = ({ ageInDays }: Props) => {
     setIsClient(true);
   }, []);
 
-  // 成長段階に応じた実の数を決定
-  const getFruitCount = () => {
-    if (ageInDays <= 7) return 0;       // 芽 - 実なし
-    if (ageInDays <= 30) return 1;      // 小さな苗 - 1個
-    if (ageInDays <= 90) return 3;      // 若木 - 3個
-    if (ageInDays <= 180) return 6;     // 中木 - 6個
-    if (ageInDays <= 365) return 10;    // 大木 - 10個
-    return 15;                          // 完全成長 - 15個
-  };
 
-  // デモ用の実データを生成
-  const generateDemoFruits = () => {
-    const fruitCount = getFruitCount();
-    const fruits = [];
-    
-    for (let i = 0; i < fruitCount; i++) {
-      const aiRoles = ['たまさん', 'まどか姉さん', 'ヒデじい'];
-      fruits.push({
-        id: `demo-fruit-${i}`,
-        x: 0, // getBubblePositionで計算される
-        y: 0, // getBubblePositionで計算される
-        type: i % 2 === 0 ? 'encouragement' : 'reflection',
-        aiRole: aiRoles[i % 3],
-        message: `デモメッセージ${i + 1}`,
-        createdAt: new Date().toISOString()
-      });
-    }
-    
+  // 実際のfruitsデータを使用（背景でも実データを使用）
+  const getDisplayFruits = () => {
+    // 背景でも実際の表示でも、常に実際のfruitsデータを使用
     return fruits;
   };
 
@@ -66,24 +60,24 @@ const WatercolorTree = ({ ageInDays }: Props) => {
     }
   }, [ageInDays, previousAge]);
 
-  // 成長段階を数値で返す関数
+  // 成長段階を数値で返す関数（6段階）
   const getGrowthStage = (days: number) => {
-    if (days <= 7) return 1;
-    if (days <= 30) return 2;
-    if (days <= 90) return 3;
-    if (days <= 180) return 4;
-    if (days <= 365) return 5;
-    return 6;
+    if (days <= 100) return 1;  // 芽
+    if (days <= 200) return 2;  // 小さな苗
+    if (days <= 300) return 3;  // 若木
+    if (days <= 400) return 4;  // 中木
+    if (days <= 500) return 5;  // 大木
+    return 6;                   // 完全成長
   };
 
-  // 画像パスを決定する関数
+  // 画像パスを決定する関数（6段階）
   const getTreeImage = () => {
-    if (ageInDays <= 7) return '/images/trees/tree_1.png';
-    if (ageInDays <= 30) return '/images/trees/tree_2.png';
-    if (ageInDays <= 90) return '/images/trees/tree_3.png';
-    if (ageInDays <= 180) return '/images/trees/tree_4.png';
-    if (ageInDays <= 365) return '/images/trees/tree_5.png';
-    return '/images/trees/tree_6.png';
+    if (ageInDays <= 100) return '/images/trees/tree_1.png';  // 芽
+    if (ageInDays <= 200) return '/images/trees/tree_2.png';  // 小さな苗
+    if (ageInDays <= 300) return '/images/trees/tree_3.png';  // 若木
+    if (ageInDays <= 400) return '/images/trees/tree_4.png';  // 中木
+    if (ageInDays <= 500) return '/images/trees/tree_5.png';  // 大木
+    return '/images/trees/tree_6.png';                        // 完全成長
   };
 
   console.log('🌳 WatercolorTree RENDER:');
@@ -112,14 +106,14 @@ const WatercolorTree = ({ ageInDays }: Props) => {
     );
   }
 
-  // 成長段階に応じた木のサイズを決定（6段階すべてを使用、最後の2枚はさらに大きく）
+  // 成長段階に応じた木のサイズを決定（6段階）
   const getTreeSize = () => {
-    if (ageInDays <= 7) return { width: 240, height: 240 };      // tree_1.png - 芽
-    if (ageInDays <= 30) return { width: 320, height: 320 };     // tree_2.png - 小さな苗
-    if (ageInDays <= 90) return { width: 420, height: 420 };     // tree_3.png - 若木
-    if (ageInDays <= 180) return { width: 520, height: 520 };    // tree_4.png - 中木
-    if (ageInDays <= 365) return { width: 680, height: 680 };    // tree_5.png - 大木（特に大きく）
-    return { width: 800, height: 800 };                          // tree_6.png - 完全成長（最大）
+    if (ageInDays <= 100) return { width: 240, height: 240 };    // tree_1.png - 芽
+    if (ageInDays <= 200) return { width: 320, height: 320 };    // tree_2.png - 小さな苗
+    if (ageInDays <= 300) return { width: 420, height: 420 };    // tree_3.png - 若木
+    if (ageInDays <= 400) return { width: 520, height: 520 };    // tree_4.png - 中木
+    if (ageInDays <= 500) return { width: 680, height: 680 };    // tree_5.png - 大木
+    return { width: 800, height: 800 };                          // tree_6.png - 完全成長
   };
 
   // コンテナの高さは固定（最大サイズに対応、余白を削減）
@@ -127,31 +121,31 @@ const WatercolorTree = ({ ageInDays }: Props) => {
     return 'h-[600px]'; // 固定サイズ - 最大の木（800px）にフィット
   };
 
-  // シャボン玉の浮遊エリアを成長段階に応じて定義
+  // シャボン玉の浮遊エリアを成長段階に応じて定義（6段階）
   const getBubbleAreas = () => {
-    if (ageInDays <= 7) {
-      return { centerX: 50, centerY: 45, radiusX: 15, radiusY: 10 };
-    } else if (ageInDays <= 30) {
-      return { centerX: 50, centerY: 40, radiusX: 20, radiusY: 15 };
-    } else if (ageInDays <= 90) {
-      return { centerX: 50, centerY: 35, radiusX: 25, radiusY: 20 };
-    } else if (ageInDays <= 180) {
-      return { centerX: 50, centerY: 32, radiusX: 32, radiusY: 28 };
-    } else if (ageInDays <= 365) {
-      return { centerX: 50, centerY: 25, radiusX: 50, radiusY: 40 };
+    if (ageInDays <= 100) {
+      return { centerX: 50, centerY: 45, radiusX: 15, radiusY: 10 };  // 芽
+    } else if (ageInDays <= 200) {
+      return { centerX: 50, centerY: 40, radiusX: 20, radiusY: 15 };  // 小さな苗
+    } else if (ageInDays <= 300) {
+      return { centerX: 50, centerY: 35, radiusX: 25, radiusY: 20 };  // 若木
+    } else if (ageInDays <= 400) {
+      return { centerX: 50, centerY: 32, radiusX: 32, radiusY: 28 };  // 中木
+    } else if (ageInDays <= 500) {
+      return { centerX: 50, centerY: 25, radiusX: 50, radiusY: 40 };  // 大木
     } else {
-      return { centerX: 50, centerY: 20, radiusX: 60, radiusY: 50 };
+      return { centerX: 50, centerY: 20, radiusX: 60, radiusY: 50 };  // 完全成長
     }
   };
 
   // シャボン玉の浮遊位置を決定（木の周りをふわふわ）
-  const getBubblePosition = (fruit: any) => {
+  const getBubblePosition = (index: number) => {
     const area = getBubbleAreas();
     
-    // IDベースで軌道を決定（固定だが自然な配置）
-    const angle = (parseInt(fruit.id.split('-')[2]) * 73) % 360;
-    const radiusRatio = 0.6 + ((parseInt(fruit.id.split('-')[2]) * 17) % 40) / 100;
-    const heightOffset = ((parseInt(fruit.id.split('-')[2]) * 23) % 20) - 10;
+    // インデックスベースで軌道を決定（固定だが自然な配置）
+    const angle = (index * 73) % 360;
+    const radiusRatio = 0.6 + ((index * 17) % 40) / 100;
+    const heightOffset = ((index * 23) % 20) - 10;
     
     const x = area.centerX + Math.cos(angle * Math.PI / 180) * area.radiusX * radiusRatio;
     const y = area.centerY + Math.sin(angle * Math.PI / 180) * area.radiusY * radiusRatio + heightOffset;
@@ -165,17 +159,17 @@ const WatercolorTree = ({ ageInDays }: Props) => {
   // AIロールに応じた色設定を取得
   const getFruitColors = (aiRole: string) => {
     switch (aiRole) {
-      case 'たまさん':
+      case 'tama':
         return {
           gradient: 'radial-gradient(circle, rgba(255, 182, 193, 0.8), rgba(255, 148, 179, 0.7), rgba(255, 105, 180, 0.6))',
           shadow: '0 0 15px rgba(255, 182, 193, 0.6), 0 0 25px rgba(255, 182, 193, 0.3), inset 0 1px 3px rgba(255, 255, 255, 0.4)'
         };
-      case 'まどか姉さん':
+      case 'madoka':
         return {
           gradient: 'radial-gradient(circle, rgba(135, 206, 235, 0.8), rgba(103, 171, 225, 0.7), rgba(70, 130, 180, 0.6))',
           shadow: '0 0 15px rgba(135, 206, 235, 0.6), 0 0 25px rgba(135, 206, 235, 0.3), inset 0 1px 3px rgba(255, 255, 255, 0.4)'
         };
-      case 'ヒデじい':
+      case 'hide':
         return {
           gradient: 'radial-gradient(circle, rgba(255, 215, 0, 0.8), rgba(255, 190, 83, 0.7), rgba(255, 165, 0, 0.6))',
           shadow: '0 0 15px rgba(255, 215, 0, 0.6), 0 0 25px rgba(255, 215, 0, 0.3), inset 0 1px 3px rgba(255, 255, 255, 0.4)'
@@ -190,14 +184,20 @@ const WatercolorTree = ({ ageInDays }: Props) => {
 
   const imagePath = getTreeImage();
   const treeSize = getTreeSize();
-  const demoFruits = generateDemoFruits();
+  const displayFruits = getDisplayFruits();
 
   return (
-    <div className={`relative w-full ${getContainerHeight()} rounded-2xl overflow-hidden bg-gradient-to-b from-blue-50 via-green-50 to-yellow-50 shadow-lg`}>
+    <div className={`relative w-full ${getContainerHeight()} overflow-hidden ${
+      isBackground 
+        ? '' 
+        : 'rounded-2xl bg-gradient-to-b from-blue-50 via-green-50 to-yellow-50 shadow-lg'
+    }`}>
       
       
       {/* 水彩風の背景効果 */}
-      <div className="absolute inset-0 bg-gradient-radial from-white/30 via-transparent to-transparent opacity-70"></div>
+      {!isBackground && (
+        <div className="absolute inset-0 bg-gradient-radial from-white/30 via-transparent to-transparent opacity-70"></div>
+      )}
       
       {/* 中央の木の画像 - 成長時のみアニメーション */}
       <div className="absolute inset-0 flex items-center justify-center">
@@ -251,14 +251,21 @@ const WatercolorTree = ({ ageInDays }: Props) => {
       </div>
 
       {/* シャボン玉のような浮遊する実 */}
-      {demoFruits.map((fruit, index) => {
-        const position = getBubblePosition(fruit);
+      {displayFruits.map((fruit, index) => {
+        const position = getBubblePosition(index);
         const floatDelay = index * 0.5;
         const colors = getFruitColors(fruit.aiRole);
+        
+        const handleFruitClick = () => {
+          if (onFruitClick && !isBackground) {
+            onFruitClick(fruit);
+          }
+        };
+        
         return (
           <motion.div
             key={fruit.id}
-            className="absolute cursor-pointer"
+            className={`absolute ${!isBackground ? 'cursor-pointer' : ''}`}
             style={{
               left: `${position.x}%`,
               top: `${position.y}%`,
@@ -290,7 +297,8 @@ const WatercolorTree = ({ ageInDays }: Props) => {
                 ease: "easeInOut" 
               }
             }}
-            whileHover={{ scale: 1.3, y: -5 }}
+            whileHover={!isBackground ? { scale: 1.3, y: -5 } : {}}
+            onClick={handleFruitClick}
           >
             <motion.div
               className="absolute w-5 h-5 cursor-pointer transition-all duration-300 ease-in-out hover:scale-110 hover:brightness-120"
