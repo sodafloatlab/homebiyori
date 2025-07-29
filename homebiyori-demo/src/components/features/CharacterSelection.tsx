@@ -189,12 +189,30 @@ const CharacterSelection = ({ onCharacterSelect, onNavigate }: CharacterSelectio
             
             <motion.button
               onClick={handleStartChat}
-              className="px-8 py-4 bg-emerald-500 text-white rounded-xl font-bold text-lg hover:bg-emerald-600 transition-colors shadow-lg"
+              className="px-8 py-4 bg-emerald-500 text-white rounded-xl font-bold text-lg hover:bg-emerald-600 transition-colors shadow-lg mb-4"
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
             >
               チャットを始める
             </motion.button>
+            
+            {/* プレミアム機能ボタン */}
+            <div className="pt-4 border-t border-emerald-100">
+              <p className="text-sm text-emerald-600 mb-3 flex items-center justify-center">
+                <span className="px-2 py-1 bg-gradient-to-r from-yellow-400 to-yellow-500 text-white text-xs font-bold rounded-full mr-2">
+                  PREMIUM
+                </span>
+                課金ユーザー限定機能
+              </p>
+              <motion.button
+                onClick={() => onNavigate('group-chat')}
+                className="px-8 py-3 bg-gradient-to-r from-purple-500 to-indigo-600 text-white rounded-xl font-medium hover:from-purple-600 hover:to-indigo-700 transition-all shadow-lg hover:shadow-xl"
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+              >
+                🎭 グループチャット（全キャラクター）
+              </motion.button>
+            </div>
           </div>
         </div>
       </div>

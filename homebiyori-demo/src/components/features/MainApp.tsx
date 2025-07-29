@@ -5,10 +5,13 @@ import TopPage from './TopPage';
 import CharacterSelection from './CharacterSelection';
 import ChatScreen from './ChatScreen';
 import TreeView from './TreeView';
+import GroupChatScreen from './GroupChatScreen';
 
 export type AiRole = 'tama' | 'madoka' | 'hide';
 export type MoodType = 'praise' | 'listen';
-export type AppScreen = 'landing' | 'character-selection' | 'chat' | 'tree';
+export type AppScreen = 'landing' | 'character-selection' | 'chat' | 'tree' | 'group-chat';
+export type UserPlan = 'free' | 'premium';
+export type ChatMode = 'normal' | 'deep';
 
 export interface Fruit {
   id: string;
@@ -19,12 +22,24 @@ export interface Fruit {
   emotion: string;
 }
 
+export interface ChatHistory {
+  id: string;
+  userMessage: string;
+  aiResponse: string;
+  aiRole: AiRole;
+  timestamp: number;
+  mode: ChatMode;
+}
+
 interface AppState {
   currentScreen: AppScreen;
   selectedAiRole: AiRole | null;
   currentMood: MoodType;
   totalCharacters: number;
   fruits: Fruit[];
+  userPlan: UserPlan;
+  chatMode: ChatMode;
+  chatHistory: ChatHistory[];
 }
 
 const MainApp = () => {
@@ -33,7 +48,10 @@ const MainApp = () => {
     selectedAiRole: null,
     currentMood: 'praise',
     totalCharacters: 0,
-    fruits: []
+    fruits: [],
+    userPlan: 'premium', // デモ用にプレミアムプランを設定
+    chatMode: 'normal',
+    chatHistory: []
   });
 
   const handleNavigate = (screen: AppScreen) => {
@@ -74,6 +92,26 @@ const MainApp = () => {
     }));
   };
 
+  const handleAddChatHistory = (userMessage: string, aiResponse: string, aiRole: AiRole) => {
+    const newChatHistory: ChatHistory = {
+      id: Date.now().toString(),
+      userMessage,
+      aiResponse,
+      aiRole,
+      timestamp: Date.now(),
+      mode: appState.chatMode
+    };
+    
+    setAppState(prev => ({
+      ...prev,
+      chatHistory: [...prev.chatHistory.slice(-49), newChatHistory] // 最新50件まで保持
+    }));
+  };
+
+  const handleChatModeChange = (mode: ChatMode) => {
+    setAppState(prev => ({ ...prev, chatMode: mode }));
+  };
+
   const renderCurrentScreen = () => {
     switch (appState.currentScreen) {
       case 'landing':
@@ -93,8 +131,13 @@ const MainApp = () => {
             onNavigate={handleNavigate}
             onAddCharacters={handleAddCharacters}
             onAddFruit={handleAddFruit}
+            onAddChatHistory={handleAddChatHistory}
             totalCharacters={appState.totalCharacters}
             fruits={appState.fruits}
+            userPlan={appState.userPlan}
+            chatMode={appState.chatMode}
+            chatHistory={appState.chatHistory}
+            onChatModeChange={handleChatModeChange}
           />
         );
       case 'tree':
@@ -103,6 +146,22 @@ const MainApp = () => {
             totalCharacters={appState.totalCharacters}
             fruits={appState.fruits}
             onNavigate={handleNavigate}
+          />
+        );
+      case 'group-chat':
+        return (
+          <GroupChatScreen 
+            currentMood={appState.currentMood}
+            onNavigate={handleNavigate}
+            onAddCharacters={handleAddCharacters}
+            onAddFruit={handleAddFruit}
+            onAddChatHistory={handleAddChatHistory}
+            totalCharacters={appState.totalCharacters}
+            fruits={appState.fruits}
+            userPlan={appState.userPlan}
+            chatMode={appState.chatMode}
+            chatHistory={appState.chatHistory}
+            onChatModeChange={handleChatModeChange}
           />
         );
       default:

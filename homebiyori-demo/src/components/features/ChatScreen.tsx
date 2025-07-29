@@ -2,10 +2,10 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Send, Trees, Heart, MessageCircle, ArrowLeft } from 'lucide-react';
+import { Send, Trees, Heart, MessageCircle, ArrowLeft, Zap, Crown } from 'lucide-react';
 import Image from 'next/image';
 import WatercolorTree from '@/components/ui/WatercolorTree';
-import { AiRole, MoodType, AppScreen } from './MainApp';
+import { AiRole, MoodType, AppScreen, UserPlan, ChatMode, ChatHistory } from './MainApp';
 
 interface ChatMessage {
   id: string;
@@ -23,6 +23,7 @@ interface ChatScreenProps {
   onNavigate: (screen: AppScreen) => void;
   onAddCharacters: (count: number) => void;
   onAddFruit: (userMessage: string, aiResponse: string, emotion: string) => void;
+  onAddChatHistory: (userMessage: string, aiResponse: string, aiRole: AiRole) => void;
   totalCharacters: number;
   fruits: Array<{
     id: string;
@@ -32,6 +33,10 @@ interface ChatScreenProps {
     createdAt: string;
     emotion: string;
   }>;
+  userPlan: UserPlan;
+  chatMode: ChatMode;
+  chatHistory: ChatHistory[];
+  onChatModeChange: (mode: ChatMode) => void;
 }
 
 const ChatScreen = ({ 
@@ -40,8 +45,13 @@ const ChatScreen = ({
   onNavigate, 
   onAddCharacters,
   onAddFruit,
+  onAddChatHistory,
   totalCharacters,
-  fruits
+  fruits,
+  userPlan,
+  chatMode,
+  chatHistory,
+  onChatModeChange
 }: ChatScreenProps) => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputText, setInputText] = useState('');
@@ -301,6 +311,8 @@ const ChatScreen = ({
     // AI応答生成
     setTimeout(() => {
       // 通常の応答
+      // パーソナライズされた応答を生成（履歴を考慮）
+      const recentHistory = chatHistory.slice(-5);
       const aiResponseText = generateAiResponse(inputText, selectedAiRole, selectedMoodState);
       const aiResponse: ChatMessage = {
         id: (Date.now() + 1).toString(),
@@ -312,6 +324,9 @@ const ChatScreen = ({
       };
 
       setMessages(prev => [...prev, aiResponse]);
+      
+      // チャット履歴に追加
+      onAddChatHistory(inputText, aiResponseText, selectedAiRole);
 
       // 感情検出して実を追加
       if (detectedEmotion) {
@@ -457,6 +472,22 @@ const ChatScreen = ({
           </div>
 
           <div className="flex items-center space-x-2">
+            {/* ディープモード切り替え（プレミアム限定） */}
+            {userPlan === 'premium' && (
+              <button
+                onClick={() => onChatModeChange(chatMode === 'normal' ? 'deep' : 'normal')}
+                className={`flex items-center space-x-1 px-3 py-1 rounded-full text-sm font-medium transition-colors ${
+                  chatMode === 'deep'
+                    ? 'bg-purple-500 text-white'
+                    : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                }`}
+              >
+                <Zap className="w-4 h-4" />
+                <span>{chatMode === 'deep' ? 'ディープ' : 'ノーマル'}</span>
+                {chatMode === 'deep' && <Crown className="w-3 h-3" />}
+              </button>
+            )}
+            
             <button
               onClick={() => onNavigate('tree')}
               className="flex items-center px-3 py-2 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 rounded-lg transition-colors text-sm font-medium"

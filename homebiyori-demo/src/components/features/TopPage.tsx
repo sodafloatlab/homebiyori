@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { ChevronRight, Heart, TrendingUp, Users, Leaf } from 'lucide-react';
 import Image from 'next/image';
-import WatercolorTree from '@/components/ui/WatercolorTree';
+import TopPageWatercolorTree from '@/components/ui/TopPageWatercolorTree';
 import { AppScreen } from './MainApp';
 
 interface TopPageProps {
@@ -227,14 +227,14 @@ const TopPage = ({ onNavigate }: TopPageProps) => {
             viewport={{ once: true }}
           >
             <div className="w-full max-w-2xl">
-              <WatercolorTree 
+              <TopPageWatercolorTree 
                 ageInDays={
-                  currentTreeStage === 1 ? 5 :     // tree_1.png - 芽（5日）
-                  currentTreeStage === 2 ? 20 :    // tree_2.png - 小さな苗（20日）
-                  currentTreeStage === 3 ? 60 :    // tree_3.png - 若木（60日）
-                  currentTreeStage === 4 ? 150 :   // tree_4.png - 中木（150日）
-                  currentTreeStage === 5 ? 300 :   // tree_5.png - 大木（300日）
-                  500                               // tree_6.png - 完全成長（500日）
+                  currentTreeStage === 1 ? 50 :    // tree_1.png - 芽（50日）
+                  currentTreeStage === 2 ? 150 :   // tree_2.png - 小さな苗（150日）
+                  currentTreeStage === 3 ? 250 :   // tree_3.png - 若木（250日）
+                  currentTreeStage === 4 ? 350 :   // tree_4.png - 中木（350日）
+                  currentTreeStage === 5 ? 450 :   // tree_5.png - 大木（450日）
+                  550                               // tree_6.png - 完全成長（550日）
                 }
               />
             </div>
