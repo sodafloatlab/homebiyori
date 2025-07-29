@@ -1,10 +1,5 @@
-import IntegratedChatDemo from '@/components/features/IntegratedChatDemo';
-import PremiumLayout from '@/components/layout/PremiumLayout';
+import TopPage from '@/components/features/TopPage';
 
 export default function Home() {
-  return (
-    <PremiumLayout>
-      <IntegratedChatDemo />
-    </PremiumLayout>
-  );
+  return <TopPage />;
 }
