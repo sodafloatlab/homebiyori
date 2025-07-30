@@ -178,7 +178,7 @@ const TopPage = ({ onNavigate }: TopPageProps) => {
               transition={{ duration: 1.2, delay: 0.6 }}
             >
               <motion.button 
-                onClick={() => onNavigate('character-selection')}
+                onClick={() => onNavigate('auth')}
                 className="group relative inline-flex items-center justify-center px-10 py-4 text-lg font-semibold text-white rounded-full shadow-xl transition-all duration-300 overflow-hidden"
                 style={{
                   background: 'linear-gradient(135deg, #059669 0%, #10b981 50%, #34d399 100%)',
@@ -386,7 +386,7 @@ const TopPage = ({ onNavigate }: TopPageProps) => {
           </motion.p>
           
           <motion.button 
-            onClick={() => onNavigate('character-selection')}
+            onClick={() => onNavigate('auth')}
             className="group relative inline-flex items-center justify-center px-12 py-4 text-xl font-semibold bg-white text-emerald-700 rounded-full shadow-2xl hover:shadow-white/25 transition-all duration-300"
             initial={{ opacity: 0, scale: 0.9 }}
             whileInView={{ opacity: 1, scale: 1 }}

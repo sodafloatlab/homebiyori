@@ -10,10 +10,11 @@ interface TreeViewProps {
   totalCharacters: number;
   fruits: Fruit[];
   onNavigate: (screen: AppScreen) => void;
+  previousScreen: AppScreen | null;
 }
 
 
-const TreeView = ({ totalCharacters, fruits, onNavigate }: TreeViewProps) => {
+const TreeView = ({ totalCharacters, fruits, onNavigate, previousScreen }: TreeViewProps) => {
   const [selectedFruit, setSelectedFruit] = useState<Fruit | null>(null);
 
   // 文字数から木の成長段階を計算（6段階、テスト用に低い閾値）
@@ -61,11 +62,11 @@ const TreeView = ({ totalCharacters, fruits, onNavigate }: TreeViewProps) => {
       <div className="bg-white/80 backdrop-blur-sm border-b border-emerald-100 p-4">
         <div className="flex items-center justify-between">
           <button 
-            onClick={() => onNavigate('chat')}
+            onClick={() => onNavigate(previousScreen === 'group-chat' ? 'group-chat' : 'chat')}
             className="flex items-center text-emerald-700 hover:text-emerald-800 transition-colors"
           >
             <ArrowLeft className="w-5 h-5 mr-2" />
-            チャットに戻る
+            {previousScreen === 'group-chat' ? 'グループチャットに戻る' : 'チャットに戻る'}
           </button>
           
           <div className="text-center">
@@ -100,7 +101,7 @@ const TreeView = ({ totalCharacters, fruits, onNavigate }: TreeViewProps) => {
                 <div className="text-emerald-600">{stageInfo.name}</div>
               </div>
               <div className="bg-emerald-50 p-3 rounded-lg">
-                <div className="font-bold text-emerald-800">光る実</div>
+                <div className="font-bold text-emerald-800">ほめの実</div>
                 <div className="text-emerald-600">{fruits.length}個</div>
               </div>
             </div>
@@ -121,7 +122,7 @@ const TreeView = ({ totalCharacters, fruits, onNavigate }: TreeViewProps) => {
           />
         </motion.div>
 
-        {/* 実の一覧（直近3つのみ） */}
+        {/* ほめの実の一覧（直近3つのみ） */}
         {fruits.length > 0 && (
           <motion.div 
             className="bg-white/80 backdrop-blur-sm rounded-xl p-6 border border-emerald-100 shadow-sm"
@@ -131,10 +132,10 @@ const TreeView = ({ totalCharacters, fruits, onNavigate }: TreeViewProps) => {
           >
             <h3 className="text-lg font-bold text-emerald-800 mb-4 flex items-center">
               <span className="mr-2">✨</span>
-              最近の光る実の記録
+              最近のほめの実の記録
               {fruits.length > 3 && (
                 <span className="text-sm text-emerald-600 ml-2">
-                  （直近3つ表示 - 木の実をクリックして全て見る）
+                  （直近3つ表示 - ほめの実をクリックして全て見る）
                 </span>
               )}
             </h3>
@@ -170,7 +171,7 @@ const TreeView = ({ totalCharacters, fruits, onNavigate }: TreeViewProps) => {
           </motion.div>
         )}
 
-        {/* 実の詳細モーダル */}
+        {/* ほめの実の詳細モーダル */}
         {selectedFruit && (
           <motion.div 
             className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50"
@@ -191,7 +192,7 @@ const TreeView = ({ totalCharacters, fruits, onNavigate }: TreeViewProps) => {
                   'bg-yellow-400'
                 }`}></div>
                 <h3 className="text-lg font-bold text-emerald-800">
-                  光る実の記録
+                  ほめの実の記録
                 </h3>
                 <p className="text-sm text-emerald-600">{selectedFruit.createdAt} • {selectedFruit.emotion}</p>
               </div>
@@ -238,11 +239,11 @@ const TreeView = ({ totalCharacters, fruits, onNavigate }: TreeViewProps) => {
           transition={{ delay: 0.6 }}
         >
           <button
-            onClick={() => onNavigate('chat')}
+            onClick={() => onNavigate(previousScreen === 'group-chat' ? 'group-chat' : 'chat')}
             className="flex items-center justify-center mx-auto px-6 py-3 bg-emerald-500 text-white rounded-xl font-medium hover:bg-emerald-600 transition-colors"
           >
             <MessageCircle className="w-5 h-5 mr-2" />
-            チャットを続ける
+            {previousScreen === 'group-chat' ? 'グループチャットを続ける' : 'チャットを続ける'}
           </button>
         </motion.div>
       </div>

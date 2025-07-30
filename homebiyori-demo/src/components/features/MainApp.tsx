@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import TopPage from './TopPage';
+import AuthScreen from './AuthScreen';
 import CharacterSelection from './CharacterSelection';
 import ChatScreen from './ChatScreen';
 import TreeView from './TreeView';
@@ -9,7 +10,7 @@ import GroupChatScreen from './GroupChatScreen';
 
 export type AiRole = 'tama' | 'madoka' | 'hide';
 export type MoodType = 'praise' | 'listen';
-export type AppScreen = 'landing' | 'character-selection' | 'chat' | 'tree' | 'group-chat';
+export type AppScreen = 'landing' | 'auth' | 'character-selection' | 'chat' | 'tree' | 'group-chat';
 export type UserPlan = 'free' | 'premium';
 export type ChatMode = 'normal' | 'deep';
 
@@ -33,6 +34,7 @@ export interface ChatHistory {
 
 interface AppState {
   currentScreen: AppScreen;
+  previousScreen: AppScreen | null;
   selectedAiRole: AiRole | null;
   currentMood: MoodType;
   totalCharacters: number;
@@ -45,6 +47,7 @@ interface AppState {
 const MainApp = () => {
   const [appState, setAppState] = useState<AppState>({
     currentScreen: 'landing',
+    previousScreen: null,
     selectedAiRole: null,
     currentMood: 'praise',
     totalCharacters: 0,
@@ -55,7 +58,11 @@ const MainApp = () => {
   });
 
   const handleNavigate = (screen: AppScreen) => {
-    setAppState(prev => ({ ...prev, currentScreen: screen }));
+    setAppState(prev => ({ 
+      ...prev, 
+      previousScreen: prev.currentScreen,
+      currentScreen: screen 
+    }));
   };
 
   const handleCharacterSelect = (role: AiRole, mood: MoodType) => {
@@ -112,10 +119,24 @@ const MainApp = () => {
     setAppState(prev => ({ ...prev, chatMode: mode }));
   };
 
+  const handleAuthSuccess = () => {
+    setAppState(prev => ({
+      ...prev,
+      currentScreen: 'character-selection'
+    }));
+  };
+
   const renderCurrentScreen = () => {
     switch (appState.currentScreen) {
       case 'landing':
         return <TopPage onNavigate={handleNavigate} />;
+      case 'auth':
+        return (
+          <AuthScreen 
+            onNavigate={handleNavigate}
+            onAuthSuccess={handleAuthSuccess}
+          />
+        );
       case 'character-selection':
         return (
           <CharacterSelection 
@@ -146,6 +167,7 @@ const MainApp = () => {
             totalCharacters={appState.totalCharacters}
             fruits={appState.fruits}
             onNavigate={handleNavigate}
+            previousScreen={appState.previousScreen}
           />
         );
       case 'group-chat':

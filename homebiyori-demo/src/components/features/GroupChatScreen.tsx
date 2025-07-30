@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Send, ArrowLeft, Settings, Crown, Zap } from 'lucide-react';
+import { Send, ArrowLeft, Settings, Crown, Zap, Trees } from 'lucide-react';
 import WatercolorTree from '@/components/ui/WatercolorTree';
 import { AiRole, MoodType, AppScreen, UserPlan, ChatMode, ChatHistory } from './MainApp';
 
@@ -115,6 +115,41 @@ const GroupChatScreen = ({
     return null;
   };
 
+  // 成長通知メッセージ生成
+  const generateGrowthNotification = (aiRole: AiRole, newStage: number): string => {
+    const stageNames = {
+      1: '芽',
+      2: '小さな苗',
+      3: '若木',
+      4: '中木',
+      5: '大木',
+      6: '完全成長'
+    };
+
+    const stageName = stageNames[newStage as keyof typeof stageNames] || '成長';
+
+    const notifications = {
+      tama: [
+        `✨ わあ！あなたの成長の木が「${stageName}」に成長しました！毎日の頑張りが実を結んでいますね。本当に素晴らしいです！`,
+        `🌱 おめでとうございます！「${stageName}」への成長を達成されました。あなたの愛情深い育児が、こうして目に見える形になっているんですね。`,
+        `💚 成長の木が「${stageName}」になりました！あなたの日々の努力と愛情が、着実に積み重なっている証拠です。心から応援しています！`
+      ],
+      madoka: [
+        `🎉 きゃー！すごいです！あなたの木が「${stageName}」に成長しちゃいました！毎日の頑張りが本当に実っていますね！`,
+        `✨ おめでとうございます！「${stageName}」への成長達成です！あなたの愛情がこうして形になるなんて、見ていて本当に嬉しいです！`,
+        `🌟 わあ！「${stageName}」に成長しました！あなたの育児への真摯な取り組みが、こんなに素敵な結果を生んでいるんですね！`
+      ],
+      hide: [
+        `🌳 ほほう、見事じゃな！あなたの木が「${stageName}」に成長したぞ。日々の愛情と努力が、こうして実を結んでおる。`,
+        `✨ おめでとうじゃ！「${stageName}」への成長を達成されたな。あなたの育児への真摯な姿勢が、このような素晴らしい結果を生んでおる。`,
+        `🍃 立派なものじゃ！「${stageName}」に成長するとは。あなたの日々の頑張りが、着実に積み重なっておる証拠じゃな。`
+      ]
+    };
+
+    const messages = notifications[aiRole];
+    return messages[Math.floor(Math.random() * messages.length)];
+  };
+
   // パーソナライズされたAI応答生成（履歴を考慮）
   const generatePersonalizedResponse = (inputMessage: string, aiRole: AiRole, mood: MoodType): string => {
     // 過去の会話から文脈を取得（将来的にパーソナライゼーションで使用）
@@ -194,6 +229,12 @@ const GroupChatScreen = ({
   // メッセージ送信処理
   const handleSendMessage = () => {
     if (!inputText.trim()) return;
+    
+    // AIキャラクターが選択されていない場合の警告
+    if (activeAIs.length === 0) {
+      alert('参加するAIキャラクターを選択してください');
+      return;
+    }
 
     const userMessage: ChatMessage = {
       id: Date.now().toString(),
@@ -223,8 +264,11 @@ const GroupChatScreen = ({
     setInputText('');
     setIsTyping(true);
 
-    // 各AIキャラクターから順番に応答
-    activeAIs.forEach((aiRole, index) => {
+    // AIの回答順序をランダム化
+    const shuffledAIs = [...activeAIs].sort(() => Math.random() - 0.5);
+
+    // 各AIキャラクターからランダム順序で応答
+    shuffledAIs.forEach((aiRole, index) => {
       setTimeout(() => {
         const aiResponseText = generatePersonalizedResponse(inputText, aiRole, selectedMoodState);
         const aiResponse: ChatMessage = {
@@ -241,13 +285,28 @@ const GroupChatScreen = ({
         // チャット履歴に追加
         onAddChatHistory(inputText, aiResponseText, aiRole);
 
-        // 最初のAIの応答でのみ実を生成
+        // 最初のAIの応答でのみほめの実を生成
         if (index === 0 && detectedEmotion) {
           onAddFruit(inputText, aiResponseText, detectedEmotion);
         }
 
-        // 最後のAIの応答の後にタイピング状態を解除
-        if (index === activeAIs.length - 1) {
+        // 最後のAIの応答の後に成長通知とタイピング状態を解除
+        if (index === shuffledAIs.length - 1) {
+          // 成長があった場合、最後に回答したAIが成長通知を行う
+          if (hasGrown) {
+            setTimeout(() => {
+              const growthNotificationText = generateGrowthNotification(aiRole, newStage);
+              const growthNotification: ChatMessage = {
+                id: (Date.now() + 1000).toString(),
+                text: growthNotificationText,
+                sender: 'ai',
+                timestamp: Date.now(),
+                aiRole: aiRole,
+                mood: selectedMoodState
+              };
+              setMessages(prev => [...prev, growthNotification]);
+            }, 1000); // 1秒後に成長通知
+          }
           setIsTyping(false);
         }
       }, 1500 * (index + 1)); // 各AIが1.5秒間隔で応答
@@ -306,9 +365,10 @@ const GroupChatScreen = ({
             
             <button
               onClick={() => onNavigate('tree')}
-              className="p-2 rounded-full hover:bg-emerald-100 transition-colors"
+              className="flex items-center px-3 py-2 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 rounded-lg transition-colors text-sm font-medium"
             >
-              <Settings className="w-5 h-5 text-emerald-600" />
+              <Trees className="w-4 h-4 mr-1" />
+              木を見る
             </button>
           </div>
         </div>
@@ -421,7 +481,7 @@ const GroupChatScreen = ({
             onChange={(e) => setInputText(e.target.value)}
             onKeyPress={handleKeyPress}
             placeholder="メッセージを入力..."
-            className="flex-1 px-4 py-3 bg-white border border-emerald-200 rounded-xl resize-none focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+            className="flex-1 px-4 py-3 bg-white border border-emerald-200 rounded-xl resize-none focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 text-gray-800 placeholder-gray-500"
             rows={1}
             style={{ minHeight: '50px', maxHeight: '120px' }}
             onInput={(e) => {

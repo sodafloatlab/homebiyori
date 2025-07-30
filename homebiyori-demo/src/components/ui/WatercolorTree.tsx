@@ -121,7 +121,7 @@ const WatercolorTree = ({ ageInDays, isBackground = false, fruits = [], onFruitC
     return 'h-[600px]'; // 固定サイズ - 最大の木（800px）にフィット
   };
 
-  // シャボン玉の浮遊エリアを成長段階に応じて定義（6段階）
+  // ほめの実の浮遊エリアを成長段階に応じて定義（6段階）
   const getBubbleAreas = () => {
     if (ageInDays <= 100) {
       return { centerX: 50, centerY: 45, radiusX: 15, radiusY: 10 };  // 芽
@@ -138,7 +138,7 @@ const WatercolorTree = ({ ageInDays, isBackground = false, fruits = [], onFruitC
     }
   };
 
-  // シャボン玉の浮遊位置を決定（木の周りをふわふわ）
+  // ほめの実の浮遊位置を決定（木の周りをふわふわ）
   const getBubblePosition = (index: number) => {
     const area = getBubbleAreas();
     
@@ -250,7 +250,7 @@ const WatercolorTree = ({ ageInDays, isBackground = false, fruits = [], onFruitC
         </motion.div>
       </div>
 
-      {/* シャボン玉のような浮遊する実 */}
+      {/* ほめの実の浮遊アニメーション */}
       {displayFruits.map((fruit, index) => {
         const position = getBubblePosition(index);
         const floatDelay = index * 0.5;
