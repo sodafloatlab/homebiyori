@@ -2,8 +2,11 @@
 
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { ArrowLeft, LogIn, Mail, Lock, Eye, EyeOff } from 'lucide-react';
+import { LogIn, Mail, Lock, Eye, EyeOff } from 'lucide-react';
 import { AppScreen } from './MainApp';
+import NavigationHeader from '../layout/NavigationHeader';
+import LoadingSpinner from '../ui/LoadingSpinner';
+import Toast from '../ui/Toast';
 
 interface AuthScreenProps {
   onNavigate: (screen: AppScreen) => void;
@@ -16,6 +19,8 @@ const AuthScreen = ({ onNavigate, onAuthSuccess }: AuthScreenProps) => {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [showToast, setShowToast] = useState(false);
+  const [toastMessage, setToastMessage] = useState({ type: 'success' as const, title: '', message: '' });
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -24,7 +29,17 @@ const AuthScreen = ({ onNavigate, onAuthSuccess }: AuthScreenProps) => {
     // デモ用の認証処理（実際のアプリでは本物の認証を実装）
     setTimeout(() => {
       setIsLoading(false);
-      onAuthSuccess();
+      setToastMessage({
+        type: 'success',
+        title: '認証完了！',
+        message: 'キャラクター選択画面に移動します'
+      });
+      setShowToast(true);
+      
+      // トースト表示後に画面遷移
+      setTimeout(() => {
+        onAuthSuccess();
+      }, 1500);
     }, 2000);
   };
 
@@ -33,7 +48,17 @@ const AuthScreen = ({ onNavigate, onAuthSuccess }: AuthScreenProps) => {
     // デモ用のGoogle認証処理
     setTimeout(() => {
       setIsLoading(false);
-      onAuthSuccess();
+      setToastMessage({
+        type: 'success',
+        title: 'Google認証完了！',
+        message: 'ほめびよりへようこそ'
+      });
+      setShowToast(true);
+      
+      // トースト表示後に画面遷移
+      setTimeout(() => {
+        onAuthSuccess();
+      }, 1500);
     }, 1500);
   };
 
@@ -42,21 +67,31 @@ const AuthScreen = ({ onNavigate, onAuthSuccess }: AuthScreenProps) => {
       backgroundColor: '#fdfdf8',
       backgroundImage: 'linear-gradient(135deg, #f0f9f0 0%, #fefffe 35%, #f8fcf0 100%)'
     }}>
-      {/* ヘッダー */}
-      <div className="bg-white/80 backdrop-blur-sm border-b border-emerald-100 p-4">
-        <div className="flex items-center justify-between max-w-md mx-auto">
-          <button
-            onClick={() => onNavigate('landing')}
-            className="p-2 rounded-full hover:bg-emerald-100 transition-colors"
-          >
-            <ArrowLeft className="w-5 h-5 text-emerald-600" />
-          </button>
-          <h1 className="text-xl font-bold text-emerald-800">
-            {isLogin ? 'ログイン' : '新規登録'}
-          </h1>
-          <div className="w-9"></div>
-        </div>
-      </div>
+      <NavigationHeader
+        currentScreen="auth"
+        title={isLogin ? 'ログイン' : '新規登録'}
+        subtitle="ほめびよりにようこそ"
+        onNavigate={onNavigate}
+        previousScreen="landing"
+      />
+
+      {/* ローディングスピナー */}
+      {isLoading && (
+        <LoadingSpinner
+          fullScreen
+          message={isLogin ? 'ログイン中です...' : 'アカウント作成中です...'}
+        />
+      )}
+
+      {/* トースト通知 */}
+      <Toast
+        type={toastMessage.type}
+        title={toastMessage.title}
+        message={toastMessage.message}
+        isVisible={showToast}
+        onClose={() => setShowToast(false)}
+        position="top-center"
+      />
 
       <div className="max-w-md mx-auto p-6">
         {/* ウェルカムメッセージ */}

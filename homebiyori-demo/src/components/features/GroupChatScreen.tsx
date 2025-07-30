@@ -2,8 +2,12 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Send, ArrowLeft, Settings, Crown, Zap, Trees } from 'lucide-react';
+import { Send, Crown, Zap, Trees } from 'lucide-react';
 import WatercolorTree from '@/components/ui/WatercolorTree';
+import NavigationHeader from '../layout/NavigationHeader';
+import TouchTarget from '../ui/TouchTarget';
+import Typography from '../ui/Typography';
+import Button from '../ui/Button';
 import { AiRole, MoodType, AppScreen, UserPlan, ChatMode, ChatHistory } from './MainApp';
 
 interface ChatMessage {
@@ -153,8 +157,8 @@ const GroupChatScreen = ({
   // パーソナライズされたAI応答生成（履歴を考慮）
   const generatePersonalizedResponse = (inputMessage: string, aiRole: AiRole, mood: MoodType): string => {
     // 過去の会話から文脈を取得（将来的にパーソナライゼーションで使用）
-    const recentHistory = chatHistory.slice(-5); // 最新5件
-    const hasHistory = recentHistory.length > 0;
+    const _recentHistory = chatHistory.slice(-5); // 最新5件
+    const _hasHistory = _recentHistory.length > 0; // eslint-disable-line @typescript-eslint/no-unused-vars
     
     // ディープモードかどうかで応答の長さを調整
     const isDeepMode = chatMode === 'deep';
@@ -330,46 +334,48 @@ const GroupChatScreen = ({
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-teal-50 to-green-100">
-      {/* ヘッダー */}
-      <div className="bg-white/80 backdrop-blur-sm border-b border-emerald-100 p-4">
-        <div className="flex items-center justify-between max-w-4xl mx-auto">
-          <div className="flex items-center space-x-4">
-            <button
-              onClick={() => onNavigate('character-selection')}
-              className="p-2 rounded-full hover:bg-emerald-100 transition-colors"
-            >
-              <ArrowLeft className="w-5 h-5 text-emerald-600" />
-            </button>
-            <div className="flex items-center space-x-2">
-              <Crown className="w-5 h-5 text-yellow-500" />
-              <h1 className="text-xl font-bold text-emerald-800">グループチャット</h1>
-              <span className="px-2 py-1 bg-gradient-to-r from-yellow-400 to-yellow-500 text-white text-xs font-bold rounded-full">
-                PREMIUM
-              </span>
-            </div>
+      {/* NavigationHeader */}
+      <NavigationHeader
+        currentScreen="group-chat"
+        title="グループチャット"
+        subtitle="3人のAIと一緒にチャット"
+        onNavigate={onNavigate}
+        previousScreen="character-selection"
+        userPlan={userPlan}
+      />
+      
+      {/* アクションバー */}
+      <div className="bg-white/90 backdrop-blur-sm border-b border-emerald-100 p-3">
+        <div className="max-w-4xl mx-auto flex items-center justify-between">
+          <div className="flex items-center space-x-2">
+            <Crown className="w-5 h-5 text-yellow-500" />
+            <Typography variant="body" color="secondary" className="text-sm">
+              プレミアム限定機能
+            </Typography>
           </div>
           
           <div className="flex items-center space-x-2">
             {/* ディープモード切り替え */}
-            <button
+            <TouchTarget
               onClick={() => onChatModeChange(chatMode === 'normal' ? 'deep' : 'normal')}
-              className={`flex items-center space-x-1 px-3 py-1 rounded-full text-sm font-medium transition-colors ${
+              className={`flex items-center space-x-1 px-3 py-2 rounded-full text-sm font-medium transition-colors ${
                 chatMode === 'deep'
-                  ? 'bg-purple-500 text-white'
+                  ? 'bg-purple-500 text-white shadow-sm'
                   : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
               }`}
             >
               <Zap className="w-4 h-4" />
               <span>{chatMode === 'deep' ? 'ディープ' : 'ノーマル'}</span>
-            </button>
+              {chatMode === 'deep' && <Crown className="w-3 h-3" />}
+            </TouchTarget>
             
-            <button
+            <TouchTarget
               onClick={() => onNavigate('tree')}
               className="flex items-center px-3 py-2 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 rounded-lg transition-colors text-sm font-medium"
             >
               <Trees className="w-4 h-4 mr-1" />
               木を見る
-            </button>
+            </TouchTarget>
           </div>
         </div>
       </div>
@@ -377,19 +383,21 @@ const GroupChatScreen = ({
       <div className="max-w-4xl mx-auto p-4 pb-24">
         {/* AIキャラクター選択 */}
         <div className="mb-6 p-4 bg-white/60 backdrop-blur-sm rounded-xl border border-emerald-100">
-          <h3 className="text-sm font-medium text-emerald-700 mb-3">参加するAIキャラクター</h3>
-          <div className="flex space-x-3">
+          <Typography variant="small" weight="medium" color="primary" className="mb-3">
+            参加するAIキャラクター
+          </Typography>
+          <div className="flex flex-wrap gap-3">
             {(Object.keys(characters) as AiRole[]).map((aiRole) => {
               const character = characters[aiRole];
               const isActive = activeAIs.includes(aiRole);
               return (
-                <button
+                <TouchTarget
                   key={aiRole}
                   onClick={() => toggleAI(aiRole)}
                   className={`flex items-center space-x-2 px-3 py-2 rounded-lg transition-colors ${
                     isActive
-                      ? 'bg-emerald-500 text-white'
-                      : 'bg-white text-emerald-700 hover:bg-emerald-50'
+                      ? 'bg-emerald-500 text-white shadow-sm'
+                      : 'bg-white text-emerald-700 hover:bg-emerald-50 border border-emerald-200'
                   }`}
                 >
                   <div className={`w-3 h-3 rounded-full ${
@@ -397,8 +405,10 @@ const GroupChatScreen = ({
                     aiRole === 'madoka' ? 'bg-blue-400' :
                     'bg-yellow-400'
                   }`}></div>
-                  <span className="text-sm font-medium">{character.name}</span>
-                </button>
+                  <Typography variant="small" weight="medium" className={isActive ? 'text-white' : 'text-emerald-700'}>
+                    {character.name}
+                  </Typography>
+                </TouchTarget>
               );
             })}
           </div>
@@ -443,12 +453,16 @@ const GroupChatScreen = ({
                         message.aiRole === 'madoka' ? 'bg-blue-400' :
                         'bg-yellow-400'
                       }`}></div>
-                      <span className="text-sm font-medium text-emerald-700">
+                      <Typography variant="small" weight="medium" color="primary">
                         {characters[message.aiRole].name}
-                      </span>
+                      </Typography>
                     </div>
                   )}
-                  <p className="text-sm leading-relaxed whitespace-pre-line">{message.text}</p>
+                  <Typography variant="small" className={`leading-relaxed whitespace-pre-line ${
+                    message.sender === 'user' ? 'text-white' : ''
+                  }`}>
+                    {message.text}
+                  </Typography>
                 </div>
               </motion.div>
             ))}
@@ -490,13 +504,14 @@ const GroupChatScreen = ({
               target.style.height = target.scrollHeight + 'px';
             }}
           />
-          <button
+          <Button
             onClick={handleSendMessage}
             disabled={!inputText.trim() || isTyping}
-            className="px-6 py-3 bg-emerald-500 text-white rounded-xl hover:bg-emerald-600 focus:outline-none focus:ring-2 focus:ring-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            variant="primary"
+            className="px-6 py-3"
           >
             <Send className="w-5 h-5" />
-          </button>
+          </Button>
         </div>
       </div>
     </div>

@@ -142,6 +142,7 @@ const MainApp = () => {
           <CharacterSelection 
             onCharacterSelect={handleCharacterSelect}
             onNavigate={handleNavigate}
+            userPlan={appState.userPlan}
           />
         );
       case 'chat':
@@ -168,6 +169,7 @@ const MainApp = () => {
             fruits={appState.fruits}
             onNavigate={handleNavigate}
             previousScreen={appState.previousScreen}
+            userPlan={appState.userPlan}
           />
         );
       case 'group-chat':

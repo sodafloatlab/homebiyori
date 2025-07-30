@@ -109,7 +109,14 @@ const TopPageWatercolorTree = ({ ageInDays }: Props) => {
 
   // コンテナの高さは固定（最大サイズに対応、余白を削減）
   const getContainerHeight = () => {
-    return 'h-[600px]'; // 固定サイズ - 最大の木（800px）にフィット
+    return 'h-[700px]'; // 固定サイズ - 拡大表示に対応
+  };
+
+  // 成長段階に応じた拡大倍率を決定
+  const getScaleFactor = () => {
+    if (ageInDays <= 400) return 1;    // tree_1-4: 通常サイズ
+    if (ageInDays <= 500) return 1.5;  // tree_5: 1.5倍拡大
+    return 1.5;                        // tree_6: 1.5倍拡大
   };
 
   // ほめの実の浮遊エリアを成長段階に応じて定義（6段階）
@@ -175,10 +182,16 @@ const TopPageWatercolorTree = ({ ageInDays }: Props) => {
 
   const imagePath = getTreeImage();
   const treeSize = getTreeSize();
+  const scaleFactor = getScaleFactor();
   const topPageFruits = generateTopPageFruits();
 
   return (
-    <div className={`relative w-full ${getContainerHeight()} overflow-hidden rounded-2xl bg-gradient-to-b from-blue-50 via-green-50 to-yellow-50 shadow-lg`}>
+    <motion.div 
+      className={`relative w-full ${getContainerHeight()} overflow-hidden rounded-2xl bg-gradient-to-b from-blue-50 via-green-50 to-yellow-50 shadow-lg`}
+      initial={{ opacity: 0, scale: 0.97 }}
+      animate={{ opacity: 1, scale: 1 }}
+      transition={{ duration: 0.8, ease: "easeOut" }}
+    >
       
       {/* 水彩風の背景効果 */}
       <div className="absolute inset-0 bg-gradient-radial from-white/30 via-transparent to-transparent opacity-70"></div>
@@ -187,12 +200,21 @@ const TopPageWatercolorTree = ({ ageInDays }: Props) => {
       <div className="absolute inset-0 flex items-center justify-center">
         <motion.div 
           className="relative"
-          animate={isGrowing ? {
-            scale: [0.8, 1.1, 1],
-            rotate: [0, 2, 0],
-            y: [0, -10, 0]
-          } : {}}
-          transition={isGrowing ? { duration: 2, ease: "easeOut" } : {}}
+          key={`tree-${ageInDays}`}
+          initial={{ opacity: 0, scale: 0.95 * scaleFactor, y: 10 }}
+          animate={{ 
+            opacity: 1, 
+            scale: isGrowing ? 
+              [0.95 * scaleFactor, 1.05 * scaleFactor, 1 * scaleFactor] : 
+              1 * scaleFactor, 
+            y: isGrowing ? [10, -5, 0] : 0,
+            rotate: isGrowing ? [0, 1, 0] : 0
+          }}
+          transition={{ 
+            duration: isGrowing ? 1.5 : 1, 
+            ease: "easeOut",
+            delay: isGrowing ? 0 : 0.2
+          }}
         >
           <Image
             src={imagePath}
@@ -213,12 +235,12 @@ const TopPageWatercolorTree = ({ ageInDays }: Props) => {
             <motion.div
               className="absolute inset-0 rounded-full"
               style={{
-                background: 'radial-gradient(circle, rgba(34, 197, 94, 0.3) 0%, rgba(34, 197, 94, 0.1) 50%, transparent 100%)',
-                filter: 'blur(10px)'
+                background: 'radial-gradient(circle, rgba(34, 197, 94, 0.15) 0%, rgba(34, 197, 94, 0.05) 50%, transparent 100%)',
+                filter: 'blur(8px)'
               }}
               initial={{ scale: 0, opacity: 0 }}
-              animate={{ scale: 2, opacity: [0, 1, 0] }}
-              transition={{ duration: 2, ease: "easeOut" }}
+              animate={{ scale: 1.5, opacity: [0, 0.6, 0] }}
+              transition={{ duration: 1.5, ease: "easeOut" }}
             />
           )}
         </motion.div>
@@ -302,7 +324,7 @@ const TopPageWatercolorTree = ({ ageInDays }: Props) => {
           </motion.div>
         );
       })}
-    </div>
+    </motion.div>
   );
 };
 

@@ -2,19 +2,24 @@
 
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { ArrowLeft, MessageCircle, RotateCcw } from 'lucide-react';
+import { MessageCircle, RotateCcw } from 'lucide-react';
 import WatercolorTree from '@/components/ui/WatercolorTree';
-import { AppScreen, Fruit } from './MainApp';
+import NavigationHeader from '../layout/NavigationHeader';
+import TouchTarget from '../ui/TouchTarget';
+import Typography from '../ui/Typography';
+import Button from '../ui/Button';
+import { AppScreen, Fruit, UserPlan } from './MainApp';
 
 interface TreeViewProps {
   totalCharacters: number;
   fruits: Fruit[];
   onNavigate: (screen: AppScreen) => void;
   previousScreen: AppScreen | null;
+  userPlan: UserPlan;
 }
 
 
-const TreeView = ({ totalCharacters, fruits, onNavigate, previousScreen }: TreeViewProps) => {
+const TreeView = ({ totalCharacters, fruits, onNavigate, previousScreen, userPlan }: TreeViewProps) => {
   const [selectedFruit, setSelectedFruit] = useState<Fruit | null>(null);
 
   // 文字数から木の成長段階を計算（6段階、テスト用に低い閾値）
@@ -58,31 +63,15 @@ const TreeView = ({ totalCharacters, fruits, onNavigate, previousScreen }: TreeV
       backgroundColor: '#fdfdf8',
       backgroundImage: 'linear-gradient(135deg, #f0f9f0 0%, #fefffe 35%, #f8fcf0 100%)'
     }}>
-      {/* ヘッダー */}
-      <div className="bg-white/80 backdrop-blur-sm border-b border-emerald-100 p-4">
-        <div className="flex items-center justify-between">
-          <button 
-            onClick={() => onNavigate(previousScreen === 'group-chat' ? 'group-chat' : 'chat')}
-            className="flex items-center text-emerald-700 hover:text-emerald-800 transition-colors"
-          >
-            <ArrowLeft className="w-5 h-5 mr-2" />
-            {previousScreen === 'group-chat' ? 'グループチャットに戻る' : 'チャットに戻る'}
-          </button>
-          
-          <div className="text-center">
-            <h1 className="text-xl font-bold text-emerald-800">あなたの成長の木</h1>
-            <p className="text-sm text-emerald-600">{stageInfo.name}</p>
-          </div>
-
-          <button
-            onClick={handleResetDemo}
-            className="p-2 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 rounded-lg transition-colors"
-            title="デモリセット"
-          >
-            <RotateCcw className="w-5 h-5" />
-          </button>
-        </div>
-      </div>
+      {/* NavigationHeader */}
+      <NavigationHeader
+        currentScreen="tree"
+        title="あなたの成長の木"
+        subtitle={stageInfo.name}
+        onNavigate={onNavigate}
+        previousScreen={previousScreen}
+        userPlan={userPlan}
+      />
 
       <div className="p-4">
         {/* 成長情報カード */}
@@ -92,17 +81,21 @@ const TreeView = ({ totalCharacters, fruits, onNavigate, previousScreen }: TreeV
           animate={{ opacity: 1, y: 0 }}
         >
           <div className="text-center">
-            <h2 className="text-lg font-bold text-emerald-800 mb-2">{stageInfo.description}</h2>
-            <p className="text-emerald-600 mb-4">{stageInfo.description}</p>
+            <Typography variant="h3" color="primary" className="mb-2">
+              {stageInfo.description}
+            </Typography>
+            <Typography variant="body" color="secondary" className="mb-4">
+              あなたの育児努力が形になった証です
+            </Typography>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm max-w-lg mx-auto">
-              <div className="bg-emerald-50 p-3 rounded-lg">
-                <div className="font-bold text-emerald-800">成長段階</div>
-                <div className="text-emerald-600">{stageInfo.name}</div>
+              <div className="bg-emerald-50 p-3 rounded-lg text-center">
+                <Typography variant="small" weight="bold" color="primary" align="center">成長段階</Typography>
+                <Typography variant="body" color="secondary" align="center">{stageInfo.name}</Typography>
               </div>
-              <div className="bg-emerald-50 p-3 rounded-lg">
-                <div className="font-bold text-emerald-800">ほめの実</div>
-                <div className="text-emerald-600">{fruits.length}個</div>
+              <div className="bg-emerald-50 p-3 rounded-lg text-center">
+                <Typography variant="small" weight="bold" color="primary" align="center">ほめの実</Typography>
+                <Typography variant="body" color="secondary" align="center">{fruits.length}個</Typography>
               </div>
             </div>
           </div>
@@ -130,42 +123,46 @@ const TreeView = ({ totalCharacters, fruits, onNavigate, previousScreen }: TreeV
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.4 }}
           >
-            <h3 className="text-lg font-bold text-emerald-800 mb-4 flex items-center">
+            <Typography variant="h3" color="primary" className="mb-4 flex items-center">
               <span className="mr-2">✨</span>
               最近のほめの実の記録
               {fruits.length > 3 && (
-                <span className="text-sm text-emerald-600 ml-2">
+                <Typography variant="caption" color="secondary" className="ml-2">
                   （直近3つ表示 - ほめの実をクリックして全て見る）
-                </span>
+                </Typography>
               )}
-            </h3>
+            </Typography>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {fruits.slice(-3).reverse().map((fruit, index) => (
-                <motion.button
+                <TouchTarget
                   key={fruit.id}
+                  variant="card"
                   onClick={() => handleFruitClick(fruit)}
                   className="p-4 bg-emerald-50 hover:bg-emerald-100 rounded-lg border border-emerald-200 text-left transition-colors"
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.5 + index * 0.1 }}
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
                 >
+                  <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.5 + index * 0.1 }}
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                  >
                   <div className="flex items-center mb-2">
                     <div className={`w-3 h-3 rounded-full mr-2 ${
                       fruit.aiRole === 'tama' ? 'bg-pink-400' :
                       fruit.aiRole === 'madoka' ? 'bg-blue-400' :
                       'bg-yellow-400'
                     }`}></div>
-                    <span className="text-sm font-medium text-emerald-800">
+                    <Typography variant="small" weight="medium" color="primary">
                       {fruit.aiRole === 'tama' ? 'たまさん' : 
                        fruit.aiRole === 'madoka' ? 'まどか姉さん' : 'ヒデじい'}
-                    </span>
-                    <span className="text-xs text-emerald-500 ml-2">({fruit.emotion})</span>
+                    </Typography>
+                    <Typography variant="small" color="secondary" className="ml-2">({fruit.emotion})</Typography>
                   </div>
-                  <p className="text-sm text-emerald-700 mb-2 line-clamp-2">{fruit.aiResponse}</p>
-                  <p className="text-xs text-emerald-500">{fruit.createdAt}</p>
-                </motion.button>
+                  <Typography variant="small" color="secondary" className="mb-2 line-clamp-2">{fruit.aiResponse}</Typography>
+                  <Typography variant="small" color="secondary">{fruit.createdAt}</Typography>
+                  </motion.div>
+                </TouchTarget>
               ))}
             </div>
           </motion.div>
@@ -191,23 +188,23 @@ const TreeView = ({ totalCharacters, fruits, onNavigate, previousScreen }: TreeV
                   selectedFruit.aiRole === 'madoka' ? 'bg-blue-400' :
                   'bg-yellow-400'
                 }`}></div>
-                <h3 className="text-lg font-bold text-emerald-800">
+                <Typography variant="h3" color="primary">
                   ほめの実の記録
-                </h3>
-                <p className="text-sm text-emerald-600">{selectedFruit.createdAt} • {selectedFruit.emotion}</p>
+                </Typography>
+                <Typography variant="caption" color="secondary">{selectedFruit.createdAt} • {selectedFruit.emotion}</Typography>
               </div>
               
               {/* ユーザーのメッセージ */}
               <div className="mb-4">
-                <h4 className="text-sm font-bold text-gray-700 mb-2">あなたのメッセージ</h4>
+                <Typography variant="small" weight="bold" color="secondary" className="mb-2">あなたのメッセージ</Typography>
                 <div className="bg-emerald-500 text-white p-3 rounded-lg">
-                  <p className="leading-relaxed">{selectedFruit.userMessage}</p>
+                  <Typography variant="body" className="leading-relaxed text-white">{selectedFruit.userMessage}</Typography>
                 </div>
               </div>
 
               {/* AIからの返答 */}
               <div className="mb-4">
-                <h4 className="text-sm font-bold text-gray-700 mb-2 flex items-center">
+                <Typography variant="small" weight="bold" color="secondary" className="mb-2 flex items-center">
                   <div className={`w-4 h-4 rounded-full mr-2 ${
                     selectedFruit.aiRole === 'tama' ? 'bg-pink-400' :
                     selectedFruit.aiRole === 'madoka' ? 'bg-blue-400' :
@@ -215,36 +212,47 @@ const TreeView = ({ totalCharacters, fruits, onNavigate, previousScreen }: TreeV
                   }`}></div>
                   {selectedFruit.aiRole === 'tama' ? 'たまさん' : 
                    selectedFruit.aiRole === 'madoka' ? 'まどか姉さん' : 'ヒデじい'}からの返答
-                </h4>
+                </Typography>
                 <div className="bg-emerald-50 p-3 rounded-lg border border-emerald-100">
-                  <p className="text-emerald-800 leading-relaxed">{selectedFruit.aiResponse}</p>
+                  <Typography variant="body" color="primary" className="leading-relaxed">{selectedFruit.aiResponse}</Typography>
                 </div>
               </div>
               
-              <button
+              <Button
+                variant="primary"
+                fullWidth
                 onClick={() => setSelectedFruit(null)}
-                className="w-full py-3 bg-emerald-500 text-white rounded-lg font-medium hover:bg-emerald-600 transition-colors"
               >
                 閉じる
-              </button>
+              </Button>
             </motion.div>
           </motion.div>
         )}
 
-        {/* チャットへ戻るボタン */}
+        {/* アクションボタン */}
         <motion.div 
-          className="text-center mt-6"
+          className="text-center mt-6 space-y-4"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 0.6 }}
         >
-          <button
-            onClick={() => onNavigate(previousScreen === 'group-chat' ? 'group-chat' : 'chat')}
-            className="flex items-center justify-center mx-auto px-6 py-3 bg-emerald-500 text-white rounded-xl font-medium hover:bg-emerald-600 transition-colors"
-          >
-            <MessageCircle className="w-5 h-5 mr-2" />
-            {previousScreen === 'group-chat' ? 'グループチャットを続ける' : 'チャットを続ける'}
-          </button>
+          <div className="flex flex-col sm:flex-row gap-3 justify-center">
+            <TouchTarget
+              onClick={() => onNavigate(previousScreen === 'group-chat' ? 'group-chat' : 'chat')}
+              className="flex items-center justify-center px-6 py-3 bg-emerald-500 text-white rounded-xl font-medium hover:bg-emerald-600 transition-colors"
+            >
+              <MessageCircle className="w-5 h-5 mr-2" />
+              {previousScreen === 'group-chat' ? 'グループチャットを続ける' : 'チャットを続ける'}
+            </TouchTarget>
+            
+            <TouchTarget
+              onClick={handleResetDemo}
+              className="flex items-center justify-center px-4 py-3 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 rounded-xl transition-colors border border-emerald-200"
+            >
+              <RotateCcw className="w-5 h-5 mr-2" />
+              デモリセット
+            </TouchTarget>
+          </div>
         </motion.div>
       </div>
     </div>

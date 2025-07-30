@@ -2,9 +2,11 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Send, Trees, Heart, MessageCircle, ArrowLeft, Zap, Crown } from 'lucide-react';
+import { Send, Trees, Heart, MessageCircle, Zap, Crown, Users } from 'lucide-react';
 import Image from 'next/image';
 import WatercolorTree from '@/components/ui/WatercolorTree';
+import NavigationHeader from '../layout/NavigationHeader';
+import TouchTarget from '../ui/TouchTarget';
 import { AiRole, MoodType, AppScreen, UserPlan, ChatMode, ChatHistory } from './MainApp';
 
 interface ChatMessage {
@@ -312,7 +314,7 @@ const ChatScreen = ({
     setTimeout(() => {
       // 通常の応答
       // パーソナライズされた応答を生成（履歴を考慮）
-      const recentHistory = chatHistory.slice(-5);
+      const _recentHistory = chatHistory.slice(-5); // eslint-disable-line @typescript-eslint/no-unused-vars
       const aiResponseText = generateAiResponse(inputText, selectedAiRole, selectedMoodState);
       const aiResponse: ChatMessage = {
         id: (Date.now() + 1).toString(),
@@ -416,13 +418,18 @@ const ChatScreen = ({
 
   return (
     <div className="h-screen flex flex-col bg-gradient-to-br from-emerald-50 via-green-50 to-lime-50 relative">
+      {/* NavigationHeader */}
+      <NavigationHeader
+        currentScreen="chat"
+        title={`${character.name}とのチャット`}
+        subtitle={selectedMoodState === 'praise' ? '褒めモード' : '聞くモード'}
+        onNavigate={onNavigate}
+        previousScreen="character-selection"
+        userPlan={userPlan}
+      />
+
       {/* バックグラウンドの木 */}
-      <div className="absolute inset-0 pointer-events-none overflow-hidden z-0">
-        {/* デバッグ用の背景確認 */}
-        <div className="absolute top-4 left-4 text-xs text-emerald-600 opacity-50">
-          Tree Stage: {currentTreeStage}, Characters: {totalCharacters}
-        </div>
-        
+      <div className="absolute inset-0 pointer-events-none overflow-hidden z-0 top-20">
         {/* メインの木（画面中央） */}
         {isMounted && (
           <div className="absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2 opacity-60">
@@ -442,17 +449,10 @@ const ChatScreen = ({
         )}
       </div>
 
-      {/* ヘッダー */}
-      <div className="bg-white/80 backdrop-blur-sm border-b border-emerald-100 p-4 relative z-10">
-        <div className="flex items-center justify-between">
-          <button 
-            onClick={() => onNavigate('character-selection')}
-            className="flex items-center text-emerald-700 hover:text-emerald-800 transition-colors"
-          >
-            <ArrowLeft className="w-5 h-5 mr-2" />
-            戻る
-          </button>
-          
+      {/* アクションバー */}
+      <div className="bg-white/90 backdrop-blur-sm border-b border-emerald-100 p-3 relative z-10">
+        <div className="flex items-center justify-between max-w-4xl mx-auto">
+          {/* 左側：キャラクター情報 */}
           <div className="flex items-center space-x-3">
             <div className="w-10 h-10 rounded-full overflow-hidden border-2 border-emerald-200">
               <Image
@@ -474,27 +474,39 @@ const ChatScreen = ({
           <div className="flex items-center space-x-2">
             {/* ディープモード切り替え（プレミアム限定） */}
             {userPlan === 'premium' && (
-              <button
+              <TouchTarget
                 onClick={() => onChatModeChange(chatMode === 'normal' ? 'deep' : 'normal')}
-                className={`flex items-center space-x-1 px-3 py-1 rounded-full text-sm font-medium transition-colors ${
+                className={`flex items-center space-x-1 px-3 py-2 rounded-full text-sm font-medium transition-colors ${
                   chatMode === 'deep'
-                    ? 'bg-purple-500 text-white'
+                    ? 'bg-purple-500 text-white shadow-sm'
                     : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
                 }`}
               >
                 <Zap className="w-4 h-4" />
                 <span>{chatMode === 'deep' ? 'ディープ' : 'ノーマル'}</span>
                 {chatMode === 'deep' && <Crown className="w-3 h-3" />}
-              </button>
+              </TouchTarget>
+            )}
+
+            {/* グループチャット（プレミアム限定） */}
+            {userPlan === 'premium' && (
+              <TouchTarget
+                onClick={() => onNavigate('group-chat')}
+                className="flex items-center space-x-1 px-3 py-2 bg-gradient-to-r from-yellow-400 to-amber-500 text-white rounded-lg text-sm font-medium shadow-sm hover:shadow-md transition-all"
+              >
+                <Users className="w-4 h-4" />
+                <span>グループ</span>
+                <Crown className="w-3 h-3" />
+              </TouchTarget>
             )}
             
-            <button
+            <TouchTarget
               onClick={() => onNavigate('tree')}
               className="flex items-center px-3 py-2 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 rounded-lg transition-colors text-sm font-medium"
             >
               <Trees className="w-4 h-4 mr-1" />
               木を見る
-            </button>
+            </TouchTarget>
           </div>
         </div>
 
