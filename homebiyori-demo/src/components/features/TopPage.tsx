@@ -63,7 +63,7 @@ const TopPage = ({ onNavigate }: TopPageProps) => {
       description: "あなたの育児努力が「成長の木」として可視化され、達成感が得られます",
       benefit: "継続しやすい",
       color: "from-emerald-400 to-green-500",
-      bgColor: "bg-emerald-50"
+      bgColor: "bg-cyan-100"
     },
     {
       icon: <Users className="w-8 h-8" />,
