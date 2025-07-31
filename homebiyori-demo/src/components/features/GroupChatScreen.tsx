@@ -2,22 +2,14 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Send, Crown, Zap, Trees } from 'lucide-react';
+import { Send, Crown, Zap, Trees, MessageCircle } from 'lucide-react';
+import Image from 'next/image';
 import WatercolorTree from '@/components/ui/WatercolorTree';
 import NavigationHeader from '../layout/NavigationHeader';
 import TouchTarget from '../ui/TouchTarget';
 import Typography from '../ui/Typography';
 import Button from '../ui/Button';
-import { AiRole, MoodType, AppScreen, UserPlan, ChatMode, ChatHistory } from './MainApp';
-
-interface ChatMessage {
-  id: string;
-  text: string;
-  sender: 'user' | 'ai';
-  timestamp: number;
-  aiRole?: AiRole;
-  mood?: MoodType;
-}
+import { AiRole, MoodType, AppScreen, UserPlan, ChatMode, ChatHistory, ChatMessage } from './MainApp';
 
 interface GroupChatScreenProps {
   currentMood: MoodType;
@@ -38,6 +30,9 @@ interface GroupChatScreenProps {
   chatMode: ChatMode;
   chatHistory: ChatHistory[];
   onChatModeChange: (mode: ChatMode) => void;
+  globalMessages: ChatMessage[];
+  onAddGlobalMessage: (message: ChatMessage) => void;
+  selectedAiRole: AiRole | null;
 }
 
 const GroupChatScreen = ({ 
@@ -51,12 +46,18 @@ const GroupChatScreen = ({
   userPlan,
   chatMode,
   chatHistory,
-  onChatModeChange
+  onChatModeChange,
+  globalMessages,
+  onAddGlobalMessage,
+  selectedAiRole
 }: GroupChatScreenProps) => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputText, setInputText] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const [activeAIs, setActiveAIs] = useState<AiRole[]>(['tama', 'madoka', 'hide']);
+  const [lastActiveAIs, setLastActiveAIs] = useState<AiRole[]>([]);
+  const [hasInitializedActiveAIs, setHasInitializedActiveAIs] = useState(false);
+  const [lastChatMode, setLastChatMode] = useState<ChatMode>('normal');
   const [selectedMoodState] = useState<MoodType>(currentMood);
   
   // 文字数から木の成長段階を計算（6段階、テスト用に低い閾値）
@@ -82,6 +83,69 @@ const GroupChatScreen = ({
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
+
+  // グローバルメッセージとローカルメッセージの同期
+  useEffect(() => {
+    setMessages(globalMessages);
+  }, [globalMessages]);
+
+  // 初期化用effect
+  useEffect(() => {
+    if (!hasInitializedActiveAIs && globalMessages.length > 0) {
+      setLastActiveAIs(activeAIs);
+      setHasInitializedActiveAIs(true);
+    }
+  }, [activeAIs, globalMessages.length, hasInitializedActiveAIs]);
+
+  // AI参加者変更時の通知
+  useEffect(() => {
+    if (hasInitializedActiveAIs) {
+      const joinedAIs = activeAIs.filter(ai => !lastActiveAIs.includes(ai));
+      const leftAIs = lastActiveAIs.filter(ai => !activeAIs.includes(ai));
+
+      joinedAIs.forEach(ai => {
+        const joinMessage: ChatMessage = {
+          id: `system-join-${ai}-${Date.now()}`,
+          text: `${characters[ai].name}がグループチャットに参加しました`,
+          sender: 'system',
+          timestamp: Date.now(),
+          systemType: 'join',
+          aiRole: ai
+        };
+        onAddGlobalMessage(joinMessage);
+      });
+
+      leftAIs.forEach(ai => {
+        const leaveMessage: ChatMessage = {
+          id: `system-leave-${ai}-${Date.now()}`,
+          text: `${characters[ai].name}がグループチャットから退出しました`,
+          sender: 'system',
+          timestamp: Date.now(),
+          systemType: 'leave',
+          aiRole: ai
+        };
+        onAddGlobalMessage(leaveMessage);
+      });
+
+      setLastActiveAIs(activeAIs);
+    }
+  }, [activeAIs, hasInitializedActiveAIs, lastActiveAIs, onAddGlobalMessage]);
+
+  // チャットモード変更時の通知
+  useEffect(() => {
+    if (lastChatMode !== chatMode && globalMessages.length > 0) {
+      const modeMessage: ChatMessage = {
+        id: `system-mode-${Date.now()}`,
+        text: `${chatMode === 'normal' ? 'ノーマルモード' : 'ディープモード'}に切り替わりました`,
+        sender: 'system',
+        timestamp: Date.now(),
+        systemType: 'mode-change'
+      };
+      onAddGlobalMessage(modeMessage);
+    }
+    setLastChatMode(chatMode);
+  }, [chatMode, lastChatMode, onAddGlobalMessage]);
+
 
   const characters = {
     tama: {
@@ -247,7 +311,7 @@ const GroupChatScreen = ({
       timestamp: Date.now()
     };
 
-    setMessages(prev => [...prev, userMessage]);
+    onAddGlobalMessage(userMessage);
 
     // 文字数を追加
     const messageLength = inputText.length;
@@ -284,7 +348,7 @@ const GroupChatScreen = ({
           mood: selectedMoodState
         };
 
-        setMessages(prev => [...prev, aiResponse]);
+        onAddGlobalMessage(aiResponse);
         
         // チャット履歴に追加
         onAddChatHistory(inputText, aiResponseText, aiRole);
@@ -308,7 +372,7 @@ const GroupChatScreen = ({
                 aiRole: aiRole,
                 mood: selectedMoodState
               };
-              setMessages(prev => [...prev, growthNotification]);
+              onAddGlobalMessage(growthNotification);
             }, 1000); // 1秒後に成長通知
           }
           setIsTyping(false);
@@ -318,10 +382,61 @@ const GroupChatScreen = ({
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      handleSendMessage();
+    if (e.key === 'Enter') {
+      if (e.shiftKey) {
+        // Shift+Enterで改行
+        return;
+      } else {
+        // Enterで送信
+        e.preventDefault();
+        handleSendMessage();
+      }
     }
+  };
+
+  // 感情アイコン送信
+  const handleEmotionSend = (emotion: string) => {
+    // AIキャラクターが選択されていない場合の警告
+    if (activeAIs.length === 0) {
+      alert('参加するAIキャラクターを選択してください');
+      return;
+    }
+
+    const emotionMessage: ChatMessage = {
+      id: Date.now().toString(),
+      text: '',
+      sender: 'user',
+      timestamp: Date.now(),
+      emotion
+    };
+
+    onAddGlobalMessage(emotionMessage);
+    setIsTyping(true);
+
+    const emotionResponses = {
+      '😔': 'その顔…今日はたいへんだったね。',
+      '😠': 'むっとした気持ち、よくわかります。',
+      '🥲': 'いまは、なにも言わなくても大丈夫だよ。',
+      '😴': 'お疲れのようですね。ゆっくり休んでください。',
+      '😊': 'いい表情ですね。何か嬉しいことがあったのかな？'
+    };
+
+    // 代表一名（最初のアクティブAI）が応答
+    const respondingAI = activeAIs[0];
+    setTimeout(() => {
+      const response = emotionResponses[emotion as keyof typeof emotionResponses] || 'その気持ち、受け取りました。';
+      const aiResponse: ChatMessage = {
+        id: (Date.now() + 1).toString(),
+        text: response,
+        sender: 'ai',
+        timestamp: Date.now(),
+        aiRole: respondingAI,
+        mood: selectedMoodState
+      };
+
+      onAddGlobalMessage(aiResponse);
+      setIsTyping(false);
+    }, 800);
   };
 
   const toggleAI = (aiRole: AiRole) => {
@@ -370,6 +485,14 @@ const GroupChatScreen = ({
             </TouchTarget>
             
             <TouchTarget
+              onClick={() => onNavigate(selectedAiRole ? 'chat' : 'character-selection')}
+              className="flex items-center space-x-1 px-3 py-2 bg-emerald-500 text-white rounded-lg text-sm font-medium shadow-sm hover:shadow-md transition-all"
+            >
+              <MessageCircle className="w-4 h-4" />
+              <span>1:1チャット</span>
+            </TouchTarget>
+            
+            <TouchTarget
               onClick={() => onNavigate('tree')}
               className="flex items-center px-3 py-2 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 rounded-lg transition-colors text-sm font-medium"
             >
@@ -380,9 +503,9 @@ const GroupChatScreen = ({
         </div>
       </div>
 
-      <div className="max-w-4xl mx-auto p-4 pb-24">
-        {/* AIキャラクター選択 */}
-        <div className="mb-6 p-4 bg-white/60 backdrop-blur-sm rounded-xl border border-emerald-100">
+      {/* AIキャラクター選択（固定表示） */}
+      <div className="sticky top-20 z-40 bg-white/95 backdrop-blur-sm border-b border-emerald-100 p-4">
+        <div className="max-w-4xl mx-auto">
           <Typography variant="small" weight="medium" color="primary" className="mb-3">
             参加するAIキャラクター
           </Typography>
@@ -413,6 +536,9 @@ const GroupChatScreen = ({
             })}
           </div>
         </div>
+      </div>
+
+      <div className="max-w-4xl mx-auto p-4 pb-80">
 
         {/* 背景の木 */}
         {isMounted && (
@@ -439,31 +565,85 @@ const GroupChatScreen = ({
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -20 }}
-                className={`flex ${message.sender === 'user' ? 'justify-end' : 'justify-start'}`}
+                className={`flex ${
+                  message.sender === 'system' 
+                    ? 'justify-center' 
+                    : message.sender === 'user' 
+                      ? 'justify-end' 
+                      : 'justify-start'
+                }`}
               >
-                <div className={`max-w-xs lg:max-w-md px-4 py-3 rounded-2xl ${
-                  message.sender === 'user'
-                    ? 'bg-emerald-500 text-white'
-                    : `bg-white/80 backdrop-blur-sm text-emerald-800 border border-emerald-100`
-                }`}>
-                  {message.sender === 'ai' && message.aiRole && (
-                    <div className="flex items-center space-x-2 mb-2 pb-2 border-b border-emerald-100">
-                      <div className={`w-3 h-3 rounded-full ${
-                        message.aiRole === 'tama' ? 'bg-pink-400' :
-                        message.aiRole === 'madoka' ? 'bg-blue-400' :
-                        'bg-yellow-400'
-                      }`}></div>
-                      <Typography variant="small" weight="medium" color="primary">
-                        {characters[message.aiRole].name}
-                      </Typography>
+                {message.sender === 'system' ? (
+                  /* システムメッセージ */
+                  <div className="bg-gray-100 text-gray-600 text-sm px-4 py-2 rounded-full border border-gray-200 max-w-sm text-center">
+                    <div className="flex items-center justify-center space-x-2">
+                      {message.systemType === 'join' && (
+                        <div className={`w-2 h-2 rounded-full ${
+                          message.aiRole === 'tama' ? 'bg-pink-400' :
+                          message.aiRole === 'madoka' ? 'bg-blue-400' :
+                          message.aiRole === 'hide' ? 'bg-yellow-400' :
+                          'bg-green-400'
+                        }`}></div>
+                      )}
+                      {message.systemType === 'leave' && (
+                        <div className={`w-2 h-2 rounded-full ${
+                          message.aiRole === 'tama' ? 'bg-pink-400' :
+                          message.aiRole === 'madoka' ? 'bg-blue-400' :
+                          message.aiRole === 'hide' ? 'bg-yellow-400' :
+                          'bg-red-400'
+                        }`}></div>
+                      )}
+                      {message.systemType === 'mode-change' && (
+                        <div className="w-2 h-2 bg-blue-400 rounded-full"></div>
+                      )}
+                      <span>{message.text}</span>
                     </div>
-                  )}
-                  <Typography variant="small" className={`leading-relaxed whitespace-pre-line ${
-                    message.sender === 'user' ? 'text-white' : ''
+                    <div className="text-xs text-gray-400 mt-1">
+                      {new Date(message.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </div>
+                  </div>
+                ) : (
+                  <div className={`max-w-xs lg:max-w-md ${
+                    message.sender === 'user' ? 'order-1' : 'order-2'
                   }`}>
-                    {message.text}
-                  </Typography>
-                </div>
+                    {message.sender === 'ai' && message.aiRole && (
+                      <div className="flex items-center mb-2">
+                        <div className="w-8 h-8 rounded-full overflow-hidden border-2 border-emerald-200 mr-2">
+                          <Image
+                            src={characters[message.aiRole].image}
+                            alt={characters[message.aiRole].name}
+                            width={32}
+                            height={32}
+                            className="object-cover"
+                          />
+                        </div>
+                        <span className="text-sm text-emerald-700 font-medium">{characters[message.aiRole].name}</span>
+                      </div>
+                    )}
+                    
+                    <div className={`px-4 py-3 rounded-2xl ${
+                      message.sender === 'user'
+                        ? 'bg-emerald-500 text-white'
+                        : 'bg-white/80 backdrop-blur-sm text-emerald-800 border border-emerald-100'
+                    }`}>
+                      {message.emotion ? (
+                        <span className="text-2xl">{message.emotion}</span>
+                      ) : (
+                        <Typography variant="small" className={`leading-relaxed whitespace-pre-line ${
+                          message.sender === 'user' ? 'text-white' : ''
+                        }`}>
+                          {message.text}
+                        </Typography>
+                      )}
+                    </div>
+                    
+                    <div className={`mt-1 text-xs text-gray-500 ${
+                      message.sender === 'user' ? 'text-right' : 'text-left'
+                    }`}>
+                      {new Date(message.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </div>
+                  </div>
+                )}
               </motion.div>
             ))}
           </AnimatePresence>
@@ -474,11 +654,22 @@ const GroupChatScreen = ({
               animate={{ opacity: 1, y: 0 }}
               className="flex justify-start"
             >
-              <div className="bg-white/80 backdrop-blur-sm border border-emerald-100 px-4 py-3 rounded-2xl">
-                <div className="flex space-x-1">
-                  <div className="w-2 h-2 bg-emerald-400 rounded-full animate-bounce"></div>
-                  <div className="w-2 h-2 bg-emerald-400 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
-                  <div className="w-2 h-2 bg-emerald-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+              <div className="flex items-center space-x-2">
+                <div className="w-8 h-8 rounded-full overflow-hidden border-2 border-emerald-200">
+                  <Image
+                    src="/images/icons/madokanesan.png"
+                    alt="AI"
+                    width={32}
+                    height={32}
+                    className="object-cover"
+                  />
+                </div>
+                <div className="bg-white/80 backdrop-blur-sm border border-emerald-100 px-4 py-3 rounded-2xl">
+                  <div className="flex space-x-1">
+                    <div className="w-2 h-2 bg-emerald-400 rounded-full animate-bounce"></div>
+                    <div className="w-2 h-2 bg-emerald-400 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
+                    <div className="w-2 h-2 bg-emerald-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+                  </div>
                 </div>
               </div>
             </motion.div>
@@ -488,30 +679,58 @@ const GroupChatScreen = ({
       </div>
 
       {/* 入力エリア */}
-      <div className="fixed bottom-0 left-0 right-0 bg-white/80 backdrop-blur-sm border-t border-emerald-100 p-4">
-        <div className="max-w-4xl mx-auto flex space-x-3">
-          <textarea
-            value={inputText}
-            onChange={(e) => setInputText(e.target.value)}
-            onKeyPress={handleKeyPress}
-            placeholder="メッセージを入力..."
-            className="flex-1 px-4 py-3 bg-white border border-emerald-200 rounded-xl resize-none focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 text-gray-800 placeholder-gray-500"
-            rows={1}
-            style={{ minHeight: '50px', maxHeight: '120px' }}
-            onInput={(e) => {
-              const target = e.target as HTMLTextAreaElement;
-              target.style.height = 'auto';
-              target.style.height = target.scrollHeight + 'px';
-            }}
-          />
-          <Button
-            onClick={handleSendMessage}
-            disabled={!inputText.trim() || isTyping}
-            variant="primary"
-            className="px-6 py-3"
-          >
-            <Send className="w-5 h-5" />
-          </Button>
+      <div className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-sm border-t border-emerald-100 p-4 z-50">
+        <div className="max-w-4xl mx-auto">
+          {/* AI注意喚起と無料版案内 */}
+          <div className="mb-3 space-y-2 text-center">
+            <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+              ⚠️ AIは誤った情報を提供する可能性があります。重要な判断の際は専門家にご相談ください。
+            </p>
+            {userPlan === 'free' && (
+              <p className="text-xs text-blue-600 bg-blue-50 border border-blue-200 rounded-lg px-3 py-2">
+                💬 無料版ではチャット履歴は3日間保存されます。ほめの実は永続的に残ります。
+              </p>
+            )}
+          </div>
+
+          {/* 感情アイコン */}
+          <div className="flex justify-center space-x-4 mb-4">
+            {['😊', '😔', '😠', '🥲', '😴'].map((emotion) => (
+              <button
+                key={emotion}
+                onClick={() => handleEmotionSend(emotion)}
+                className="text-2xl hover:scale-110 transition-transform"
+              >
+                {emotion}
+              </button>
+            ))}
+          </div>
+
+          {/* テキスト入力 */}
+          <div className="flex space-x-3">
+            <textarea
+              value={inputText}
+              onChange={(e) => setInputText(e.target.value)}
+              onKeyPress={handleKeyPress}
+              placeholder="メッセージを入力... (Shift+Enterで改行)"
+              className="flex-1 px-4 py-3 bg-white border border-emerald-200 rounded-xl resize-none focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 text-gray-800 placeholder-gray-500"
+              rows={1}
+              style={{ minHeight: '50px', maxHeight: '120px' }}
+              onInput={(e) => {
+                const target = e.target as HTMLTextAreaElement;
+                target.style.height = 'auto';
+                target.style.height = target.scrollHeight + 'px';
+              }}
+            />
+            <Button
+              onClick={handleSendMessage}
+              disabled={!inputText.trim() || isTyping}
+              variant="primary"
+              className="px-6 py-3"
+            >
+              <Send className="w-5 h-5" />
+            </Button>
+          </div>
         </div>
       </div>
     </div>

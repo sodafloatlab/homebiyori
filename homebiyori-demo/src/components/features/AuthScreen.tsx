@@ -2,15 +2,15 @@
 
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { LogIn, Mail, Lock, Eye, EyeOff } from 'lucide-react';
-import { AppScreen } from './MainApp';
+import { LogIn, Mail, Lock, Eye, EyeOff, Crown, User } from 'lucide-react';
+import { AppScreen, UserPlan } from './MainApp';
 import NavigationHeader from '../layout/NavigationHeader';
 import LoadingSpinner from '../ui/LoadingSpinner';
 import Toast from '../ui/Toast';
 
 interface AuthScreenProps {
   onNavigate: (screen: AppScreen) => void;
-  onAuthSuccess: () => void;
+  onAuthSuccess: (userPlan?: UserPlan) => void;
 }
 
 const AuthScreen = ({ onNavigate, onAuthSuccess }: AuthScreenProps) => {
@@ -21,6 +21,25 @@ const AuthScreen = ({ onNavigate, onAuthSuccess }: AuthScreenProps) => {
   const [isLoading, setIsLoading] = useState(false);
   const [showToast, setShowToast] = useState(false);
   const [toastMessage, setToastMessage] = useState({ type: 'success' as const, title: '', message: '' });
+
+  const handleDemoLogin = (userPlan: UserPlan) => {
+    setIsLoading(true);
+    
+    const planName = userPlan === 'premium' ? 'プレミアム' : '一般';
+    setTimeout(() => {
+      setIsLoading(false);
+      setToastMessage({
+        type: 'success',
+        title: `${planName}ユーザーでログイン！`,
+        message: 'キャラクター選択画面に移動します'
+      });
+      setShowToast(true);
+      
+      setTimeout(() => {
+        onAuthSuccess(userPlan);
+      }, 1500);
+    }, 1500);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -107,7 +126,8 @@ const AuthScreen = ({ onNavigate, onAuthSuccess }: AuthScreenProps) => {
             ほめびよりへようこそ
           </h2>
           <p className="text-emerald-600 text-sm">
-            あなたの育児を優しく応援するAIキャラクターたちが待っています
+            あなたの育児を優しく応援するAIキャラクターたちが待っています<br />
+            <span className="text-blue-600 font-medium">無料でご利用いただけます</span>
           </p>
         </motion.div>
 
@@ -229,17 +249,39 @@ const AuthScreen = ({ onNavigate, onAuthSuccess }: AuthScreenProps) => {
           </p>
         </motion.div>
 
-        {/* デモ用説明 */}
+        {/* デモログイン */}
         <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.5 }}
-          className="mt-8 p-4 bg-blue-50 border border-blue-200 rounded-xl"
+          className="mt-8 p-6 bg-gradient-to-r from-emerald-50 to-green-50 rounded-2xl border border-emerald-200"
         >
-          <p className="text-sm text-blue-800 text-center">
-            <strong>デモ版</strong><br />
-            認証ボタンを押すとデモ用認証が完了し、AIキャラクター選択画面に進みます
-          </p>
+          <div className="text-center mb-4">
+            <h3 className="text-lg font-semibold text-emerald-800 mb-2">デモ体験</h3>
+            <p className="text-sm text-emerald-600">
+              プレミアムプランと一般プランの機能をお試しいただけます
+            </p>
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <button
+              onClick={() => handleDemoLogin('free')}
+              disabled={isLoading}
+              className="flex items-center justify-center space-x-2 py-3 px-4 bg-white border-2 border-emerald-300 text-emerald-700 rounded-xl font-medium hover:bg-emerald-50 focus:outline-none focus:ring-2 focus:ring-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              <User className="w-5 h-5" />
+              <span>一般ユーザーで体験</span>
+            </button>
+            
+            <button
+              onClick={() => handleDemoLogin('premium')}
+              disabled={isLoading}
+              className="flex items-center justify-center space-x-2 py-3 px-4 bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-xl font-medium hover:from-amber-600 hover:to-orange-600 focus:outline-none focus:ring-2 focus:ring-amber-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              <Crown className="w-5 h-5" />
+              <span>プレミアムユーザーで体験</span>
+            </button>
+          </div>
         </motion.div>
       </div>
     </div>

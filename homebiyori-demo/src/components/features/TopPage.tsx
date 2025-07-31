@@ -9,6 +9,7 @@ import Typography from '@/components/ui/Typography';
 import Button from '@/components/ui/Button';
 import TouchTarget from '@/components/ui/TouchTarget';
 import ResponsiveContainer from '@/components/layout/ResponsiveContainer';
+import Footer from '@/components/layout/Footer';
 import { AppScreen } from './MainApp';
 
 interface TopPageProps {
@@ -549,6 +550,9 @@ const TopPage = ({ onNavigate }: TopPageProps) => {
           </Button>
         </motion.div>
       </ResponsiveContainer>
+
+      {/* Footer */}
+      <Footer onNavigate={onNavigate} />
     </div>
   );
 };

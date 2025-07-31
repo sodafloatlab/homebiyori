@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { motion } from 'framer-motion';
-import { ArrowLeft, Home, User, Crown } from 'lucide-react';
+import { ArrowLeft, Home, User, Crown, Mail, HelpCircle } from 'lucide-react';
 import { AppScreen, UserPlan } from '../features/MainApp';
 
 interface NavigationStep {
@@ -40,7 +40,13 @@ const NavigationHeader = ({
     'character-selection': { parent: 'auth', label: 'キャラクター選択', icon: <User className="w-4 h-4" /> },
     'chat': { parent: 'character-selection', label: 'チャット' },
     'group-chat': { parent: 'character-selection', label: 'グループチャット', icon: <Crown className="w-4 h-4" /> },
-    'tree': { parent: 'chat', label: '成長の木' }
+    'tree': { parent: 'chat', label: '成長の木' },
+    'premium': { parent: 'landing', label: 'プレミアムプラン', icon: <Crown className="w-4 h-4" /> },
+    'terms-of-service': { parent: 'landing', label: '利用規約' },
+    'privacy-policy': { parent: 'landing', label: 'プライバシーポリシー' },
+    'commercial-transaction': { parent: 'landing', label: '特定商取引法表記' },
+    'contact': { parent: 'landing', label: 'お問い合わせ', icon: <Mail className="w-4 h-4" /> },
+    'faq': { parent: 'landing', label: 'よくある質問', icon: <HelpCircle className="w-4 h-4" /> }
   };
 
   // パンくずナビゲーションの生成

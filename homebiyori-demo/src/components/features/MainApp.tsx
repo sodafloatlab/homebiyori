@@ -1,18 +1,35 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import TopPage from './TopPage';
 import AuthScreen from './AuthScreen';
 import CharacterSelection from './CharacterSelection';
 import ChatScreen from './ChatScreen';
 import TreeView from './TreeView';
 import GroupChatScreen from './GroupChatScreen';
+import PremiumLandingPage from './PremiumLandingPage';
+import TermsOfServicePage from './TermsOfServicePage';
+import PrivacyPolicyPage from './PrivacyPolicyPage';
+import CommercialTransactionPage from './CommercialTransactionPage';
+import ContactFormPage from './ContactFormPage';
+import FAQPage from './FAQPage';
 
 export type AiRole = 'tama' | 'madoka' | 'hide';
 export type MoodType = 'praise' | 'listen';
-export type AppScreen = 'landing' | 'auth' | 'character-selection' | 'chat' | 'tree' | 'group-chat';
+export type AppScreen = 'landing' | 'auth' | 'character-selection' | 'chat' | 'tree' | 'group-chat' | 'premium' | 'terms-of-service' | 'privacy-policy' | 'commercial-transaction' | 'contact' | 'faq';
 export type UserPlan = 'free' | 'premium';
 export type ChatMode = 'normal' | 'deep';
+
+export interface ChatMessage {
+  id: string;
+  text: string;
+  sender: 'user' | 'ai' | 'system';
+  timestamp: number;
+  aiRole?: AiRole;
+  mood?: MoodType;
+  emotion?: string;
+  systemType?: 'join' | 'leave' | 'mode-change' | 'info';
+}
 
 export interface Fruit {
   id: string;
@@ -42,11 +59,26 @@ interface AppState {
   userPlan: UserPlan;
   chatMode: ChatMode;
   chatHistory: ChatHistory[];
+  globalMessages: ChatMessage[];
 }
 
 const MainApp = () => {
+  // URLからの初期画面を決定
+  const getInitialScreen = (): AppScreen => {
+    if (typeof window === 'undefined') return 'landing';
+    
+    const hash = window.location.hash.replace('#', '');
+    const validScreens: AppScreen[] = [
+      'landing', 'auth', 'character-selection', 'chat', 'tree', 
+      'group-chat', 'premium', 'terms-of-service', 'privacy-policy', 
+      'commercial-transaction', 'contact', 'faq'
+    ];
+    
+    return validScreens.includes(hash as AppScreen) ? (hash as AppScreen) : 'landing';
+  };
+
   const [appState, setAppState] = useState<AppState>({
-    currentScreen: 'landing',
+    currentScreen: getInitialScreen(),
     previousScreen: null,
     selectedAiRole: null,
     currentMood: 'praise',
@@ -54,8 +86,74 @@ const MainApp = () => {
     fruits: [],
     userPlan: 'premium', // デモ用にプレミアムプランを設定
     chatMode: 'normal',
-    chatHistory: []
+    chatHistory: [],
+    globalMessages: []
   });
+
+  // チャット画面間の切り替えを検出してシステムメッセージを追加
+  useEffect(() => {
+    const { currentScreen, previousScreen } = appState;
+    
+    // チャット画面間の切り替えのみを検出（メッセージが存在する場合のみ）
+    if (appState.globalMessages.length > 0) {
+      if (previousScreen === 'chat' && currentScreen === 'group-chat') {
+        // 1:1チャットからグループチャットへ
+        const switchMessage: ChatMessage = {
+          id: `system-switch-group-${Date.now()}`,
+          text: 'グループチャットに切り替わりました',
+          sender: 'system',
+          timestamp: Date.now(),
+          systemType: 'mode-change'
+        };
+        handleAddGlobalMessage(switchMessage);
+      } else if (previousScreen === 'group-chat' && currentScreen === 'chat') {
+        // グループチャットから1:1チャットへ
+        const switchMessage: ChatMessage = {
+          id: `system-switch-single-${Date.now()}`,
+          text: '1:1チャットに切り替わりました',
+          sender: 'system',
+          timestamp: Date.now(),
+          systemType: 'mode-change'
+        };
+        handleAddGlobalMessage(switchMessage);
+      }
+    }
+  }, [appState.currentScreen, appState.previousScreen]); // globalMessages.lengthを依存配列から削除
+
+  // History API関連の設定
+  useEffect(() => {
+    // 初期状態をHistoryに保存
+    if (typeof window !== 'undefined') {
+      const currentUrl = appState.currentScreen === 'landing' ? '/' : `/#${appState.currentScreen}`;
+      window.history.replaceState({ screen: appState.currentScreen }, '', currentUrl);
+    }
+  }, [appState.currentScreen]);
+
+  // ブラウザの戻る/進むボタン対応
+  useEffect(() => {
+    const handlePopState = (event: PopStateEvent) => {
+      if (event.state && event.state.screen) {
+        const targetScreen = event.state.screen as AppScreen;
+        setAppState(prev => ({
+          ...prev,
+          previousScreen: prev.currentScreen,
+          currentScreen: targetScreen
+        }));
+      } else {
+        // stateがない場合はランディングページに戻る
+        setAppState(prev => ({
+          ...prev,
+          previousScreen: prev.currentScreen,
+          currentScreen: 'landing'
+        }));
+      }
+    };
+
+    if (typeof window !== 'undefined') {
+      window.addEventListener('popstate', handlePopState);
+      return () => window.removeEventListener('popstate', handlePopState);
+    }
+  }, []);
 
   const handleNavigate = (screen: AppScreen) => {
     setAppState(prev => ({ 
@@ -63,6 +161,12 @@ const MainApp = () => {
       previousScreen: prev.currentScreen,
       currentScreen: screen 
     }));
+
+    // History APIに状態を保存（URLも更新）
+    if (typeof window !== 'undefined') {
+      const url = screen === 'landing' ? '/' : `/#${screen}`;
+      window.history.pushState({ screen }, '', url);
+    }
   };
 
   const handleCharacterSelect = (role: AiRole, mood: MoodType) => {
@@ -70,8 +174,14 @@ const MainApp = () => {
       ...prev,
       selectedAiRole: role,
       currentMood: mood,
+      previousScreen: prev.currentScreen,
       currentScreen: 'chat'
     }));
+
+    // History APIに状態を保存
+    if (typeof window !== 'undefined') {
+      window.history.pushState({ screen: 'chat' }, '', '/#chat');
+    }
   };
 
   const handleAddCharacters = (count: number) => {
@@ -119,11 +229,69 @@ const MainApp = () => {
     setAppState(prev => ({ ...prev, chatMode: mode }));
   };
 
-  const handleAuthSuccess = () => {
+  const handleAddGlobalMessage = (message: ChatMessage) => {
     setAppState(prev => ({
       ...prev,
-      currentScreen: 'character-selection'
+      globalMessages: [...prev.globalMessages, message]
     }));
+  };
+
+  // 初期挨拶メッセージ（アプリレベルで一度だけ実行）
+  useEffect(() => {
+    if (appState.globalMessages.length === 0 && appState.selectedAiRole && (appState.currentScreen === 'chat' || appState.currentScreen === 'group-chat')) {
+      if (appState.currentScreen === 'chat') {
+        // 1:1チャット用挨拶
+        const greetings = {
+          tama: {
+            praise: 'こんにちは。今日はどんな一日でしたか？頑張ったこと、聞かせてください。',
+            listen: 'こんにちは。今日はどんな気持ちですか？何でもお話しください。'
+          },
+          madoka: {
+            praise: 'お疲れさまです！今日はどんなことを頑張りましたか？',
+            listen: 'お疲れさまです！今日はどんなことがありましたか？'
+          },
+          hide: {
+            praise: 'ほほう、今日も一日お疲れじゃったな。どんなことがあったのじゃ？',
+            listen: 'ふむ、今日はどんな心持ちじゃな？話を聞かせてもらおうか。'
+          }
+        };
+
+        const greeting: ChatMessage = {
+          id: `app-greeting-chat-${Date.now()}`,
+          text: greetings[appState.selectedAiRole][appState.currentMood],
+          sender: 'ai',
+          timestamp: Date.now(),
+          aiRole: appState.selectedAiRole,
+          mood: appState.currentMood
+        };
+        handleAddGlobalMessage(greeting);
+      } else if (appState.currentScreen === 'group-chat') {
+        // グループチャット用挨拶
+        const greetingMessage: ChatMessage = {
+          id: `app-greeting-group-${Date.now()}`,
+          text: 'みなさん、こんにちは！グループチャットにようこそ。今日はどんなことがありましたか？',
+          sender: 'ai',
+          timestamp: Date.now(),
+          aiRole: 'madoka',
+          mood: appState.currentMood
+        };
+        handleAddGlobalMessage(greetingMessage);
+      }
+    }
+  }, [appState.selectedAiRole, appState.currentScreen, appState.currentMood, appState.globalMessages.length]);
+
+  const handleAuthSuccess = (userPlan?: UserPlan) => {
+    setAppState(prev => ({
+      ...prev,
+      previousScreen: prev.currentScreen,
+      currentScreen: 'character-selection',
+      userPlan: userPlan || prev.userPlan
+    }));
+
+    // History APIに状態を保存
+    if (typeof window !== 'undefined') {
+      window.history.pushState({ screen: 'character-selection' }, '', '/#character-selection');
+    }
   };
 
   const renderCurrentScreen = () => {
@@ -160,6 +328,8 @@ const MainApp = () => {
             chatMode={appState.chatMode}
             chatHistory={appState.chatHistory}
             onChatModeChange={handleChatModeChange}
+            globalMessages={appState.globalMessages}
+            onAddGlobalMessage={handleAddGlobalMessage}
           />
         );
       case 'tree':
@@ -186,6 +356,51 @@ const MainApp = () => {
             chatMode={appState.chatMode}
             chatHistory={appState.chatHistory}
             onChatModeChange={handleChatModeChange}
+            globalMessages={appState.globalMessages}
+            onAddGlobalMessage={handleAddGlobalMessage}
+            selectedAiRole={appState.selectedAiRole}
+          />
+        );
+      case 'premium':
+        return (
+          <PremiumLandingPage 
+            onNavigate={handleNavigate}
+            onClose={() => handleNavigate(appState.previousScreen || 'landing')}
+          />
+        );
+      case 'terms-of-service':
+        return (
+          <TermsOfServicePage 
+            onNavigate={handleNavigate}
+            onClose={() => handleNavigate(appState.previousScreen || 'landing')}
+          />
+        );
+      case 'privacy-policy':
+        return (
+          <PrivacyPolicyPage 
+            onNavigate={handleNavigate}
+            onClose={() => handleNavigate(appState.previousScreen || 'landing')}
+          />
+        );
+      case 'commercial-transaction':
+        return (
+          <CommercialTransactionPage 
+            onNavigate={handleNavigate}
+            onClose={() => handleNavigate(appState.previousScreen || 'landing')}
+          />
+        );
+      case 'contact':
+        return (
+          <ContactFormPage 
+            onNavigate={handleNavigate}
+            onClose={() => handleNavigate(appState.previousScreen || 'landing')}
+          />
+        );
+      case 'faq':
+        return (
+          <FAQPage 
+            onNavigate={handleNavigate}
+            onClose={() => handleNavigate(appState.previousScreen || 'landing')}
           />
         );
       default:

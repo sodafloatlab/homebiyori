@@ -12,11 +12,12 @@ import { AiRole, MoodType, AppScreen, UserPlan, ChatMode, ChatHistory } from './
 interface ChatMessage {
   id: string;
   text: string;
-  sender: 'user' | 'ai';
+  sender: 'user' | 'ai' | 'system';
   timestamp: number;
   aiRole?: AiRole;
   mood?: MoodType;
   emotion?: string;
+  systemType?: 'join' | 'leave' | 'mode-change' | 'info';
 }
 
 interface ChatScreenProps {
@@ -39,6 +40,8 @@ interface ChatScreenProps {
   chatMode: ChatMode;
   chatHistory: ChatHistory[];
   onChatModeChange: (mode: ChatMode) => void;
+  globalMessages: ChatMessage[];
+  onAddGlobalMessage: (message: ChatMessage) => void;
 }
 
 const ChatScreen = ({ 
@@ -53,9 +56,13 @@ const ChatScreen = ({
   userPlan,
   chatMode,
   chatHistory,
-  onChatModeChange
+  onChatModeChange,
+  globalMessages,
+  onAddGlobalMessage
 }: ChatScreenProps) => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [lastAiRole, setLastAiRole] = useState<AiRole | null>(null);
+  const [lastChatMode, setLastChatMode] = useState<ChatMode>('normal');
   const [inputText, setInputText] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   // 文字数から木の成長段階を計算（6段階、テスト用に低い閾値）
@@ -240,33 +247,54 @@ const ChatScreen = ({
     return roleResponses[Math.floor(Math.random() * roleResponses.length)];
   };
 
-  // 初期挨拶メッセージ
+  // グローバルメッセージとローカルメッセージの統合
   useEffect(() => {
-    const greetings = {
-      tama: {
-        praise: 'こんにちは。今日はどんな一日でしたか？頑張ったこと、聞かせてください。',
-        listen: 'こんにちは。今日はどんな気持ちですか？何でもお話しください。'
-      },
-      madoka: {
-        praise: 'お疲れさまです！今日はどんなことを頑張りましたか？',
-        listen: 'お疲れさまです！今日はどんなことがありましたか？'
-      },
-      hide: {
-        praise: 'ほほう、今日も一日お疲れじゃったな。どんなことがあったのじゃ？',
-        listen: 'ふむ、今日はどんな心持ちじゃな？話を聞かせてもらおうか。'
-      }
-    };
+    setMessages(globalMessages);
+  }, [globalMessages]);
 
-    const greeting: ChatMessage = {
-      id: '1',
-      text: greetings[selectedAiRole][selectedMoodState],
-      sender: 'ai',
-      timestamp: Date.now(),
-      aiRole: selectedAiRole,
-      mood: selectedMoodState
-    };
-    setMessages([greeting]);
-  }, [selectedAiRole, selectedMoodState]);
+  // AIキャラクター変更時の通知
+  useEffect(() => {
+    if (lastAiRole && lastAiRole !== selectedAiRole) {
+      const leaveMessage: ChatMessage = {
+        id: `system-leave-${Date.now()}`,
+        text: `${characters[lastAiRole].name}が退出しました`,
+        sender: 'system',
+        timestamp: Date.now(),
+        systemType: 'leave',
+        aiRole: lastAiRole
+      };
+
+      const joinMessage: ChatMessage = {
+        id: `system-join-${Date.now() + 1}`,
+        text: `${characters[selectedAiRole].name}が参加しました`,
+        sender: 'system',
+        timestamp: Date.now() + 1,
+        systemType: 'join',
+        aiRole: selectedAiRole
+      };
+
+      onAddGlobalMessage(leaveMessage);
+      onAddGlobalMessage(joinMessage);
+    }
+    setLastAiRole(selectedAiRole);
+  }, [selectedAiRole, lastAiRole, onAddGlobalMessage]);
+
+  // チャットモード変更時の通知
+  useEffect(() => {
+    if (lastChatMode !== chatMode && globalMessages.length > 0) {
+      const modeMessage: ChatMessage = {
+        id: `system-mode-${Date.now()}`,
+        text: `${chatMode === 'normal' ? 'ノーマルモード' : 'ディープモード'}に切り替わりました`,
+        sender: 'system',
+        timestamp: Date.now(),
+        systemType: 'mode-change'
+      };
+
+      onAddGlobalMessage(modeMessage);
+    }
+    setLastChatMode(chatMode);
+  }, [chatMode, lastChatMode, onAddGlobalMessage]);
+
 
   // メッセージスクロール
   const scrollToBottom = () => {
@@ -288,7 +316,7 @@ const ChatScreen = ({
       timestamp: Date.now()
     };
 
-    setMessages(prev => [...prev, userMessage]);
+    onAddGlobalMessage(userMessage);
     
     // 文字数をカウント
     const messageLength = inputText.length;
@@ -325,7 +353,7 @@ const ChatScreen = ({
         mood: selectedMoodState
       };
 
-      setMessages(prev => [...prev, aiResponse]);
+      onAddGlobalMessage(aiResponse);
       
       // チャット履歴に追加
       onAddChatHistory(inputText, aiResponseText, selectedAiRole);
@@ -343,7 +371,7 @@ const ChatScreen = ({
             aiRole: selectedAiRole,
             mood: selectedMoodState
           };
-          setMessages(prev => [...prev, fruitMessage]);
+          onAddGlobalMessage(fruitMessage);
         }, 600);
       }
 
@@ -358,7 +386,7 @@ const ChatScreen = ({
             aiRole: selectedAiRole,
             mood: selectedMoodState
           };
-          setMessages(prev => [...prev, growthMessage]);
+          onAddGlobalMessage(growthMessage);
         }, detectedEmotion ? 1200 : 800); // 実の通知がある場合は少し遅らせる
       }
 
@@ -376,7 +404,7 @@ const ChatScreen = ({
       emotion
     };
 
-    setMessages(prev => [...prev, emotionMessage]);
+    onAddGlobalMessage(emotionMessage);
     setIsTyping(true);
 
     const emotionResponses = {
@@ -398,7 +426,7 @@ const ChatScreen = ({
         mood: selectedMoodState
       };
 
-      setMessages(prev => [...prev, aiResponse]);
+      onAddGlobalMessage(aiResponse);
       setIsTyping(false);
     }, 800);
   };
@@ -473,7 +501,7 @@ const ChatScreen = ({
 
           <div className="flex items-center space-x-2">
             {/* ディープモード切り替え（プレミアム限定） */}
-            {userPlan === 'premium' && (
+            {userPlan === 'premium' ? (
               <TouchTarget
                 onClick={() => onChatModeChange(chatMode === 'normal' ? 'deep' : 'normal')}
                 className={`flex items-center space-x-1 px-3 py-2 rounded-full text-sm font-medium transition-colors ${
@@ -486,10 +514,19 @@ const ChatScreen = ({
                 <span>{chatMode === 'deep' ? 'ディープ' : 'ノーマル'}</span>
                 {chatMode === 'deep' && <Crown className="w-3 h-3" />}
               </TouchTarget>
+            ) : (
+              <TouchTarget
+                onClick={() => onNavigate('premium')}
+                className="flex items-center space-x-1 px-3 py-2 bg-gray-100 text-gray-500 rounded-full text-sm font-medium hover:bg-gray-200 transition-colors"
+              >
+                <Crown className="w-4 h-4 text-gray-400" />
+                <span>ディープモード</span>
+                <span className="text-xs bg-gray-200 text-gray-600 px-2 py-0.5 rounded-full">Premium</span>
+              </TouchTarget>
             )}
 
             {/* グループチャット（プレミアム限定） */}
-            {userPlan === 'premium' && (
+            {userPlan === 'premium' ? (
               <TouchTarget
                 onClick={() => onNavigate('group-chat')}
                 className="flex items-center space-x-1 px-3 py-2 bg-gradient-to-r from-yellow-400 to-amber-500 text-white rounded-lg text-sm font-medium shadow-sm hover:shadow-md transition-all"
@@ -497,6 +534,15 @@ const ChatScreen = ({
                 <Users className="w-4 h-4" />
                 <span>グループ</span>
                 <Crown className="w-3 h-3" />
+              </TouchTarget>
+            ) : (
+              <TouchTarget
+                onClick={() => onNavigate('premium')}
+                className="flex items-center space-x-1 px-3 py-2 bg-gray-100 text-gray-500 rounded-lg text-sm font-medium hover:bg-gray-200 transition-colors"
+              >
+                <Users className="w-4 h-4 text-gray-400" />
+                <span>グループ</span>
+                <span className="text-xs bg-gray-200 text-gray-600 px-2 py-0.5 rounded-full">Premium</span>
               </TouchTarget>
             )}
             
@@ -548,44 +594,81 @@ const ChatScreen = ({
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -20 }}
-              className={`flex ${message.sender === 'user' ? 'justify-end' : 'justify-start'}`}
+              className={`flex ${
+                message.sender === 'system' 
+                  ? 'justify-center' 
+                  : message.sender === 'user' 
+                    ? 'justify-end' 
+                    : 'justify-start'
+              }`}
             >
-              <div className={`max-w-xs lg:max-w-md ${
-                message.sender === 'user' ? 'order-1' : 'order-2'
-              }`}>
-                {message.sender === 'ai' && (
-                  <div className="flex items-center mb-2">
-                    <div className="w-8 h-8 rounded-full overflow-hidden border-2 border-emerald-200 mr-2">
-                      <Image
-                        src={character.image}
-                        alt={character.name}
-                        width={32}
-                        height={32}
-                        className="object-cover"
-                      />
-                    </div>
-                    <span className="text-sm text-emerald-700 font-medium">{character.name}</span>
+              {message.sender === 'system' ? (
+                /* システムメッセージ */
+                <div className="bg-gray-100 text-gray-600 text-sm px-4 py-2 rounded-full border border-gray-200 max-w-sm text-center">
+                  <div className="flex items-center justify-center space-x-2">
+                    {message.systemType === 'join' && (
+                      <div className={`w-2 h-2 rounded-full ${
+                        message.aiRole === 'tama' ? 'bg-pink-400' :
+                        message.aiRole === 'madoka' ? 'bg-blue-400' :
+                        message.aiRole === 'hide' ? 'bg-yellow-400' :
+                        'bg-green-400'
+                      }`}></div>
+                    )}
+                    {message.systemType === 'leave' && (
+                      <div className={`w-2 h-2 rounded-full ${
+                        message.aiRole === 'tama' ? 'bg-pink-400' :
+                        message.aiRole === 'madoka' ? 'bg-blue-400' :
+                        message.aiRole === 'hide' ? 'bg-yellow-400' :
+                        'bg-red-400'
+                      }`}></div>
+                    )}
+                    {message.systemType === 'mode-change' && (
+                      <div className="w-2 h-2 bg-blue-400 rounded-full"></div>
+                    )}
+                    <span>{message.text}</span>
                   </div>
-                )}
-                
-                <div className={`px-4 py-3 rounded-2xl ${
-                  message.sender === 'user'
-                    ? 'bg-emerald-500 text-white'
-                    : 'bg-white text-gray-800 border border-emerald-100'
+                  <div className="text-xs text-gray-400 mt-1">
+                    {new Date(message.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  </div>
+                </div>
+              ) : (
+                <div className={`max-w-xs lg:max-w-md ${
+                  message.sender === 'user' ? 'order-1' : 'order-2'
                 }`}>
-                  {message.emotion ? (
-                    <span className="text-2xl">{message.emotion}</span>
-                  ) : (
-                    <p className="text-sm leading-relaxed whitespace-pre-wrap">{message.text}</p>
+                  {message.sender === 'ai' && (
+                    <div className="flex items-center mb-2">
+                      <div className="w-8 h-8 rounded-full overflow-hidden border-2 border-emerald-200 mr-2">
+                        <Image
+                          src={character.image}
+                          alt={character.name}
+                          width={32}
+                          height={32}
+                          className="object-cover"
+                        />
+                      </div>
+                      <span className="text-sm text-emerald-700 font-medium">{character.name}</span>
+                    </div>
                   )}
+                  
+                  <div className={`px-4 py-3 rounded-2xl ${
+                    message.sender === 'user'
+                      ? 'bg-emerald-500 text-white'
+                      : 'bg-white text-gray-800 border border-emerald-100'
+                  }`}>
+                    {message.emotion ? (
+                      <span className="text-2xl">{message.emotion}</span>
+                    ) : (
+                      <p className="text-sm leading-relaxed whitespace-pre-wrap">{message.text}</p>
+                    )}
+                  </div>
+                  
+                  <div className={`mt-1 text-xs text-gray-500 ${
+                    message.sender === 'user' ? 'text-right' : 'text-left'
+                  }`}>
+                    {new Date(message.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  </div>
                 </div>
-                
-                <div className={`mt-1 text-xs text-gray-500 ${
-                  message.sender === 'user' ? 'text-right' : 'text-left'
-                }`}>
-                  {new Date(message.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                </div>
-              </div>
+              )}
             </motion.div>
           ))}
         </AnimatePresence>
@@ -623,11 +706,16 @@ const ChatScreen = ({
 
       {/* 入力エリア */}
       <div className="bg-white/80 backdrop-blur-sm border-t border-emerald-100 p-4 relative z-10">
-        {/* AI注意喚起 */}
-        <div className="mb-3 text-center">
+        {/* AI注意喚起と無料版案内 */}
+        <div className="mb-3 space-y-2 text-center">
           <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
             ⚠️ AIは誤った情報を提供する可能性があります。重要な判断の際は専門家にご相談ください。
           </p>
+          {userPlan === 'free' && (
+            <p className="text-xs text-blue-600 bg-blue-50 border border-blue-200 rounded-lg px-3 py-2">
+              💬 無料版ではチャット履歴は3日間保存されます。ほめの実は永続的に残ります。
+            </p>
+          )}
         </div>
 
         {/* 感情アイコン */}
