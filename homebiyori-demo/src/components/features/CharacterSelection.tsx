@@ -4,13 +4,20 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowLeft, ArrowRight, Heart, MessageCircle, Crown, Sparkles, Check, ChevronRight } from 'lucide-react';
 import Image from 'next/image';
-import { AiRole, MoodType, AppScreen, UserPlan } from './MainApp';
+import { AiRole, MoodType, AppScreen, UserPlan, UserInfo } from '@/types';
 import NavigationHeader from '../layout/NavigationHeader';
 
 interface CharacterSelectionProps {
   onCharacterSelect: (role: AiRole, mood: MoodType) => void;
   onNavigate: (screen: AppScreen) => void;
   userPlan: UserPlan;
+  userInfo?: UserInfo;
+  isLoggedIn?: boolean;
+  onPlanChange?: (plan: UserPlan) => void;
+  onPlanChangeRequest?: (plan: UserPlan) => void;
+  onLogout?: () => void;
+  onNicknameChange?: (nickname: string) => void;
+  onEmailChange?: (email: string) => void;
 }
 
 type SelectionStep = 'mood' | 'character' | 'confirmation';
@@ -18,7 +25,14 @@ type SelectionStep = 'mood' | 'character' | 'confirmation';
 const CharacterSelection = ({ 
   onCharacterSelect, 
   onNavigate, 
-  userPlan 
+  userPlan,
+  userInfo,
+  isLoggedIn,
+  onPlanChange,
+  onPlanChangeRequest,
+  onLogout,
+  onNicknameChange,
+  onEmailChange
 }: CharacterSelectionProps) => {
   const [currentStep, setCurrentStep] = useState<SelectionStep>('mood');
   const [selectedMood, setSelectedMood] = useState<MoodType | null>(null);
@@ -153,6 +167,13 @@ const CharacterSelection = ({
         canGoBack={currentStep !== 'mood'}
         previousScreen="auth"
         userPlan={userPlan}
+        userInfo={userInfo}
+        isLoggedIn={isLoggedIn}
+        onPlanChange={onPlanChange}
+        onPlanChangeRequest={onPlanChangeRequest}
+        onLogout={onLogout}
+        onNicknameChange={onNicknameChange}
+        onEmailChange={onEmailChange}
       />
 
       <div className="max-w-4xl mx-auto p-6">

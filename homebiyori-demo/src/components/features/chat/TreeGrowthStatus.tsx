@@ -49,8 +49,7 @@ const TreeGrowthStatus = ({
           <div className="space-y-3 max-h-40 overflow-y-auto">
             {fruits.slice(-3).reverse().map((fruit) => (
               <div key={fruit.id} className="p-3 bg-emerald-50 rounded-lg">
-                <div className="flex items-start space-x-2">
-                  <span className="text-lg flex-shrink-0 mt-0.5">🌰</span>
+                <div>
                   <p className="text-xs text-gray-600 leading-relaxed">
                     {fruit.aiResponse}
                   </p>

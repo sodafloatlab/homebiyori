@@ -10,7 +10,8 @@ import {
   ChatMessage,
   ChatMode,
   Fruit,
-  ChatHistory
+  ChatHistory,
+  UserInfo
 } from '@/types';
 import { generateMessageId } from '@/lib/utils';
 import { AI_GREETINGS } from '@/lib/constants';
@@ -26,6 +27,7 @@ import PrivacyPolicyPage from './PrivacyPolicyPage';
 import CommercialTransactionPage from './CommercialTransactionPage';
 import ContactFormPage from './ContactFormPage';
 import FAQPage from './FAQPage';
+import SubscriptionCancelPage from './SubscriptionCancelPage';
 
 // 型定義を外部エクスポート（後方互換性のため）
 export type { AiRole, MoodType, AppScreen, UserPlan, ChatMode, ChatMessage } from '@/types';
@@ -40,11 +42,30 @@ const MainApp = () => {
     currentMood: 'praise',
     totalCharacters: 0,
     fruits: [],
-    userPlan: 'premium', // デモ用にプレミアムプランを設定
+    userPlan: 'premium', // デモ用にプレミアムユーザーから開始
     chatMode: 'normal',
     chatHistory: [],
     globalMessages: []
   });
+
+  // ユーザー情報の状態管理
+  const [userInfo, setUserInfo] = useState<UserInfo>({
+    email: 'user@example.com',
+    nickname: 'ユーザー',
+    avatar: undefined,
+    plan: 'premium' // デモ用にプレミアムユーザーから開始
+  });
+
+  // ログイン状態の管理
+  const [isLoggedIn, setIsLoggedIn] = useState(true); // デモ用にログイン済みとして開始
+
+  // ユーザー情報とアプリ状態の同期
+  useEffect(() => {
+    setAppState(prev => ({
+      ...prev,
+      userPlan: userInfo.plan
+    }));
+  }, [userInfo.plan]);
 
   // クライアントサイドでのみURL解析を行い、初期画面を設定
   useEffect(() => {
@@ -52,7 +73,7 @@ const MainApp = () => {
       const hash = window.location.hash.replace('#', '');
       const validScreens: AppScreen[] = [
         'landing', 'auth', 'character-selection', 'chat', 'tree', 
-        'group-chat', 'premium', 'terms-of-service', 'privacy-policy', 
+        'group-chat', 'premium', 'subscription-cancel', 'terms-of-service', 'privacy-policy', 
         'commercial-transaction', 'contact', 'faq'
       ];
       
@@ -125,6 +146,11 @@ const MainApp = () => {
           currentScreen: 'landing'
         }));
       }
+      
+      // ページ上部にスクロール
+      if (typeof window !== 'undefined') {
+        window.scrollTo(0, 0);
+      }
     };
 
     if (typeof window !== 'undefined') {
@@ -144,6 +170,9 @@ const MainApp = () => {
     if (typeof window !== 'undefined') {
       const url = screen === 'landing' ? '/' : `/#${screen}`;
       window.history.pushState({ screen }, '', url);
+      
+      // ページ上部にスクロール
+      window.scrollTo(0, 0);
     }
   };
 
@@ -159,6 +188,9 @@ const MainApp = () => {
     // History APIに状態を保存
     if (typeof window !== 'undefined') {
       window.history.pushState({ screen: 'chat' }, '', '/#chat');
+      
+      // ページ上部にスクロール
+      window.scrollTo(0, 0);
     }
   };
 
@@ -218,6 +250,47 @@ const MainApp = () => {
     }));
   };
 
+  // ユーザー関連のハンドラー
+  const handlePlanChange = (plan: UserPlan) => {
+    setUserInfo(prev => ({ ...prev, plan }));
+    setAppState(prev => ({ ...prev, userPlan: plan }));
+  };
+
+  const handlePlanChangeRequest = (targetPlan: UserPlan) => {
+    if (targetPlan === 'premium') {
+      // プレミアムプランへの変更：プレミアム説明画面へ
+      handleNavigate('premium');
+    } else {
+      // 一般プランへの変更：サブスクリプションキャンセル画面へ
+      handleNavigate('subscription-cancel');
+    }
+  };
+
+  const handleLogout = () => {
+    setIsLoggedIn(false);
+    setAppState(prev => ({
+      ...prev,
+      currentScreen: 'landing',
+      selectedAiRole: null,
+      globalMessages: []
+    }));
+    
+    if (typeof window !== 'undefined') {
+      window.history.pushState({ screen: 'landing' }, '', '/');
+      
+      // ページ上部にスクロール
+      window.scrollTo(0, 0);
+    }
+  };
+
+  const handleNicknameChange = (nickname: string) => {
+    setUserInfo(prev => ({ ...prev, nickname }));
+  };
+
+  const handleEmailChange = (email: string) => {
+    setUserInfo(prev => ({ ...prev, email }));
+  };
+
   // 初期挨拶メッセージ（アプリレベルで一度だけ実行）
   useEffect(() => {
     if (appState.globalMessages.length === 0 && appState.selectedAiRole && (appState.currentScreen === 'chat' || appState.currentScreen === 'group-chat')) {
@@ -258,6 +331,9 @@ const MainApp = () => {
     // History APIに状態を保存
     if (typeof window !== 'undefined') {
       window.history.pushState({ screen: 'character-selection' }, '', '/#character-selection');
+      
+      // ページ上部にスクロール
+      window.scrollTo(0, 0);
     }
   };
 
@@ -278,6 +354,13 @@ const MainApp = () => {
             onCharacterSelect={handleCharacterSelect}
             onNavigate={handleNavigate}
             userPlan={appState.userPlan}
+            userInfo={userInfo}
+            isLoggedIn={isLoggedIn}
+            onPlanChange={handlePlanChange}
+            onPlanChangeRequest={handlePlanChangeRequest}
+            onLogout={handleLogout}
+            onNicknameChange={handleNicknameChange}
+            onEmailChange={handleEmailChange}
           />
         );
       case 'chat':
@@ -298,6 +381,13 @@ const MainApp = () => {
             globalMessages={appState.globalMessages}
             onAddGlobalMessage={handleAddGlobalMessage}
             onMoodChange={handleMoodChange}
+            userInfo={userInfo}
+            isLoggedIn={isLoggedIn}
+            onPlanChange={handlePlanChange}
+            onPlanChangeRequest={handlePlanChangeRequest}
+            onLogout={handleLogout}
+            onNicknameChange={handleNicknameChange}
+            onEmailChange={handleEmailChange}
           />
         );
       case 'tree':
@@ -308,6 +398,13 @@ const MainApp = () => {
             onNavigate={handleNavigate}
             previousScreen={appState.previousScreen}
             userPlan={appState.userPlan}
+            userInfo={userInfo}
+            isLoggedIn={isLoggedIn}
+            onPlanChange={handlePlanChange}
+            onPlanChangeRequest={handlePlanChangeRequest}
+            onLogout={handleLogout}
+            onNicknameChange={handleNicknameChange}
+            onEmailChange={handleEmailChange}
           />
         );
       case 'group-chat':
@@ -328,6 +425,13 @@ const MainApp = () => {
             onAddGlobalMessage={handleAddGlobalMessage}
             selectedAiRole={appState.selectedAiRole}
             onMoodChange={handleMoodChange}
+            userInfo={userInfo}
+            isLoggedIn={isLoggedIn}
+            onPlanChange={handlePlanChange}
+            onPlanChangeRequest={handlePlanChangeRequest}
+            onLogout={handleLogout}
+            onNicknameChange={handleNicknameChange}
+            onEmailChange={handleEmailChange}
           />
         );
       case 'premium':
@@ -335,6 +439,20 @@ const MainApp = () => {
           <PremiumLandingPage 
             onNavigate={handleNavigate}
             onClose={() => handleNavigate(appState.previousScreen || 'landing')}
+          />
+        );
+      case 'subscription-cancel':
+        return (
+          <SubscriptionCancelPage 
+            onNavigate={handleNavigate}
+            onClose={() => handleNavigate(appState.previousScreen || 'landing')}
+            userInfo={userInfo}
+            isLoggedIn={isLoggedIn}
+            onPlanChange={handlePlanChange}
+            onPlanChangeRequest={handlePlanChangeRequest}
+            onLogout={handleLogout}
+            onNicknameChange={handleNicknameChange}
+            onEmailChange={handleEmailChange}
           />
         );
       case 'terms-of-service':

@@ -8,7 +8,7 @@ import NavigationHeader from '../layout/NavigationHeader';
 import TouchTarget from '../ui/TouchTarget';
 import Typography from '../ui/Typography';
 import Button from '../ui/Button';
-import { AppScreen, Fruit, UserPlan } from '@/types';
+import { AppScreen, Fruit, UserPlan, UserInfo } from '@/types';
 import { calculateTreeStage } from '@/lib/utils';
 
 interface TreeViewProps {
@@ -17,10 +17,30 @@ interface TreeViewProps {
   onNavigate: (screen: AppScreen) => void;
   previousScreen: AppScreen | null;
   userPlan: UserPlan;
+  userInfo?: UserInfo;
+  isLoggedIn?: boolean;
+  onPlanChange?: (plan: UserPlan) => void;
+  onPlanChangeRequest?: (plan: UserPlan) => void;
+  onLogout?: () => void;
+  onNicknameChange?: (nickname: string) => void;
+  onEmailChange?: (email: string) => void;
 }
 
 
-const TreeView = ({ totalCharacters, fruits, onNavigate, previousScreen, userPlan }: TreeViewProps) => {
+const TreeView = ({ 
+  totalCharacters, 
+  fruits, 
+  onNavigate, 
+  previousScreen, 
+  userPlan,
+  userInfo,
+  isLoggedIn,
+  onPlanChange,
+  onPlanChangeRequest,
+  onLogout,
+  onNicknameChange,
+  onEmailChange
+}: TreeViewProps) => {
   const [selectedFruit, setSelectedFruit] = useState<Fruit | null>(null);
 
   // calculateTreeStage関数をutilsから使用
@@ -64,6 +84,13 @@ const TreeView = ({ totalCharacters, fruits, onNavigate, previousScreen, userPla
         onNavigate={onNavigate}
         previousScreen={previousScreen}
         userPlan={userPlan}
+        userInfo={userInfo}
+        isLoggedIn={isLoggedIn}
+        onPlanChange={onPlanChange}
+        onPlanChangeRequest={onPlanChangeRequest}
+        onLogout={onLogout}
+        onNicknameChange={onNicknameChange}
+        onEmailChange={onEmailChange}
       />
 
       <div className="p-4">
@@ -150,7 +177,6 @@ const TreeView = ({ totalCharacters, fruits, onNavigate, previousScreen, userPla
                       {fruit.aiRole === 'tama' ? 'たまさん' : 
                        fruit.aiRole === 'madoka' ? 'まどか姉さん' : 'ヒデじい'}
                     </Typography>
-                    <Typography variant="small" color="secondary" className="ml-2">({fruit.emotion})</Typography>
                   </div>
                   <Typography variant="small" color="secondary" className="mb-2 line-clamp-2">{fruit.aiResponse}</Typography>
                   <Typography variant="small" color="secondary">{fruit.createdAt}</Typography>
@@ -184,7 +210,7 @@ const TreeView = ({ totalCharacters, fruits, onNavigate, previousScreen, userPla
                 <Typography variant="h3" color="primary">
                   ほめの実の記録
                 </Typography>
-                <Typography variant="caption" color="secondary">{selectedFruit.createdAt} • {selectedFruit.emotion}</Typography>
+                <Typography variant="caption" color="secondary">{selectedFruit.createdAt}</Typography>
               </div>
               
               {/* ユーザーのメッセージ */}

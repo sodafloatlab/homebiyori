@@ -3,7 +3,8 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { ArrowLeft, Home, User, Crown, Mail, HelpCircle } from 'lucide-react';
-import { AppScreen, UserPlan } from '../features/MainApp';
+import { AppScreen, UserPlan, UserInfo } from '@/types';
+import UserMenu from '../ui/UserMenu';
 
 interface NavigationStep {
   screen: AppScreen;
@@ -20,6 +21,13 @@ interface NavigationHeaderProps {
   previousScreen?: AppScreen | null;
   userPlan?: UserPlan;
   showBreadcrumb?: boolean;
+  userInfo?: UserInfo;
+  isLoggedIn?: boolean;
+  onPlanChange?: (plan: UserPlan) => void;
+  onPlanChangeRequest?: (plan: UserPlan) => void;
+  onLogout?: () => void;
+  onNicknameChange?: (nickname: string) => void;
+  onEmailChange?: (email: string) => void;
 }
 
 const NavigationHeader = ({
@@ -30,7 +38,14 @@ const NavigationHeader = ({
   canGoBack = true,
   previousScreen,
   userPlan,
-  showBreadcrumb = true
+  showBreadcrumb = true,
+  userInfo,
+  isLoggedIn = false,
+  onPlanChange,
+  onPlanChangeRequest,
+  onLogout,
+  onNicknameChange,
+  onEmailChange
 }: NavigationHeaderProps) => {
   
   // 画面の階層構造を定義
@@ -42,6 +57,7 @@ const NavigationHeader = ({
     'group-chat': { parent: 'character-selection', label: 'グループチャット', icon: <Crown className="w-4 h-4" /> },
     'tree': { parent: 'chat', label: '成長の木' },
     'premium': { parent: 'landing', label: 'プレミアムプラン', icon: <Crown className="w-4 h-4" /> },
+    'subscription-cancel': { parent: 'landing', label: 'プラン解約', icon: <Crown className="w-4 h-4" /> },
     'terms-of-service': { parent: 'landing', label: '利用規約' },
     'privacy-policy': { parent: 'landing', label: 'プライバシーポリシー' },
     'commercial-transaction': { parent: 'landing', label: '特定商取引法表記' },
@@ -111,19 +127,8 @@ const NavigationHeader = ({
             </div>
           </div>
 
-          {/* 右側：プレミアムバッジやその他の要素 */}
+          {/* 右側：ユーザーメニューとその他の要素 */}
           <div className="flex items-center space-x-2">
-            {userPlan === 'premium' && (
-              <motion.span 
-                className="px-3 py-1 bg-gradient-to-r from-yellow-400 to-yellow-500 text-white text-xs font-bold rounded-full shadow-sm"
-                initial={{ scale: 0 }}
-                animate={{ scale: 1 }}
-                transition={{ delay: 0.2, type: "spring" }}
-              >
-                PREMIUM
-              </motion.span>
-            )}
-            
             {currentScreen !== 'landing' && (
               <motion.button
                 onClick={() => onNavigate('landing')}
@@ -134,6 +139,24 @@ const NavigationHeader = ({
               >
                 <Home className="w-5 h-5 text-emerald-600 group-hover:text-emerald-700" />
               </motion.button>
+            )}
+            
+            {/* ユーザーメニュー（ログイン時のみ表示） */}
+            {isLoggedIn && userInfo && onLogout && onNicknameChange && onEmailChange && (
+              <motion.div
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ delay: 0.1 }}
+              >
+                <UserMenu
+                  userInfo={userInfo}
+                  onPlanChange={onPlanChange}
+                  onPlanChangeRequest={onPlanChangeRequest}
+                  onLogout={onLogout}
+                  onNicknameChange={onNicknameChange}
+                  onEmailChange={onEmailChange}
+                />
+              </motion.div>
             )}
           </div>
         </div>

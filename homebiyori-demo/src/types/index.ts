@@ -4,7 +4,7 @@
 
 export type AiRole = 'tama' | 'madoka' | 'hide';
 export type MoodType = 'praise' | 'listen';
-export type AppScreen = 'landing' | 'auth' | 'character-selection' | 'chat' | 'tree' | 'group-chat' | 'premium' | 'terms-of-service' | 'privacy-policy' | 'commercial-transaction' | 'contact' | 'faq';
+export type AppScreen = 'landing' | 'auth' | 'character-selection' | 'chat' | 'tree' | 'group-chat' | 'premium' | 'subscription-cancel' | 'terms-of-service' | 'privacy-policy' | 'commercial-transaction' | 'contact' | 'faq';
 export type UserPlan = 'free' | 'premium';
 export type ChatMode = 'normal' | 'deep';
 
@@ -65,6 +65,17 @@ export interface NavigationProps {
 }
 
 // ========================================
+// User Types
+// ========================================
+
+export interface UserInfo {
+  email: string;
+  nickname: string;
+  avatar?: string;
+  plan: UserPlan;
+}
+
+// ========================================
 // App State Types
 // ========================================
 
@@ -99,6 +110,14 @@ export interface BaseChatProps {
   globalMessages: ChatMessage[];
   onAddGlobalMessage: (message: ChatMessage) => void;
   onMoodChange?: (mood: MoodType) => void;
+  // ユーザー情報関連
+  userInfo?: UserInfo;
+  isLoggedIn?: boolean;
+  onPlanChange?: (plan: UserPlan) => void;
+  onPlanChangeRequest?: (plan: UserPlan) => void;
+  onLogout?: () => void;
+  onNicknameChange?: (nickname: string) => void;
+  onEmailChange?: (email: string) => void;
 }
 
 export interface ChatScreenProps extends BaseChatProps {

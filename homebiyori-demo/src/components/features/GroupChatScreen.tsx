@@ -29,7 +29,14 @@ const GroupChatScreen = ({
   globalMessages,
   onAddGlobalMessage,
   selectedAiRole,
-  onMoodChange
+  onMoodChange,
+  userInfo,
+  isLoggedIn,
+  onPlanChange,
+  onPlanChangeRequest,
+  onLogout,
+  onNicknameChange,
+  onEmailChange
 }: GroupChatScreenProps) => {
   const [selectedMoodState, setSelectedMoodState] = useState(currentMood);
 
@@ -236,7 +243,7 @@ const GroupChatScreen = ({
               setTimeout(() => {
                 const fruitNotification = {
                   id: generateMessageId('fruit'),
-                  text: `🌰 ${fruitMessage}`,
+                  text: fruitMessage,
                   sender: 'ai' as const,
                   timestamp: Date.now(),
                   aiRole: aiRole
@@ -346,6 +353,13 @@ const GroupChatScreen = ({
         onNavigate={onNavigate}
         previousScreen="character-selection"
         userPlan={userPlan}
+        userInfo={userInfo}
+        isLoggedIn={isLoggedIn}
+        onPlanChange={onPlanChange}
+        onPlanChangeRequest={onPlanChangeRequest}
+        onLogout={onLogout}
+        onNicknameChange={onNicknameChange}
+        onEmailChange={onEmailChange}
       />
 
       <div className="max-w-6xl mx-auto p-4 pb-32">

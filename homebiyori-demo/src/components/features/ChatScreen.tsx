@@ -28,7 +28,14 @@ const ChatScreen = ({
   onChatModeChange,
   globalMessages,
   onAddGlobalMessage,
-  onMoodChange
+  onMoodChange,
+  userInfo,
+  isLoggedIn,
+  onPlanChange,
+  onPlanChangeRequest,
+  onLogout,
+  onNicknameChange,
+  onEmailChange
 }: ChatScreenProps) => {
   const [selectedMoodState, setSelectedMoodState] = useState<MoodType>(currentMood);
 
@@ -247,7 +254,7 @@ const ChatScreen = ({
         setTimeout(() => {
           const fruitNotification = {
             id: generateMessageId('fruit'),
-            text: `🌰 ${fruitMessage}`,
+            text: fruitMessage,
             sender: 'ai' as const,
             timestamp: Date.now(),
             aiRole: selectedAiRole
@@ -336,6 +343,13 @@ const ChatScreen = ({
         onNavigate={onNavigate}
         previousScreen="character-selection"
         userPlan={userPlan}
+        userInfo={userInfo}
+        isLoggedIn={isLoggedIn}
+        onPlanChange={onPlanChange}
+        onPlanChangeRequest={onPlanChangeRequest}
+        onLogout={onLogout}
+        onNicknameChange={onNicknameChange}
+        onEmailChange={onEmailChange}
       />
 
       <div className="max-w-6xl mx-auto p-4 pb-32">
@@ -521,7 +535,7 @@ const ChatScreen = ({
                 <div className="space-y-2 text-sm text-amber-700 mb-4">
                   <p>• グループチャット機能</p>
                   <p>• ディープモード</p>
-                  <p>• チャット履歴の永続保存</p>
+                  <p>• チャット履歴180日保存</p>
                 </div>
                 <TouchTarget
                   onClick={() => onNavigate('premium')}

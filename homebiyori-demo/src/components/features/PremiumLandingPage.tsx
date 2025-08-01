@@ -41,8 +41,8 @@ const PremiumLandingPage = ({ onNavigate, onClose }: PremiumLandingPageProps) =>
     },
     {
       icon: <Sparkles className="w-8 h-8" />,
-      title: "チャット履歴無制限保存",
-      description: "大切な会話を永続的に保存。無料版は3日間のみ保存されます",
+      title: "チャット履歴180日保存",
+      description: "大切な会話を長期保存。無料版は30日間保存されます",
       highlight: "安心",
       color: "from-emerald-500 to-green-600"
     }
@@ -57,7 +57,7 @@ const PremiumLandingPage = ({ onNavigate, onClose }: PremiumLandingPageProps) =>
       features: [
         "グループチャット機能",
         "ディープモード使い放題",
-        "チャット履歴無制限保存",
+        "チャット履歴180日保存",
         "いつでもキャンセル可能"
       ]
     },
@@ -123,13 +123,13 @@ const PremiumLandingPage = ({ onNavigate, onClose }: PremiumLandingPageProps) =>
           
           <Typography variant="body" color="secondary" className="mb-8 max-w-2xl mx-auto">
             プレミアムプランで、3人のAIキャラクターとのより深いつながりを体験し、
-            大切な会話を永続的に保存して、育児の毎日をさらに豊かで楽しいものにしませんか？
+            大切な会話を180日間保存して、育児の毎日をさらに豊かで楽しいものにしませんか？
           </Typography>
           
           <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 max-w-2xl mx-auto mb-8">
             <Typography variant="small" color="secondary" className="text-center">
               💡 <strong>無料でもご利用いただけます</strong><br />
-              無料版では、チャット履歴は3日間保存されます。ほめの実の記録はずっと残ります。
+              一般ユーザーでは、チャット履歴は30日間保持されます。ほめの実の記録はずっと残ります。
             </Typography>
           </div>
         </motion.div>

@@ -4,7 +4,7 @@ import React from 'react';
 import { motion } from 'framer-motion';
 
 interface TypographyProps {
-  variant: 'hero' | 'h1' | 'h2' | 'h3' | 'h4' | 'body' | 'caption' | 'small';
+  variant: 'hero' | 'h1' | 'h2' | 'h3' | 'h4' | 'body' | 'caption' | 'small' | 'tiny';
   color?: 'primary' | 'secondary' | 'success' | 'warning' | 'error' | 'neutral';
   weight?: 'light' | 'normal' | 'medium' | 'semibold' | 'bold';
   align?: 'left' | 'center' | 'right';
@@ -32,7 +32,8 @@ const Typography = ({
     h4: 'text-lg md:text-xl lg:text-2xl leading-tight font-semibold',
     body: 'text-base md:text-lg leading-relaxed',
     caption: 'text-sm md:text-base leading-relaxed',
-    small: 'text-xs md:text-sm leading-normal'
+    small: 'text-xs md:text-sm leading-normal',
+    tiny: 'text-xs leading-normal'
   };
 
   // カラーパレット定義
@@ -77,6 +78,7 @@ const Typography = ({
       case 'caption':
         return 'p';
       case 'small':
+      case 'tiny':
         return 'span';
       default:
         return 'p';
