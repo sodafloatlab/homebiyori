@@ -68,7 +68,7 @@ export const EMOTIONS = [
   { emoji: '😊', label: '嬉しい' },
   { emoji: '😢', label: '悲しい' },
   { emoji: '😴', label: '疲れた' },
-  { emoji: '😍', label: '愛してる' },
+  { emoji: '😰', label: '困った' },
   { emoji: '👍', label: 'いいね' }
 ] as const;
 

@@ -43,6 +43,7 @@ graph TB
 **バックエンド**
 - AWS Lambda (Python 3.11+)
 - FastAPI (Lambda用に最適化)
+- LangChain (Bedrock統合・チャット履歴管理)
 - Pydantic (データバリデーション)
 - Boto3 (AWS SDK)
 - Mangum (FastAPI-Lambda アダプター)
@@ -178,81 +179,80 @@ src/
 3. **AI機能の分散**: AI関連機能がchat-service、tree-serviceに分散
 4. **データ整合性**: chat→tree間のデータ連携で整合性リスク
 
-**改善されたLambda構成**
+**改善されたLambda構成（FastAPI + LangChain）**
 
 ```
-lambdas/
-├── core-service/          # 統合コアサービス（chat + tree統合）
-│   ├── handler.py         # 統一エントリーポイント
-│   ├── models/
-│   │   ├── chat.py        # チャット関連モデル
-│   │   ├── tree.py        # 木の成長関連モデル
-│   │   └── user.py        # ユーザー関連モデル
-│   ├── services/
-│   │   ├── chat_service.py     # チャット機能
-│   │   ├── tree_service.py     # 木の成長管理
-│   │   ├── emotion_service.py  # 感情検出（統合）
-│   │   └── ai_service.py       # AI機能統合
-│   ├── controllers/
-│   │   ├── chat_controller.py  # チャットAPI制御
-│   │   ├── tree_controller.py  # 木の成長API制御
-│   │   └── user_controller.py  # ユーザー管理API制御
-│   └── requirements.txt   # Bedrock SDK含む全依存関係
-│
-├── ai-service/            # AI専用サービス（重い処理分離）
-│   ├── handler.py         # AI処理専用エントリーポイント
-│   ├── models/
-│   │   ├── prompts.py     # プロンプトテンプレート
-│   │   └── responses.py   # AI応答モデル
-│   ├── services/
-│   │   ├── bedrock_client.py   # Bedrock API クライアント
-│   │   ├── emotion_detector.py # 感情検出ロジック
-│   │   ├── chat_responder.py   # チャット応答生成
-│   │   └── content_filter.py   # 領域フィルター
-│   └── requirements.txt   # Bedrock特化依存関係
-│
-└── shared/                # 共通ライブラリ（Lambda Layer）
-    ├── models/
-    │   ├── base.py        # ベースモデル
-    │   ├── exceptions.py  # カスタム例外
-    │   └── dto.py         # データ転送オブジェクト
-    ├── services/
-    │   ├── database/
-    │   │   ├── dynamodb.py    # DynamoDB操作
-    │   │   ├── repositories/  # リポジトリパターン
-    │   │   │   ├── user_repo.py
-    │   │   │   ├── chat_repo.py
-    │   │   │   └── tree_repo.py
-    │   │   └── queries.py     # 共通クエリ
-    │   ├── storage/
-    │   │   ├── s3.py          # S3操作
-    │   │   └── cache.py       # キャッシュ管理
-    │   ├── auth/
-    │   │   ├── jwt_utils.py   # JWT解析
-    │   │   └── permissions.py # 権限管理
-    │   └── integrations/
-    │       ├── bedrock_base.py # Bedrock基底クラス
-    │       └── monitoring.py   # 監視・ログ
-    ├── utils/
-    │   ├── validators.py  # バリデーション
-    │   ├── formatters.py  # データフォーマット
-    │   ├── config.py      # 設定管理
-    │   └── constants.py   # 定数定義
-    └── requirements.txt   # 共通依存関係
+app/
+├── handler.py             # Lambda エントリーポイント（Mangum使用）
+├── main.py               # FastAPI アプリケーション
+├── routers/              # API エンドポイント
+│   ├── __init__.py
+│   ├── chat.py           # チャット機能API
+│   ├── tree.py           # 木の成長管理API
+│   ├── user.py           # ユーザー管理API
+│   └── health.py         # ヘルスチェック
+├── models/               # Pydantic データモデル
+│   ├── __init__.py
+│   ├── chat.py           # チャット関連モデル
+│   ├── tree.py           # 木の成長関連モデル
+│   ├── user.py           # ユーザー関連モデル
+│   └── base.py           # ベースモデル
+├── services/             # ビジネスロジック
+│   ├── __init__.py
+│   ├── chat_service.py   # チャット機能（LangChain統合）
+│   ├── tree_service.py   # 木の成長管理
+│   ├── emotion_service.py # 感情検出（LangChain使用）
+│   ├── ai_service.py     # AI機能統合（LangChain Bedrock）
+│   └── user_service.py   # ユーザー管理
+├── langchain_integration/  # LangChain 統合レイヤー
+│   ├── __init__.py
+│   ├── bedrock_llm.py    # Bedrock LLM ラッパー
+│   ├── chat_memory.py    # チャット履歴管理（DynamoDB）
+│   ├── prompt_templates.py # プロンプトテンプレート
+│   ├── chains/           # LangChain チェーン
+│   │   ├── __init__.py
+│   │   ├── chat_chain.py  # チャット応答チェーン
+│   │   ├── emotion_chain.py # 感情検出チェーン
+│   │   └── fruit_chain.py  # 実生成チェーン
+│   └── memory/           # メモリ管理
+│       ├── __init__.py
+│       ├── dynamodb_memory.py # DynamoDB チャット履歴
+│       └── session_manager.py # セッション管理
+├── repositories/         # データアクセス層
+│   ├── __init__.py
+│   ├── chat_repository.py
+│   ├── tree_repository.py
+│   ├── user_repository.py
+│   └── base_repository.py
+├── core/                 # コア設定・依存性注入
+│   ├── __init__.py
+│   ├── config.py         # 設定管理
+│   ├── dependencies.py   # FastAPI 依存性注入
+│   ├── security.py       # 認証・認可
+│   └── database.py       # DynamoDB 接続
+├── utils/                # ユーティリティ
+│   ├── __init__.py
+│   ├── validators.py
+│   ├── formatters.py
+│   ├── exceptions.py
+│   └── constants.py
+└── requirements.txt      # 全依存関係（LangChain含む）
 ```
 
-**改善された責務分担**
+**FastAPI + LangChain による統合アーキテクチャ**
 
-| サービス | 責務 | 主要機能 | メリット |
+| コンポーネント | 責務 | 主要技術 | メリット |
 |---------|------|---------|----------|
-| **core-service** | ビジネスロジック統合 | ユーザー管理、チャット、木の成長、設定 | データ整合性確保、デプロイ効率 |
-| **ai-service** | AI処理専門 | 感情検出、チャット応答、フィルタリング | スケーリング最適化、AI機能統合 |
+| **FastAPI App** | API エンドポイント | FastAPI, Pydantic | 高速、型安全、自動ドキュメント生成 |
+| **LangChain Integration** | AI機能・チャット履歴管理 | LangChain, Bedrock | 強力なAI機能、柔軟なメモリ管理 |
+| **Repository Layer** | データアクセス | DynamoDB, Boto3 | データ整合性、テスタビリティ |
+| **Service Layer** | ビジネスロジック | Python | 保守性、拡張性 |
 
-**統合による利点:**
-1. **データ整合性**: チャット→木の成長が1つのサービス内で完結
-2. **開発効率**: 関連機能の同時開発・テストが容易
-3. **運用簡素化**: デプロイ・監視対象の削減
-4. **コスト最適化**: Lambda関数数削減によるコールドスタート減少
+**LangChain統合による利点:**
+1. **チャット履歴管理**: DynamoDB ベースの永続化メモリで会話文脈を保持
+2. **AI機能強化**: プロンプトテンプレート、チェーン機能で複雑なAI処理を実現
+3. **スケーラビリティ**: LangChain の豊富な機能でAI機能を段階的に拡張可能
+4. **保守性**: 統一されたフレームワークでAI関連コードの保守が容易
 
 **認証・認可設計の最適化**
 
@@ -260,41 +260,41 @@ auth-serviceを削除し、API Gateway + Amazon Cognitoの組み合わせで認�
 
 ### API エンドポイント設計
 
-**API Gateway統合パターン**
+**FastAPI統合エンドポイント**
 
 ```
 API Gateway (Cognito Authorizer)
-├── /users/*      → user-service Lambda  
-├── /children/*   → user-service Lambda
-├── /chat/*       → chat-service Lambda（統合チャット機能）
-├── /tree/*       → tree-service Lambda（木の成長管理）
-└── /settings/*   → settings-service Lambda
+└── /*  → homebiyori-api Lambda (FastAPI)
+    ├── /api/chat/*     # チャット機能
+    ├── /api/tree/*     # 木の成長管理
+    ├── /api/users/*    # ユーザー管理
+    ├── /health         # ヘルスチェック
+    └── /docs           # FastAPI自動ドキュメント
 
 # 認証はAPI Gateway + Cognitoで完結
 # - JWT検証はAPI Gateway Cognito Authorizerが自動処理
-# - 各Lambda関数では認証済みユーザー情報を取得するのみ
+# - FastAPIでは認証済みユーザー情報を依存性注入で取得
 ```
 
-**統合チャット機能エンドポイント（chat-service）**
-- `POST /chat/start` - チャットセッション開始（AIロール・気分設定）
-- `POST /chat/send` - メッセージ送信（テキスト・感情アイコン）
-- `PUT /chat/mood` - チャット途中での気分変更
-- `POST /chat/end` - チャットセッション終了（AIロール変更時）
-- `GET /chat/history` - チャット履歴取得
-- `POST /chat/emotion` - 感情アイコン専用送信
+**チャット機能エンドポイント（LangChain統合）**
+- `POST /api/chat/sessions` - チャットセッション開始（AIロール・気分設定）
+- `POST /api/chat/sessions/{session_id}/messages` - メッセージ送信（LangChainチェーン使用）
+- `PUT /api/chat/sessions/{session_id}/mood` - チャット途中での気分変更
+- `GET /api/chat/sessions/{session_id}/history` - チャット履歴取得（DynamoDB Memory使用）
+- `POST /api/chat/sessions/{session_id}/emotions` - 感情アイコン専用送信
+- `DELETE /api/chat/sessions/{session_id}` - セッション終了
 
-**木の成長管理エンドポイント（tree-service）**
-- `GET /tree/status` - 木の現在状態取得
-- `POST /tree/grow` - 文字数ベース成長処理
-- `POST /tree/fruit` - 感情検出による実の生成
-- `GET /tree/fruits` - 実の一覧取得
-- `POST /tree/fruits/{fruit_id}/praise` - 実タップ時の褒めメッセージ取得
+**木の成長管理エンドポイント**
+- `GET /api/tree/status` - 木の現在状態取得
+- `GET /api/tree/fruits` - 実の一覧取得
+- `POST /api/tree/fruits/{fruit_id}/interactions` - 実タップ時の褒めメッセージ取得
+- `GET /api/tree/growth-history` - 成長履歴取得
 
-**設定管理エンドポイント（settings-service）**
-- `GET /settings/profile` - ユーザー設定取得
-- `PUT /settings/ai-role` - AIロール変更
-- `PUT /settings/praise-level` - 褒めレベル変更
-- `DELETE /settings/account` - アカウント削除
+**ユーザー管理エンドポイント**
+- `GET /api/users/profile` - ユーザー設定取得
+- `PUT /api/users/profile` - プロフィール更新
+- `PUT /api/users/ai-preferences` - AIロール・褒めレベル変更
+- `DELETE /api/users/account` - アカウント削除
 
 ## データモデル
 
@@ -315,20 +315,9 @@ API Gateway (Cognito Authorizer)
 }
 ```
 
-**Children テーブル**
-```json
-{
-  "PK": "USER#user_id",
-  "SK": "CHILD#child_id",
-  "child_id": "string",
-  "user_id": "string",
-  "name": "string",
-  "birth_date": "date",
-  "created_at": "timestamp"
-}
-```
+**注意: 個人情報保護の観点から、子供の個人情報（名前、生年月日等）は収集・保存しません。**
 
-**Chat テーブル（統合チャット機能）**
+**Chat テーブル（LangChain統合チャット機能）**
 ```json
 {
   "PK": "USER#user_id",
@@ -336,7 +325,7 @@ API Gateway (Cognito Authorizer)
   "chat_id": "string",
   "user_id": "string",
   "session_id": "string",
-  "ai_role": "tama|madoka|hidejii",
+  "ai_role": "tama|madoka|hide",
   "current_mood": "praise|listen",
   "message_type": "text|emotion|system",
   "user_message": "string",
@@ -344,6 +333,8 @@ API Gateway (Cognito Authorizer)
   "emotion_icon": "string",
   "character_count": "number",
   "emotion_detected": "boolean",
+  "langchain_session_id": "string",
+  "memory_key": "string",
   "created_at": "timestamp"
 }
 ```
@@ -476,10 +467,16 @@ homebiyori-static/
 
 **実装アプローチ**
 
-**1. Amazon Bedrock Claude 3 Haikuによる感情分析**
+**1. LangChain + Amazon Bedrock Claude 3 Haikuによる感情分析**
 ```python
-# 感情検出専用プロンプト例
-emotion_detection_prompt = """
+# LangChainプロンプトテンプレート
+from langchain.prompts import PromptTemplate
+from langchain.schema import StrOutputParser
+from langchain_community.llms import Bedrock
+
+emotion_detection_template = PromptTemplate(
+    input_variables=["user_message"],
+    template="""
 以下のユーザーメッセージを分析して、感情の深さを評価してください。
 
 メッセージ: {user_message}
@@ -490,16 +487,21 @@ emotion_detection_prompt = """
 3. 育児・人生への言及度（1-5）: 育児や人生の感情に触れているか
 
 以下のJSON形式で回答してください:
-{
+{{
   "emotion_intensity": int,
   "content_depth": int, 
   "parenting_relevance": int,
   "total_score": int,
   "is_fruit_worthy": boolean,
   "detected_emotions": ["joy", "sadness", "fatigue", "accomplishment", "worry"]
-}
+}}
 
 閾値: total_score >= 10 かつ いずれかのスコアが4以上の場合のみis_fruit_worthy: true
+"""
+)
+
+# LangChainチェーン構築
+emotion_chain = emotion_detection_template | bedrock_llm | StrOutputParser()
 ```
 
 **2. 感情検出の判定ロジック**
@@ -516,26 +518,40 @@ emotion_detection_prompt = """
 
 **3. 技術的実装詳細**
 
-**chat-service内の感情検出モジュール**
+**LangChain統合感情検出サービス**
 ```python
-# emotion_handler.py
+# services/emotion_service.py
+from langchain.chains import LLMChain
+from langchain_community.llms import Bedrock
+from langchain.memory import ConversationBufferMemory
+from langchain_integration.chains.emotion_chain import EmotionDetectionChain
+
 class EmotionDetector:
-    def __init__(self, bedrock_client):
-        self.bedrock_client = bedrock_client
+    def __init__(self, bedrock_llm: Bedrock, memory_manager):
+        self.emotion_chain = EmotionDetectionChain(bedrock_llm)
+        self.memory_manager = memory_manager
         
-    async def detect_emotion(self, message: str, ai_role: str) -> EmotionResult:
-        """感情検出とスコア算出"""
-        prompt = self._build_emotion_prompt(message)
-        response = await self._call_bedrock(prompt)
-        
-        emotion_data = self._parse_emotion_response(response)
-        
-        # 1日1回制限チェック
-        if emotion_data.is_fruit_worthy:
-            can_generate = await self._check_daily_limit(user_id)
-            emotion_data.is_fruit_worthy = can_generate
+    async def detect_emotion(self, message: str, ai_role: str, user_id: str) -> EmotionResult:
+        """LangChainを使用した感情検出"""
+        try:
+            # LangChainチェーンで感情分析実行
+            result = await self.emotion_chain.arun(
+                user_message=message,
+                ai_role=ai_role
+            )
             
-        return emotion_data
+            emotion_data = self._parse_emotion_response(result)
+            
+            # 1日1回制限チェック
+            if emotion_data.is_fruit_worthy:
+                can_generate = await self._check_daily_limit(user_id)
+                emotion_data.is_fruit_worthy = can_generate
+                
+            return emotion_data
+            
+        except Exception as e:
+            # フォールバック処理
+            return await self._fallback_emotion_detection(message)
         
     def _calculate_emotion_score(self, intensity: int, depth: int, relevance: int) -> int:
         """感情スコア計算（重み付け）"""
@@ -544,7 +560,7 @@ class EmotionDetector:
     async def _check_daily_limit(self, user_id: str) -> bool:
         """1日1回制限のチェック"""
         today = datetime.now().date()
-        existing_fruit = await self.db.get_fruit_by_date(user_id, today)
+        existing_fruit = await self.tree_repository.get_fruit_by_date(user_id, today)
         return existing_fruit is None
 ```
 
@@ -865,17 +881,18 @@ async def handle_emotion_detection_error(self, error: Exception, message: str) -
 
 ### 主要コスト変更点
 
-**Amazon Bedrock (Claude 3 Haiku)**
+**Amazon Bedrock (Claude 3 Haiku) + LangChain**
 - チャット応答生成:
   - 入力トークン: 2,000回 × 800トークン = 1,600,000トークン
   - 出力トークン: 2,000回 × 200トークン = 400,000トークン
 - 実生成（感情検出時）:
   - 入力トークン: 300回 × 600トークン = 180,000トークン
   - 出力トークン: 300回 × 100トークン = 30,000トークン
+- LangChainオーバーヘッド: 約5%追加
 - 月間総トークン:
-  - 入力: 1,780,000トークン
-  - 出力: 430,000トークン
-- 月額: $0.445 (入力) + $0.645 (出力) = **$1.09**
+  - 入力: 1,869,000トークン
+  - 出力: 451,500トークン
+- 月額: $0.467 (入力) + $0.677 (出力) = **$1.14**
 
 **DynamoDB**
 - チャット履歴メタデータ: 2,000回書き込み
@@ -892,12 +909,12 @@ async def handle_emotion_detection_error(self, error: Exception, message: str) -
 
 ### 総コスト（統合チャット機能版）
 
-| サービス | 従来版 | チャット統合版 | 差額 |
+| サービス | 従来版 | LangChain統合版 | 差額 |
 |---------|-------|--------------|------|
-| Bedrock | $1.10 | $1.09 | -$0.01 |
+| Bedrock | $1.10 | $1.14 | +$0.04 |
 | DynamoDB | $5.79 | $4.20 | -$1.59 |
 | S3 | $0.047 | $0.050 | +$0.003 |
 | その他 | $4.81 | $4.81 | $0.00 |
-| **合計** | **$11.71** | **$10.14** | **-$1.57** |
+| **合計** | **$11.71** | **$10.19** | **-$1.52** |
 
-統合チャット機能への変更により、投稿システムの削除とデータ構造の最適化で月額コストが約13%削減されます。
+LangChain統合により、わずかなオーバーヘッドはあるものの、データ構造の最適化で月額コストが約13%削減されます。LangChainの強力な機能により、開発効率と保守性が大幅に向上します。
