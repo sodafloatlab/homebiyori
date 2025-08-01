@@ -3,9 +3,12 @@
 import Image from 'next/image';
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
+import { calculateTreeStage } from '@/lib/utils';
 
 interface Props {
-  ageInDays: number;
+  stage?: number;
+  ageInDays?: number;
+  size?: 'small' | 'medium' | 'large';
   isBackground?: boolean;
   fruits?: Array<{
     id: string;
@@ -26,13 +29,14 @@ interface Props {
 }
 
 
-const WatercolorTree = ({ ageInDays, isBackground = false, fruits = [], onFruitClick }: Props) => {
+const WatercolorTree = ({ stage, ageInDays, size = 'medium', isBackground = false, fruits = [], onFruitClick }: Props) => {
+  // stageが指定された場合はstageを使用、そうでなければageInDaysから計算
+  const effectiveStage = stage || calculateTreeStage(ageInDays || 0);
   const [isClient, setIsClient] = useState(false);
-  const [previousAge, setPreviousAge] = useState(ageInDays);
+  const [previousAge, setPreviousAge] = useState(ageInDays || 0);
   const [isGrowing, setIsGrowing] = useState(false);
 
   useEffect(() => {
-    console.log('WatercolorTree useEffect triggered');
     setIsClient(true);
   }, []);
 
@@ -45,10 +49,11 @@ const WatercolorTree = ({ ageInDays, isBackground = false, fruits = [], onFruitC
 
   // 成長したときのアニメーションを検知
   useEffect(() => {
-    if (previousAge !== ageInDays) {
+    const currentAge = ageInDays || 0;
+    if (previousAge !== currentAge) {
       // 成長段階が変わった場合
       const prevStage = getGrowthStage(previousAge);
-      const currentStage = getGrowthStage(ageInDays);
+      const currentStage = getGrowthStage(currentAge);
       
       if (prevStage !== currentStage) {
         setIsGrowing(true);
@@ -56,50 +61,34 @@ const WatercolorTree = ({ ageInDays, isBackground = false, fruits = [], onFruitC
         setTimeout(() => setIsGrowing(false), 1500);
       }
       
-      setPreviousAge(ageInDays);
+      setPreviousAge(currentAge);
     }
   }, [ageInDays, previousAge]);
 
-  // 成長段階を数値で返す関数（6段階）
+  // 成長段階を数値で返す関数（6段階）- utils関数を使用
   const getGrowthStage = (days: number) => {
-    if (days <= 100) return 1;  // 芽
-    if (days <= 200) return 2;  // 小さな苗
-    if (days <= 300) return 3;  // 若木
-    if (days <= 400) return 4;  // 中木
-    if (days <= 500) return 5;  // 大木
-    return 6;                   // 完全成長
+    return calculateTreeStage(days);
   };
 
   // 画像パスを決定する関数（6段階）
   const getTreeImage = () => {
-    if (ageInDays <= 100) return '/images/trees/tree_1.png';  // 芽
-    if (ageInDays <= 200) return '/images/trees/tree_2.png';  // 小さな苗
-    if (ageInDays <= 300) return '/images/trees/tree_3.png';  // 若木
-    if (ageInDays <= 400) return '/images/trees/tree_4.png';  // 中木
-    if (ageInDays <= 500) return '/images/trees/tree_5.png';  // 大木
-    return '/images/trees/tree_6.png';                        // 完全成長
+    const currentStage = effectiveStage;
+    return `/images/trees/tree_${currentStage}.png`;
   };
 
-  console.log('🌳 WatercolorTree RENDER:');
-  console.log('  - isClient:', isClient);
-  console.log('  - ageInDays:', ageInDays);
-  console.log('  - imagePath:', getTreeImage());
-  console.log('  - will show SSR placeholder:', !isClient);
 
   // クライアントサイドでない場合はSSRプレースホルダーを表示
   if (!isClient) {
     return (
-      <div className="relative w-full h-[400px] rounded-2xl overflow-hidden bg-gradient-to-b from-blue-50 via-green-50 to-yellow-50 shadow-lg border-4 border-orange-500">
-        {/* SSRデバッグ情報 */}
-        <div className="absolute top-2 left-2 z-50 bg-orange-500 text-white text-xs p-2">
-          SSR PLACEHOLDER<br/>
-          ageInDays: {ageInDays}<br/>
-          imagePath: {getTreeImage()}
-        </div>
+      <div className={`relative w-full h-[600px] overflow-hidden ${
+        isBackground 
+          ? '' 
+          : 'rounded-2xl bg-gradient-to-b from-blue-50 via-green-50 to-yellow-50 shadow-lg'
+      }`}>
         <div className="absolute inset-0 flex items-center justify-center">
           <div className="text-center">
-            <div className="w-32 h-32 mx-auto bg-gray-200 rounded-lg animate-pulse mb-4"></div>
-            <p className="text-gray-500 text-sm">木を育てています... (SSR)</p>
+            <div className="w-32 h-32 mx-auto bg-emerald-100 rounded-lg animate-pulse mb-4 opacity-50"></div>
+            <p className="text-emerald-600 text-sm opacity-60">木を育てています...</p>
           </div>
         </div>
       </div>
@@ -108,12 +97,15 @@ const WatercolorTree = ({ ageInDays, isBackground = false, fruits = [], onFruitC
 
   // 成長段階に応じた木のサイズを決定（6段階）
   const getTreeSize = () => {
-    if (ageInDays <= 100) return { width: 240, height: 240 };    // tree_1.png - 芽
-    if (ageInDays <= 200) return { width: 320, height: 320 };    // tree_2.png - 小さな苗
-    if (ageInDays <= 300) return { width: 420, height: 420 };    // tree_3.png - 若木
-    if (ageInDays <= 400) return { width: 520, height: 520 };    // tree_4.png - 中木
-    if (ageInDays <= 500) return { width: 680, height: 680 };    // tree_5.png - 大木
-    return { width: 800, height: 800 };                          // tree_6.png - 完全成長
+    switch (effectiveStage) {
+      case 1: return { width: 240, height: 240 };    // tree_1.png - 芽
+      case 2: return { width: 320, height: 320 };    // tree_2.png - 小さな苗
+      case 3: return { width: 420, height: 420 };    // tree_3.png - 若木
+      case 4: return { width: 520, height: 520 };    // tree_4.png - 中木
+      case 5: return { width: 680, height: 680 };    // tree_5.png - 大木
+      case 6: return { width: 800, height: 800 };    // tree_6.png - 完全成長
+      default: return { width: 240, height: 240 };
+    }
   };
 
   // コンテナの高さは固定（最大サイズに対応、余白を削減）
@@ -123,18 +115,14 @@ const WatercolorTree = ({ ageInDays, isBackground = false, fruits = [], onFruitC
 
   // ほめの実の浮遊エリアを成長段階に応じて定義（6段階）
   const getBubbleAreas = () => {
-    if (ageInDays <= 100) {
-      return { centerX: 50, centerY: 45, radiusX: 15, radiusY: 10 };  // 芽
-    } else if (ageInDays <= 200) {
-      return { centerX: 50, centerY: 40, radiusX: 20, radiusY: 15 };  // 小さな苗
-    } else if (ageInDays <= 300) {
-      return { centerX: 50, centerY: 35, radiusX: 25, radiusY: 20 };  // 若木
-    } else if (ageInDays <= 400) {
-      return { centerX: 50, centerY: 32, radiusX: 32, radiusY: 28 };  // 中木
-    } else if (ageInDays <= 500) {
-      return { centerX: 50, centerY: 25, radiusX: 50, radiusY: 40 };  // 大木
-    } else {
-      return { centerX: 50, centerY: 20, radiusX: 60, radiusY: 50 };  // 完全成長
+    switch (effectiveStage) {
+      case 1: return { centerX: 50, centerY: 45, radiusX: 15, radiusY: 10 };  // 芽
+      case 2: return { centerX: 50, centerY: 40, radiusX: 20, radiusY: 15 };  // 小さな苗
+      case 3: return { centerX: 50, centerY: 35, radiusX: 25, radiusY: 20 };  // 若木
+      case 4: return { centerX: 50, centerY: 32, radiusX: 32, radiusY: 28 };  // 中木
+      case 5: return { centerX: 50, centerY: 25, radiusX: 50, radiusY: 40 };  // 大木
+      case 6: return { centerX: 50, centerY: 20, radiusX: 60, radiusY: 50 };  // 完全成長
+      default: return { centerX: 50, centerY: 45, radiusX: 15, radiusY: 10 };
     }
   };
 

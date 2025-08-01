@@ -1,48 +1,17 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Send, Trees, Heart, MessageCircle, Zap, Crown, Users } from 'lucide-react';
+import { Send, Crown, Users } from 'lucide-react';
 import Image from 'next/image';
-import WatercolorTree from '@/components/ui/WatercolorTree';
 import NavigationHeader from '../layout/NavigationHeader';
 import TouchTarget from '../ui/TouchTarget';
-import { AiRole, MoodType, AppScreen, UserPlan, ChatMode, ChatHistory } from './MainApp';
-
-interface ChatMessage {
-  id: string;
-  text: string;
-  sender: 'user' | 'ai' | 'system';
-  timestamp: number;
-  aiRole?: AiRole;
-  mood?: MoodType;
-  emotion?: string;
-  systemType?: 'join' | 'leave' | 'mode-change' | 'info';
-}
-
-interface ChatScreenProps {
-  selectedAiRole: AiRole;
-  currentMood: MoodType;
-  onNavigate: (screen: AppScreen) => void;
-  onAddCharacters: (count: number) => void;
-  onAddFruit: (userMessage: string, aiResponse: string, emotion: string) => void;
-  onAddChatHistory: (userMessage: string, aiResponse: string, aiRole: AiRole) => void;
-  totalCharacters: number;
-  fruits: Array<{
-    id: string;
-    userMessage: string;
-    aiResponse: string;
-    aiRole: AiRole;
-    createdAt: string;
-    emotion: string;
-  }>;
-  userPlan: UserPlan;
-  chatMode: ChatMode;
-  chatHistory: ChatHistory[];
-  onChatModeChange: (mode: ChatMode) => void;
-  globalMessages: ChatMessage[];
-  onAddGlobalMessage: (message: ChatMessage) => void;
-}
+import ChatHeader from './chat/ChatHeader';
+import TreeGrowthStatus from './chat/TreeGrowthStatus';
+import { ChatScreenProps, AiRole, MoodType } from '@/types';
+import { useChat, useChatModeChange } from '@/lib/hooks';
+import { AI_CHARACTERS, EMOTIONS } from '@/lib/constants';
+import { getCharacterThemeColor, generateMessageId, formatTimestamp, calculateTreeStage } from '@/lib/utils';
 
 const ChatScreen = ({ 
   selectedAiRole, 
@@ -58,56 +27,35 @@ const ChatScreen = ({
   chatHistory,
   onChatModeChange,
   globalMessages,
-  onAddGlobalMessage
+  onAddGlobalMessage,
+  onMoodChange
 }: ChatScreenProps) => {
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [lastAiRole, setLastAiRole] = useState<AiRole | null>(null);
-  const [lastChatMode, setLastChatMode] = useState<ChatMode>('normal');
-  const [inputText, setInputText] = useState('');
-  const [isTyping, setIsTyping] = useState(false);
-  // 文字数から木の成長段階を計算（6段階、テスト用に低い閾値）
-  const calculateTreeStage = (characters: number): number => {
-    if (characters < 20) return 1;    // 芽
-    if (characters < 50) return 2;    // 小さな苗
-    if (characters < 100) return 3;   // 若木
-    if (characters < 180) return 4;   // 中木
-    if (characters < 300) return 5;   // 大木
-    return 6;                         // 完全成長
-  };
-
   const [selectedMoodState, setSelectedMoodState] = useState<MoodType>(currentMood);
-  const [currentTreeStage, setCurrentTreeStage] = useState(() => {
-    // 初期化時に現在の文字数に基づいて正しい段階を設定（6段階、テスト用に低い閾値）
-    return calculateTreeStage(totalCharacters);
-  });
-  const [isMounted, setIsMounted] = useState(false);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    setIsMounted(true);
-  }, []);
-
-  const characters = {
-    tama: {
-      name: 'たまさん',
-      image: '/images/icons/tamasan.png',
-      color: 'rose'
-    },
-    madoka: {
-      name: 'まどか姉さん',
-      image: '/images/icons/madokanesan.png',
-      color: 'sky'
-    },
-    hide: {
-      name: 'ヒデじい',
-      image: '/images/icons/hideji.png',
-      color: 'amber'
+  const handleMoodChange = (mood: MoodType) => {
+    setSelectedMoodState(mood);
+    if (onMoodChange) {
+      onMoodChange(mood);
     }
   };
 
-  const character = characters[selectedAiRole];
+  // カスタムフックを使用
+  const {
+    messages,
+    inputText,
+    setInputText,
+    isTyping,
+    setIsTyping,
+    isMounted,
+    messagesEndRef,
+    currentTreeStage,
+    addMessage
+  } = useChat(globalMessages, onAddGlobalMessage, totalCharacters);
 
+  // チャットモード変更の検出
+  useChatModeChange(chatMode, onAddGlobalMessage);
 
+  const character = AI_CHARACTERS[selectedAiRole];
 
   // 感情検出関数（キーワードベース）
   const detectEmotion = (text: string): string | null => {
@@ -127,7 +75,7 @@ const ChatScreen = ({
     return null;
   };
 
-  // ほめの実の生成メッセージ生成関数（会話ベース）
+  // ほめの実の生成メッセージ生成関数
   const generateFruitMessage = (emotion: string, aiRole: AiRole): string => {
     const fruitMessages = {
       tama: {
@@ -198,568 +146,393 @@ const ChatScreen = ({
           'そうですね、今日も一日がんばられましたね。あなたの努力、きちんと見ていますよ。',
           'お疲れさまでした。自分を責めずに一息つけたあなた、ちゃんとえらいです。',
           'そんな風に子供のことを思えるあなたの気持ち、とても温かいです。',
-          '無理をせずに、今日できたことを認めてあげてくださいね。',
-          '小さなことでも、それは大きな愛情の表れです。自信を持ってください。'
+          'その優しい心が、いつも周りを明るくしてくれているのですね。',
+          'あなたが感じていること、すべて大切な気持ちです。',
         ],
         listen: [
-          'その気持ち、よくわかります。今日は大変だったのですね。',
-          'そんな顔をして…何があったか、聞かせてもらえませんか？',
-          '無理に話さなくても大丈夫ですよ。そばにいますから。',
-          'つらい時は、つらいって言っていいんですよ。',
-          'その重たい気持ち、一人で抱えなくていいですからね。'
+          'そうでしたか。今日はどんな気持ちでしたか？',
+          'お話しを聞かせてくださってありがとうございます。',
+          'その気持ち、よくわかります。辛い時もありますものね。',
+          'あなたの感じていること、すべて大切です。',  
+          'いつでもあなたの味方でいますからね。',
         ]
       },
       madoka: {
         praise: [
-          'その気持ち、よくわかります！育児って本当に予想外の連続ですよね。',
-          'すごいじゃないですか！その調子で頑張っていきましょう。',
-          '大丈夫、あなたなら必ずできます。私が応援していますから！',
-          'そういう風に考えられるなんて、本当に素晴らしい視点ですね。',
-          '一歩一歩でいいんです。確実に前に進んでいますよ。'
+          'お疲れ様です！今日もよく頑張りましたね！',
+          'そんな風に思えるあなたって、本当に素敵だと思います！',
+          'その気持ち、すごくよくわかります！あなたの優しさが伝わってきます！',
+          'あなたの努力、ちゃんと見えていますよ！すごいじゃないですか！',
+          'そうやって子供のことを大切に思うあなたの愛情、素晴らしいです！',
         ],
         listen: [
-          'うんうん、そういうこともありますよね。今日は何があったんですか？',
-          'わかります、私も同じような経験があります。',
-          'そんな時は、無理しないことが一番です。',
-          '話してくれてありがとう。きっといい方向に向かいますよ。',
-          'その前向きな気持ち、とても素敵です。'
+          '今日はお疲れ様でした。どんなことがありましたか？',
+          'お話しを聞かせてくれてありがとうございます！',
+          '大変でしたね。でも、あなたは頑張っていますよ！',
+          'その気持ち、私にもよく伝わってきます。',
+          '何でも話してくださいね。一緒に考えましょう！',
         ]
       },
       hide: {
         praise: [
-          'ほほう、そういうことがあったのじゃな。よくやっておる。',
-          'その気持ちが一番大切じゃよ。人間としての成長を感じるよ。',
-          'わしの長い人生から言わせてもらうと、それは立派なことじゃ。',
-          '昔も今も、親の愛は変わらんからのう。安心するがよい。',
-          'そういう小さなことに喜びを見つけるのが、人生の秘訣じゃよ。'
+          'ふむふむ、今日も一日お疲れじゃったな。よく頑張ったのう。',
+          'その心がけ、なかなか立派じゃないか。見習いたいものじゃ。',
+          'あなたのような親をもつ子供は幸せもんじゃな。',
+          '人生いろいろあるが、そうやって向き合うあなたは偉いぞ。',
+          'その愛情深さ、わしの長い人生でもなかなか見られるものではないぞ。',
         ],
         listen: [
-          'ふむふむ、そういうこともあるものじゃ。',
-          'その重たい気持ち…それだけ大事なことなんじゃな。',
-          '人生にはいろいろあるもんじゃ。ゆっくりでよいぞ。',
-          'わしは聞いているから、無理せず話すがよい。',
-          '時には立ち止まることも大切じゃよ。'
+          'ふむ、今日はどんな一日じゃったかな？',
+          'そうか、話してくれてありがとうな。',
+          '人生、山あり谷ありじゃ。そんな時もあるさ。',
+          'その気持ち、よくわかるぞ。昔のわしもそうじゃった。',
+          'いつでもわしがそばにおるからな、安心せい。',
         ]
       }
     };
 
     const roleResponses = responses[aiRole][mood];
-    return roleResponses[Math.floor(Math.random() * roleResponses.length)];
+    // SSR/クライアント間の一貫性のため、時間ベースの疑似ランダムを使用
+    const pseudoRandom = (Date.now() % roleResponses.length);
+    return roleResponses[pseudoRandom];
   };
 
-  // グローバルメッセージとローカルメッセージの統合
-  useEffect(() => {
-    setMessages(globalMessages);
-  }, [globalMessages]);
-
-  // AIキャラクター変更時の通知
-  useEffect(() => {
-    if (lastAiRole && lastAiRole !== selectedAiRole) {
-      const leaveMessage: ChatMessage = {
-        id: `system-leave-${Date.now()}`,
-        text: `${characters[lastAiRole].name}が退出しました`,
-        sender: 'system',
-        timestamp: Date.now(),
-        systemType: 'leave',
-        aiRole: lastAiRole
-      };
-
-      const joinMessage: ChatMessage = {
-        id: `system-join-${Date.now() + 1}`,
-        text: `${characters[selectedAiRole].name}が参加しました`,
-        sender: 'system',
-        timestamp: Date.now() + 1,
-        systemType: 'join',
-        aiRole: selectedAiRole
-      };
-
-      onAddGlobalMessage(leaveMessage);
-      onAddGlobalMessage(joinMessage);
-    }
-    setLastAiRole(selectedAiRole);
-  }, [selectedAiRole, lastAiRole, onAddGlobalMessage]);
-
-  // チャットモード変更時の通知
-  useEffect(() => {
-    if (lastChatMode !== chatMode && globalMessages.length > 0) {
-      const modeMessage: ChatMessage = {
-        id: `system-mode-${Date.now()}`,
-        text: `${chatMode === 'normal' ? 'ノーマルモード' : 'ディープモード'}に切り替わりました`,
-        sender: 'system',
-        timestamp: Date.now(),
-        systemType: 'mode-change'
-      };
-
-      onAddGlobalMessage(modeMessage);
-    }
-    setLastChatMode(chatMode);
-  }, [chatMode, lastChatMode, onAddGlobalMessage]);
-
-
-  // メッセージスクロール
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  };
-
-  useEffect(() => {
-    scrollToBottom();
-  }, [messages]);
-
-  // メッセージ送信
+  // メッセージ送信処理
   const handleSendMessage = async () => {
-    if (!inputText.trim()) return;
+    if (!inputText.trim() || isTyping) return;
 
-    const userMessage: ChatMessage = {
-      id: Date.now().toString(),
+    const newMessage = {
+      id: generateMessageId('user'),
       text: inputText,
-      sender: 'user',
+      sender: 'user' as const,
       timestamp: Date.now()
     };
+    addMessage(newMessage);
 
-    onAddGlobalMessage(userMessage);
-    
-    // 文字数をカウント
-    const messageLength = inputText.length;
-    const newTotalCharacters = totalCharacters + messageLength;
-    onAddCharacters(messageLength);
-
-    // 感情検出
-    const detectedEmotion = detectEmotion(inputText);
-
-    // 成長チェック
-    const newStage = calculateTreeStage(newTotalCharacters);
-    const hasGrown = newStage > currentTreeStage;
-    
-    if (hasGrown) {
-      console.log(`Tree growth detected: ${currentTreeStage} -> ${newStage}, characters: ${newTotalCharacters}`);
-      setCurrentTreeStage(newStage);
-    }
-
-    setInputText('');
     setIsTyping(true);
+    const currentMessage = inputText;
+    setInputText('');
 
-    // AI応答生成
-    setTimeout(() => {
-      // 通常の応答
-      // パーソナライズされた応答を生成（履歴を考慮）
-      const _recentHistory = chatHistory.slice(-5); // eslint-disable-line @typescript-eslint/no-unused-vars
-      const aiResponseText = generateAiResponse(inputText, selectedAiRole, selectedMoodState);
-      const aiResponse: ChatMessage = {
-        id: (Date.now() + 1).toString(),
-        text: aiResponseText,
-        sender: 'ai',
-        timestamp: Date.now(),
+    // 文字数追加
+    onAddCharacters(currentMessage.length);
+    const newTotalCharacters = totalCharacters + currentMessage.length;
+
+    setTimeout(async () => {
+      // AI応答生成
+      const response = generateAiResponse(currentMessage, selectedAiRole, selectedMoodState);
+      
+      const aiResponse = {
+        id: generateMessageId('ai'),
+        text: response,
+        sender: 'ai' as const,
+        timestamp: Date.now() + 1,
         aiRole: selectedAiRole,
         mood: selectedMoodState
       };
+      addMessage(aiResponse);
 
-      onAddGlobalMessage(aiResponse);
-      
       // チャット履歴に追加
-      onAddChatHistory(inputText, aiResponseText, selectedAiRole);
+      onAddChatHistory(currentMessage, response, selectedAiRole);
 
-      // 感情検出して実を追加
+      // 木の成長チェック
+      const previousTreeStage = currentTreeStage;
+      const newTreeStage = calculateTreeStage(newTotalCharacters);
+      
+      // 感情検出と実の生成
+      const detectedEmotion = detectEmotion(currentMessage);
       if (detectedEmotion) {
-        onAddFruit(inputText, aiResponseText, detectedEmotion);
-        // 実の通知メッセージを追加
+        const fruitMessage = generateFruitMessage(detectedEmotion, selectedAiRole);
+        onAddFruit(currentMessage, fruitMessage, detectedEmotion);
+        
         setTimeout(() => {
-          const fruitMessage: ChatMessage = {
-            id: (Date.now() + 2).toString(),
-            text: `✨ ${generateFruitMessage(detectedEmotion, selectedAiRole)}`,
-            sender: 'ai',
+          const fruitNotification = {
+            id: generateMessageId('fruit'),
+            text: `🌰 ${fruitMessage}`,
+            sender: 'ai' as const,
             timestamp: Date.now(),
-            aiRole: selectedAiRole,
-            mood: selectedMoodState
+            aiRole: selectedAiRole
           };
-          onAddGlobalMessage(fruitMessage);
-        }, 600);
+          addMessage(fruitNotification);
+        }, 1000);
       }
 
-      // 成長した場合は、少し遅れて成長通知を追加
-      if (hasGrown) {
-        setTimeout(() => {
-          const growthMessage: ChatMessage = {
-            id: (Date.now() + 3).toString(),
-            text: `🌱 ${generateGrowthMessage(newStage, selectedAiRole)}`,
-            sender: 'ai',
-            timestamp: Date.now(),
-            aiRole: selectedAiRole,
-            mood: selectedMoodState
-          };
-          onAddGlobalMessage(growthMessage);
-        }, detectedEmotion ? 1200 : 800); // 実の通知がある場合は少し遅らせる
+      // 木の成長通知
+      if (newTreeStage > previousTreeStage && newTreeStage >= 2) {
+        const growthMessage = generateGrowthMessage(newTreeStage, selectedAiRole);
+        if (growthMessage) {
+          setTimeout(() => {
+            const growthNotification = {
+              id: generateMessageId('growth'),
+              text: `🌳 ${growthMessage}`,
+              sender: 'ai' as const,
+              timestamp: Date.now(),
+              aiRole: selectedAiRole
+            };
+            addMessage(growthNotification);
+          }, detectedEmotion ? 2000 : 1500);
+        }
       }
 
       setIsTyping(false);
-    }, 1000);
+    }, 1500);
   };
 
-  // 感情アイコン送信
-  const handleEmotionSend = (emotion: string) => {
-    const emotionMessage: ChatMessage = {
-      id: Date.now().toString(),
-      text: '',
-      sender: 'user',
+  // 感情スタンプ送信
+  const handleEmotionSend = (emoji: string, label: string) => {
+    const emotionMessage = {
+      id: generateMessageId('emotion'),
+      text: emoji,
+      sender: 'user' as const,
       timestamp: Date.now(),
-      emotion
+      emotion: label
     };
-
-    onAddGlobalMessage(emotionMessage);
-    setIsTyping(true);
-
-    const emotionResponses = {
-      '😔': 'その顔…今日はたいへんだったね。',
-      '😠': 'むっとした気持ち、よくわかります。',
-      '🥲': 'いまは、なにも言わなくても大丈夫だよ。',
-      '😴': 'お疲れのようですね。ゆっくり休んでください。',
-      '😊': 'いい表情ですね。何か嬉しいことがあったのかな？'
-    };
+    addMessage(emotionMessage);
 
     setTimeout(() => {
-      const response = emotionResponses[emotion as keyof typeof emotionResponses] || 'その気持ち、受け取りました。';
-      const aiResponse: ChatMessage = {
-        id: (Date.now() + 1).toString(),
-        text: response,
-        sender: 'ai',
-        timestamp: Date.now(),
-        aiRole: selectedAiRole,
-        mood: selectedMoodState
+      const emotionResponses = {
+        '嬉しい': {
+          tama: 'その笑顔が見えるようです。嬉しい気持ち、大切にしてくださいね。',
+          madoka: 'わあ！嬉しそうですね！私も一緒に嬉しいです！',
+          hide: 'ほほほ、その嬉しそうな顔が目に浮かぶわい。'
+        },
+        '悲しい': {
+          tama: '悲しい時は無理をしないでくださいね。あなたの気持ち、わかりますよ。',
+          madoka: '大丈夫ですか？悲しい時は一人で抱え込まないでくださいね。',
+          hide: '悲しい時もあるさ。それも人生の一部じゃ。'
+        },
+        '愛してる': {
+          tama: 'その愛情、とても温かく感じます。素敵ですね。',
+          madoka: '愛情いっぱいですね！その気持ち、きっと伝わっていますよ！',
+          hide: 'その愛の深さ、わしにもよくわかるぞ。'
+        }
       };
 
-      onAddGlobalMessage(aiResponse);
-      setIsTyping(false);
+      const responseKey = label as keyof typeof emotionResponses;
+      const emotionResponse = emotionResponses[responseKey]?.[selectedAiRole] || 
+        `その${label}な気持ち、とても大切ですね。`;
+
+      const aiEmotionResponse = {
+        id: generateMessageId('ai-emotion'),
+        text: emotionResponse,
+        sender: 'ai' as const,
+        timestamp: Date.now() + 100,
+        aiRole: selectedAiRole,
+        emotion: label
+      };
+      addMessage(aiEmotionResponse);
     }, 800);
   };
 
-  const handleKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') {
-      if (e.shiftKey) {
-        // Shift+Enterで改行
-        return;
-      } else {
-        // Enterで送信
-        e.preventDefault();
-        handleSendMessage();
-      }
-    }
-  };
+  if (!isMounted) {
+    return <div className="min-h-screen bg-gradient-to-br from-green-50 via-emerald-50 to-teal-50" />;
+  }
 
   return (
-    <div className="h-screen flex flex-col bg-gradient-to-br from-emerald-50 via-green-50 to-lime-50 relative">
-      {/* NavigationHeader */}
+    <div className="min-h-screen bg-gradient-to-br from-green-50 via-emerald-50 to-teal-50">
       <NavigationHeader
         currentScreen="chat"
-        title={`${character.name}とのチャット`}
-        subtitle={selectedMoodState === 'praise' ? '褒めモード' : '聞くモード'}
+        title={`${character.name}との1:1チャット`}
+        subtitle={selectedMoodState === 'praise' ? 'ほめほめモード' : '聞いてモード'}
         onNavigate={onNavigate}
         previousScreen="character-selection"
         userPlan={userPlan}
       />
 
-      {/* バックグラウンドの木 */}
-      <div className="absolute inset-0 pointer-events-none overflow-hidden z-0 top-20">
-        {/* メインの木（画面中央） */}
-        {isMounted && (
-          <div className="absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2 opacity-60">
-            <motion.div
-              key={`tree-${currentTreeStage}`}
-              initial={{ scale: 0.9, opacity: 0.5 }}
-              animate={{ scale: 1.3, opacity: 0.6 }}
-              transition={{ duration: 2, ease: "easeOut" }}
-              className="w-[500px] h-[500px]"
-              style={{
-                filter: 'contrast(1.1) brightness(1.1) saturate(0.8)'
-              }}
-            >
-              <WatercolorTree ageInDays={currentTreeStage * 100} isBackground={true} fruits={fruits} />
-            </motion.div>
-          </div>
-        )}
-      </div>
-
-      {/* アクションバー */}
-      <div className="bg-white/90 backdrop-blur-sm border-b border-emerald-100 p-3 relative z-10">
-        <div className="flex items-center justify-between max-w-4xl mx-auto">
-          {/* 左側：キャラクター情報 */}
-          <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 rounded-full overflow-hidden border-2 border-emerald-200">
-              <Image
-                src={character.image}
-                alt={character.name}
-                width={40}
-                height={40}
-                className="object-cover"
+      <div className="max-w-6xl mx-auto p-4 pb-32">
+        <div className="flex flex-col lg:flex-row gap-6">
+          {/* チャットエリア */}
+          <div className="flex-1">
+            <div className="bg-white/95 backdrop-blur-sm rounded-2xl shadow-lg h-[500px] md:h-[600px] lg:h-[700px] flex flex-col overflow-hidden border border-white/20">
+              {/* チャットヘッダー */}
+              <ChatHeader
+                selectedAiRole={selectedAiRole}
+                currentMood={selectedMoodState}
+                chatMode={chatMode}
+                userPlan={userPlan}
+                isGroupChat={false}
+                onChatModeChange={onChatModeChange}
+                onMoodChange={handleMoodChange}
               />
-            </div>
-            <div>
-              <h1 className="font-bold text-emerald-800">{character.name}</h1>
-              <p className="text-sm text-emerald-600">
-                {selectedMoodState === 'praise' ? '褒めてほしい気分' : '話を聞いてほしい気分'}
-              </p>
-            </div>
-          </div>
 
-          <div className="flex items-center space-x-2">
-            {/* ディープモード切り替え（プレミアム限定） */}
-            {userPlan === 'premium' ? (
-              <TouchTarget
-                onClick={() => onChatModeChange(chatMode === 'normal' ? 'deep' : 'normal')}
-                className={`flex items-center space-x-1 px-3 py-2 rounded-full text-sm font-medium transition-colors ${
-                  chatMode === 'deep'
-                    ? 'bg-purple-500 text-white shadow-sm'
-                    : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                }`}
-              >
-                <Zap className="w-4 h-4" />
-                <span>{chatMode === 'deep' ? 'ディープ' : 'ノーマル'}</span>
-                {chatMode === 'deep' && <Crown className="w-3 h-3" />}
-              </TouchTarget>
-            ) : (
-              <TouchTarget
-                onClick={() => onNavigate('premium')}
-                className="flex items-center space-x-1 px-3 py-2 bg-gray-100 text-gray-500 rounded-full text-sm font-medium hover:bg-gray-200 transition-colors"
-              >
-                <Crown className="w-4 h-4 text-gray-400" />
-                <span>ディープモード</span>
-                <span className="text-xs bg-gray-200 text-gray-600 px-2 py-0.5 rounded-full">Premium</span>
-              </TouchTarget>
-            )}
-
-            {/* グループチャット（プレミアム限定） */}
-            {userPlan === 'premium' ? (
-              <TouchTarget
-                onClick={() => onNavigate('group-chat')}
-                className="flex items-center space-x-1 px-3 py-2 bg-gradient-to-r from-yellow-400 to-amber-500 text-white rounded-lg text-sm font-medium shadow-sm hover:shadow-md transition-all"
-              >
-                <Users className="w-4 h-4" />
-                <span>グループ</span>
-                <Crown className="w-3 h-3" />
-              </TouchTarget>
-            ) : (
-              <TouchTarget
-                onClick={() => onNavigate('premium')}
-                className="flex items-center space-x-1 px-3 py-2 bg-gray-100 text-gray-500 rounded-lg text-sm font-medium hover:bg-gray-200 transition-colors"
-              >
-                <Users className="w-4 h-4 text-gray-400" />
-                <span>グループ</span>
-                <span className="text-xs bg-gray-200 text-gray-600 px-2 py-0.5 rounded-full">Premium</span>
-              </TouchTarget>
-            )}
-            
-            <TouchTarget
-              onClick={() => onNavigate('tree')}
-              className="flex items-center px-3 py-2 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 rounded-lg transition-colors text-sm font-medium"
-            >
-              <Trees className="w-4 h-4 mr-1" />
-              木を見る
-            </TouchTarget>
-          </div>
-        </div>
-
-        {/* 気分切り替え */}
-        <div className="mt-4 flex justify-center">
-          <div className="flex bg-emerald-100 rounded-lg p-1">
-            <button
-              onClick={() => setSelectedMoodState('praise')}
-              className={`flex items-center px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-                selectedMoodState === 'praise'
-                  ? 'bg-white text-emerald-700 shadow-sm'
-                  : 'text-emerald-600 hover:text-emerald-700'
-              }`}
-            >
-              <Heart className="w-4 h-4 mr-2" />
-              褒めてほしい
-            </button>
-            <button
-              onClick={() => setSelectedMoodState('listen')}
-              className={`flex items-center px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-                selectedMoodState === 'listen'
-                  ? 'bg-white text-emerald-700 shadow-sm'
-                  : 'text-emerald-600 hover:text-emerald-700'
-              }`}
-            >
-              <MessageCircle className="w-4 h-4 mr-2" />
-              聞いてほしい
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* メッセージエリア */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4 relative z-10">
-        <AnimatePresence>
-          {messages.map((message) => (
-            <motion.div
-              key={message.id}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-              className={`flex ${
-                message.sender === 'system' 
-                  ? 'justify-center' 
-                  : message.sender === 'user' 
-                    ? 'justify-end' 
-                    : 'justify-start'
-              }`}
-            >
-              {message.sender === 'system' ? (
-                /* システムメッセージ */
-                <div className="bg-gray-100 text-gray-600 text-sm px-4 py-2 rounded-full border border-gray-200 max-w-sm text-center">
-                  <div className="flex items-center justify-center space-x-2">
-                    {message.systemType === 'join' && (
-                      <div className={`w-2 h-2 rounded-full ${
-                        message.aiRole === 'tama' ? 'bg-pink-400' :
-                        message.aiRole === 'madoka' ? 'bg-blue-400' :
-                        message.aiRole === 'hide' ? 'bg-yellow-400' :
-                        'bg-green-400'
-                      }`}></div>
-                    )}
-                    {message.systemType === 'leave' && (
-                      <div className={`w-2 h-2 rounded-full ${
-                        message.aiRole === 'tama' ? 'bg-pink-400' :
-                        message.aiRole === 'madoka' ? 'bg-blue-400' :
-                        message.aiRole === 'hide' ? 'bg-yellow-400' :
-                        'bg-red-400'
-                      }`}></div>
-                    )}
-                    {message.systemType === 'mode-change' && (
-                      <div className="w-2 h-2 bg-blue-400 rounded-full"></div>
-                    )}
-                    <span>{message.text}</span>
-                  </div>
-                  <div className="text-xs text-gray-400 mt-1">
-                    {new Date(message.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                  </div>
-                </div>
-              ) : (
-                <div className={`max-w-xs lg:max-w-md ${
-                  message.sender === 'user' ? 'order-1' : 'order-2'
-                }`}>
-                  {message.sender === 'ai' && (
-                    <div className="flex items-center mb-2">
-                      <div className="w-8 h-8 rounded-full overflow-hidden border-2 border-emerald-200 mr-2">
+              {/* メッセージエリア */}
+              <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                <AnimatePresence>
+                  {messages.map((msg, index) => (
+                    <motion.div
+                      key={msg.id}
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -20 }}
+                      className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}
+                    >
+                      {msg.sender === 'ai' && (
+                        <div className="flex items-end space-x-2 max-w-[80%]">
+                          <div className="w-8 h-8 rounded-full overflow-hidden flex-shrink-0">
+                            <Image
+                              src={AI_CHARACTERS[msg.aiRole!]?.image || '/images/icons/tamasan.png'}
+                              alt={AI_CHARACTERS[msg.aiRole!]?.name || 'AI'}
+                              width={32}
+                              height={32}
+                              className="w-full h-full object-cover"
+                            />
+                          </div>
+                          <div>
+                            <div className={`text-xs ${getCharacterThemeColor(msg.aiRole)} opacity-75 mb-1`}>
+                              {AI_CHARACTERS[msg.aiRole!]?.name} • {formatTimestamp(msg.timestamp)}
+                            </div>
+                            <div className={`${getCharacterThemeColor(msg.aiRole, 'bg')} p-3 rounded-2xl rounded-bl-sm border border-white/30 shadow-sm`}>
+                              <span className="text-gray-800 font-medium">{msg.text}</span>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                      {msg.sender === 'user' && (
+                        <div className="max-w-[80%]">
+                          <div className="text-xs text-gray-500 text-right mb-1">
+                            {formatTimestamp(msg.timestamp)}
+                          </div>
+                          <div className="bg-emerald-600 text-white p-3 rounded-2xl rounded-br-sm border border-emerald-700 shadow-sm">
+                            {msg.emotion ? (
+                              <span className="text-2xl">{msg.text}</span>
+                            ) : (
+                              <span className="font-medium">{msg.text}</span>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                      {msg.sender === 'system' && (
+                        <div className="w-full flex justify-center">
+                          <div className={`${getCharacterThemeColor(msg.aiRole, 'bg')} px-4 py-2 rounded-full text-sm border border-white/30 shadow-sm`}>
+                            <span className="text-gray-800 font-medium">{msg.text}</span>
+                          </div>
+                        </div>
+                      )}
+                    </motion.div>
+                  ))}
+                </AnimatePresence>
+                {isTyping && (
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    className="flex justify-start"
+                  >
+                    <div className="flex items-end space-x-2">
+                      <div className="w-8 h-8 rounded-full overflow-hidden">
                         <Image
                           src={character.image}
                           alt={character.name}
                           width={32}
                           height={32}
-                          className="object-cover"
+                          className="w-full h-full object-cover"
                         />
                       </div>
-                      <span className="text-sm text-emerald-700 font-medium">{character.name}</span>
+                      <div className={`${getCharacterThemeColor(selectedAiRole, 'bg')} p-3 rounded-2xl`}>
+                        <div className="flex space-x-1">
+                          <div className="w-2 h-2 bg-current rounded-full animate-bounce"></div>
+                          <div className="w-2 h-2 bg-current rounded-full animate-bounce" style={{animationDelay: '0.1s'}}></div>
+                          <div className="w-2 h-2 bg-current rounded-full animate-bounce" style={{animationDelay: '0.2s'}}></div>
+                        </div>
+                      </div>
                     </div>
-                  )}
-                  
-                  <div className={`px-4 py-3 rounded-2xl ${
-                    message.sender === 'user'
-                      ? 'bg-emerald-500 text-white'
-                      : 'bg-white text-gray-800 border border-emerald-100'
-                  }`}>
-                    {message.emotion ? (
-                      <span className="text-2xl">{message.emotion}</span>
-                    ) : (
-                      <p className="text-sm leading-relaxed whitespace-pre-wrap">{message.text}</p>
-                    )}
-                  </div>
-                  
-                  <div className={`mt-1 text-xs text-gray-500 ${
-                    message.sender === 'user' ? 'text-right' : 'text-left'
-                  }`}>
-                    {new Date(message.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                  </div>
-                </div>
-              )}
-            </motion.div>
-          ))}
-        </AnimatePresence>
-
-        {/* 入力中表示 */}
-        {isTyping && (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="flex justify-start"
-          >
-            <div className="flex items-center space-x-2">
-              <div className="w-8 h-8 rounded-full overflow-hidden border-2 border-emerald-200">
-                <Image
-                  src={character.image}
-                  alt={character.name}
-                  width={32}
-                  height={32}
-                  className="object-cover"
-                />
+                  </motion.div>
+                )}
+                <div ref={messagesEndRef} />
               </div>
-              <div className="bg-white border border-emerald-100 rounded-2xl px-4 py-3">
-                <div className="flex space-x-1">
-                  <div className="w-2 h-2 bg-emerald-500 rounded-full animate-bounce"></div>
-                  <div className="w-2 h-2 bg-emerald-500 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
-                  <div className="w-2 h-2 bg-emerald-500 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+
+              {/* 入力エリア */}
+              <div className="p-4 bg-gray-50 border-t">
+                {/* 感情スタンプ */}
+                <div className="flex flex-wrap gap-2 mb-3">
+                  {EMOTIONS.map((emotion) => (
+                    <TouchTarget
+                      key={emotion.label}
+                      onClick={() => handleEmotionSend(emotion.emoji, emotion.label)}
+                      className="flex items-center space-x-1 px-3 py-1 bg-white rounded-full text-sm hover:bg-gray-100 transition-colors"
+                    >
+                      <span>{emotion.emoji}</span>
+                      <span className="text-xs text-gray-600">{emotion.label}</span>
+                    </TouchTarget>
+                  ))}
                 </div>
+
+                {/* メッセージ入力 */}
+                <div className="flex space-x-2">
+                  <input
+                    type="text"
+                    value={inputText}
+                    onChange={(e) => setInputText(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
+                    placeholder="メッセージを入力..."
+                    className="flex-1 px-4 py-2 border border-gray-300 rounded-full focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 bg-white text-gray-900 placeholder-gray-500"
+                    disabled={isTyping}
+                  />
+                  <TouchTarget
+                    onClick={handleSendMessage}
+                    disabled={!inputText.trim() || isTyping}
+                    className="p-2 bg-emerald-500 text-white rounded-full hover:bg-emerald-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+                  >
+                    <Send className="w-5 h-5" />
+                  </TouchTarget>
+                </div>
+
+                {/* AI利用時の注意 */}
+                <p className="text-xs text-gray-500 mt-2 text-center">
+                  AIが生成した内容です。感情に寄り添うことを目的としており、医学的・専門的アドバイスではありません。
+                </p>
               </div>
             </div>
-          </motion.div>
-        )}
-        
-        <div ref={messagesEndRef} />
-      </div>
+          </div>
 
-      {/* 入力エリア */}
-      <div className="bg-white/80 backdrop-blur-sm border-t border-emerald-100 p-4 relative z-10">
-        {/* AI注意喚起と無料版案内 */}
-        <div className="mb-3 space-y-2 text-center">
-          <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
-            ⚠️ AIは誤った情報を提供する可能性があります。重要な判断の際は専門家にご相談ください。
-          </p>
-          {userPlan === 'free' && (
-            <p className="text-xs text-blue-600 bg-blue-50 border border-blue-200 rounded-lg px-3 py-2">
-              💬 無料版ではチャット履歴は3日間保存されます。ほめの実は永続的に残ります。
-            </p>
-          )}
+          {/* サイドバー */}
+          <div className="lg:w-80 space-y-6">
+            <TreeGrowthStatus
+              currentTreeStage={currentTreeStage}
+              totalCharacters={totalCharacters}
+              fruits={fruits}
+              onNavigate={onNavigate}
+            />
+
+            {/* グループチャットへの案内 */}
+            {userPlan === 'premium' && (
+              <div className="bg-gradient-to-r from-blue-100/90 to-indigo-100/90 backdrop-blur-sm rounded-2xl p-6 shadow-lg border border-white/20">
+                <h3 className="text-lg font-bold text-blue-800 mb-3 flex items-center">
+                  <Users className="w-5 h-5 mr-2" />
+                  グループチャット
+                </h3>
+                <p className="text-sm text-blue-700 mb-4">
+                  3人のAIキャラクターと一緒にお話ししませんか？
+                </p>
+                <TouchTarget
+                  onClick={() => onNavigate('group-chat')}
+                  className="w-full bg-blue-500 text-white py-2 rounded-lg text-center font-medium hover:bg-blue-600 transition-colors"
+                >
+                  グループチャットを始める
+                </TouchTarget>
+              </div>
+            )}
+
+            {/* プレミアム案内 */}
+            {userPlan === 'free' && (
+              <div className="bg-gradient-to-r from-amber-100/90 to-yellow-100/90 backdrop-blur-sm rounded-2xl p-6 shadow-lg border border-white/20">
+                <h3 className="text-lg font-bold text-amber-800 mb-3 flex items-center">
+                  <Crown className="w-5 h-5 mr-2" />
+                  プレミアム機能
+                </h3>
+                <div className="space-y-2 text-sm text-amber-700 mb-4">
+                  <p>• グループチャット機能</p>
+                  <p>• ディープモード</p>
+                  <p>• チャット履歴の永続保存</p>
+                </div>
+                <TouchTarget
+                  onClick={() => onNavigate('premium')}
+                  className="w-full bg-amber-500 text-white py-2 rounded-lg text-center font-medium hover:bg-amber-600 transition-colors"
+                >
+                  詳細を見る
+                </TouchTarget>
+              </div>
+            )}
+          </div>
         </div>
-
-        {/* 感情アイコン */}
-        <div className="flex justify-center space-x-4 mb-4">
-          {['😊', '😔', '😠', '🥲', '😴'].map((emotion) => (
-            <button
-              key={emotion}
-              onClick={() => handleEmotionSend(emotion)}
-              className="text-2xl hover:scale-110 transition-transform"
-            >
-              {emotion}
-            </button>
-          ))}
-        </div>
-
-        {/* テキスト入力 */}
-        <div className="flex items-end space-x-3">
-          <textarea
-            value={inputText}
-            onChange={(e) => setInputText(e.target.value)}
-            onKeyPress={handleKeyPress}
-            placeholder="メッセージを入力... (Shift+Enterで改行)"
-            className="flex-1 px-4 py-3 border border-emerald-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-300 focus:border-transparent text-gray-800 resize-none min-h-[48px] max-h-32"
-            rows={1}
-            style={{
-              height: 'auto',
-              minHeight: '48px',
-              maxHeight: '128px'
-            }}
-            onInput={(e) => {
-              const target = e.target as HTMLTextAreaElement;
-              target.style.height = 'auto';
-              target.style.height = Math.min(target.scrollHeight, 128) + 'px';
-            }}
-          />
-          <button
-            onClick={handleSendMessage}
-            disabled={!inputText.trim()}
-            className="px-4 py-3 bg-emerald-500 text-white rounded-xl hover:bg-emerald-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-          >
-            <Send className="w-5 h-5" />
-          </button>
-        </div>
-
       </div>
     </div>
   );

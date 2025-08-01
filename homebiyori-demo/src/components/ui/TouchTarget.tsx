@@ -14,6 +14,7 @@ interface TouchTargetProps {
   disabled?: boolean;
   animated?: boolean;
   hapticFeedback?: boolean;
+  title?: string;
 }
 
 const TouchTarget = ({
@@ -26,7 +27,8 @@ const TouchTarget = ({
   onTouchEnd,
   disabled = false,
   animated = true,
-  hapticFeedback = true
+  hapticFeedback = true,
+  title
 }: TouchTargetProps) => {
   
   // 最小タッチサイズ（44px以上を推奨）
@@ -96,6 +98,7 @@ const TouchTarget = ({
         // アクセシビリティ
         role={onClick ? "button" : undefined}
         tabIndex={onClick ? 0 : undefined}
+        title={title}
         onKeyDown={(e) => {
           if (onClick && (e.key === 'Enter' || e.key === ' ')) {
             e.preventDefault();
@@ -116,6 +119,7 @@ const TouchTarget = ({
       onTouchEnd={handleTouchEnd}
       role={onClick ? "button" : undefined}
       tabIndex={onClick ? 0 : undefined}
+      title={title}
       onKeyDown={(e) => {
         if (onClick && (e.key === 'Enter' || e.key === ' ')) {
           e.preventDefault();

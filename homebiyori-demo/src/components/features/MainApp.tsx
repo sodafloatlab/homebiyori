@@ -1,6 +1,19 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { 
+  AppScreen, 
+  AppState, 
+  AiRole, 
+  MoodType, 
+  UserPlan, 
+  ChatMessage,
+  ChatMode,
+  Fruit,
+  ChatHistory
+} from '@/types';
+import { generateMessageId } from '@/lib/utils';
+import { AI_GREETINGS } from '@/lib/constants';
 import TopPage from './TopPage';
 import AuthScreen from './AuthScreen';
 import CharacterSelection from './CharacterSelection';
@@ -14,71 +27,14 @@ import CommercialTransactionPage from './CommercialTransactionPage';
 import ContactFormPage from './ContactFormPage';
 import FAQPage from './FAQPage';
 
-export type AiRole = 'tama' | 'madoka' | 'hide';
-export type MoodType = 'praise' | 'listen';
-export type AppScreen = 'landing' | 'auth' | 'character-selection' | 'chat' | 'tree' | 'group-chat' | 'premium' | 'terms-of-service' | 'privacy-policy' | 'commercial-transaction' | 'contact' | 'faq';
-export type UserPlan = 'free' | 'premium';
-export type ChatMode = 'normal' | 'deep';
-
-export interface ChatMessage {
-  id: string;
-  text: string;
-  sender: 'user' | 'ai' | 'system';
-  timestamp: number;
-  aiRole?: AiRole;
-  mood?: MoodType;
-  emotion?: string;
-  systemType?: 'join' | 'leave' | 'mode-change' | 'info';
-}
-
-export interface Fruit {
-  id: string;
-  userMessage: string;
-  aiResponse: string;
-  aiRole: AiRole;
-  createdAt: string;
-  emotion: string;
-}
-
-export interface ChatHistory {
-  id: string;
-  userMessage: string;
-  aiResponse: string;
-  aiRole: AiRole;
-  timestamp: number;
-  mode: ChatMode;
-}
-
-interface AppState {
-  currentScreen: AppScreen;
-  previousScreen: AppScreen | null;
-  selectedAiRole: AiRole | null;
-  currentMood: MoodType;
-  totalCharacters: number;
-  fruits: Fruit[];
-  userPlan: UserPlan;
-  chatMode: ChatMode;
-  chatHistory: ChatHistory[];
-  globalMessages: ChatMessage[];
-}
+// 型定義を外部エクスポート（後方互換性のため）
+export type { AiRole, MoodType, AppScreen, UserPlan, ChatMode, ChatMessage } from '@/types';
+export type { Fruit, ChatHistory } from '@/types';
 
 const MainApp = () => {
-  // URLからの初期画面を決定
-  const getInitialScreen = (): AppScreen => {
-    if (typeof window === 'undefined') return 'landing';
-    
-    const hash = window.location.hash.replace('#', '');
-    const validScreens: AppScreen[] = [
-      'landing', 'auth', 'character-selection', 'chat', 'tree', 
-      'group-chat', 'premium', 'terms-of-service', 'privacy-policy', 
-      'commercial-transaction', 'contact', 'faq'
-    ];
-    
-    return validScreens.includes(hash as AppScreen) ? (hash as AppScreen) : 'landing';
-  };
-
+  // 初期状態は常にlandingでSSR/クライアント間の一貫性を保つ
   const [appState, setAppState] = useState<AppState>({
-    currentScreen: getInitialScreen(),
+    currentScreen: 'landing',
     previousScreen: null,
     selectedAiRole: null,
     currentMood: 'praise',
@@ -90,6 +46,28 @@ const MainApp = () => {
     globalMessages: []
   });
 
+  // クライアントサイドでのみURL解析を行い、初期画面を設定
+  useEffect(() => {
+    const getScreenFromURL = (): AppScreen => {
+      const hash = window.location.hash.replace('#', '');
+      const validScreens: AppScreen[] = [
+        'landing', 'auth', 'character-selection', 'chat', 'tree', 
+        'group-chat', 'premium', 'terms-of-service', 'privacy-policy', 
+        'commercial-transaction', 'contact', 'faq'
+      ];
+      
+      return validScreens.includes(hash as AppScreen) ? (hash as AppScreen) : 'landing';
+    };
+
+    const urlScreen = getScreenFromURL();
+    if (urlScreen !== appState.currentScreen) {
+      setAppState(prev => ({
+        ...prev,
+        currentScreen: urlScreen
+      }));
+    }
+  }, []); // 空の依存配列で初回のみ実行
+
   // チャット画面間の切り替えを検出してシステムメッセージを追加
   useEffect(() => {
     const { currentScreen, previousScreen } = appState;
@@ -99,7 +77,7 @@ const MainApp = () => {
       if (previousScreen === 'chat' && currentScreen === 'group-chat') {
         // 1:1チャットからグループチャットへ
         const switchMessage: ChatMessage = {
-          id: `system-switch-group-${Date.now()}`,
+          id: generateMessageId('system-switch-group'),
           text: 'グループチャットに切り替わりました',
           sender: 'system',
           timestamp: Date.now(),
@@ -109,7 +87,7 @@ const MainApp = () => {
       } else if (previousScreen === 'group-chat' && currentScreen === 'chat') {
         // グループチャットから1:1チャットへ
         const switchMessage: ChatMessage = {
-          id: `system-switch-single-${Date.now()}`,
+          id: generateMessageId('system-switch-single'),
           text: '1:1チャットに切り替わりました',
           sender: 'system',
           timestamp: Date.now(),
@@ -229,6 +207,10 @@ const MainApp = () => {
     setAppState(prev => ({ ...prev, chatMode: mode }));
   };
 
+  const handleMoodChange = (mood: MoodType) => {
+    setAppState(prev => ({ ...prev, currentMood: mood }));
+  };
+
   const handleAddGlobalMessage = (message: ChatMessage) => {
     setAppState(prev => ({
       ...prev,
@@ -241,24 +223,9 @@ const MainApp = () => {
     if (appState.globalMessages.length === 0 && appState.selectedAiRole && (appState.currentScreen === 'chat' || appState.currentScreen === 'group-chat')) {
       if (appState.currentScreen === 'chat') {
         // 1:1チャット用挨拶
-        const greetings = {
-          tama: {
-            praise: 'こんにちは。今日はどんな一日でしたか？頑張ったこと、聞かせてください。',
-            listen: 'こんにちは。今日はどんな気持ちですか？何でもお話しください。'
-          },
-          madoka: {
-            praise: 'お疲れさまです！今日はどんなことを頑張りましたか？',
-            listen: 'お疲れさまです！今日はどんなことがありましたか？'
-          },
-          hide: {
-            praise: 'ほほう、今日も一日お疲れじゃったな。どんなことがあったのじゃ？',
-            listen: 'ふむ、今日はどんな心持ちじゃな？話を聞かせてもらおうか。'
-          }
-        };
-
         const greeting: ChatMessage = {
-          id: `app-greeting-chat-${Date.now()}`,
-          text: greetings[appState.selectedAiRole][appState.currentMood],
+          id: generateMessageId('app-greeting-chat'),
+          text: AI_GREETINGS[appState.selectedAiRole][appState.currentMood],
           sender: 'ai',
           timestamp: Date.now(),
           aiRole: appState.selectedAiRole,
@@ -268,7 +235,7 @@ const MainApp = () => {
       } else if (appState.currentScreen === 'group-chat') {
         // グループチャット用挨拶
         const greetingMessage: ChatMessage = {
-          id: `app-greeting-group-${Date.now()}`,
+          id: generateMessageId('app-greeting-group'),
           text: 'みなさん、こんにちは！グループチャットにようこそ。今日はどんなことがありましたか？',
           sender: 'ai',
           timestamp: Date.now(),
@@ -330,6 +297,7 @@ const MainApp = () => {
             onChatModeChange={handleChatModeChange}
             globalMessages={appState.globalMessages}
             onAddGlobalMessage={handleAddGlobalMessage}
+            onMoodChange={handleMoodChange}
           />
         );
       case 'tree':
@@ -359,6 +327,7 @@ const MainApp = () => {
             globalMessages={appState.globalMessages}
             onAddGlobalMessage={handleAddGlobalMessage}
             selectedAiRole={appState.selectedAiRole}
+            onMoodChange={handleMoodChange}
           />
         );
       case 'premium':

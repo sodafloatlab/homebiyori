@@ -14,7 +14,6 @@ const TopPageWatercolorTree = ({ ageInDays }: Props) => {
   const [isGrowing, setIsGrowing] = useState(false);
 
   useEffect(() => {
-    console.log('TopPageWatercolorTree useEffect triggered');
     setIsClient(true);
   }, []);
 
@@ -80,11 +79,6 @@ const TopPageWatercolorTree = ({ ageInDays }: Props) => {
     return '/images/trees/tree_6.png';                        // 完全成長
   };
 
-  console.log('🌳 TopPageWatercolorTree RENDER:');
-  console.log('  - isClient:', isClient);
-  console.log('  - ageInDays:', ageInDays);
-  console.log('  - imagePath:', getTreeImage());
-  console.log('  - fruitCount:', getFruitCount());
 
   // SSR時の初期ローディング状態
   if (!isClient) {

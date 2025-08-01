@@ -8,7 +8,8 @@ import NavigationHeader from '../layout/NavigationHeader';
 import TouchTarget from '../ui/TouchTarget';
 import Typography from '../ui/Typography';
 import Button from '../ui/Button';
-import { AppScreen, Fruit, UserPlan } from './MainApp';
+import { AppScreen, Fruit, UserPlan } from '@/types';
+import { calculateTreeStage } from '@/lib/utils';
 
 interface TreeViewProps {
   totalCharacters: number;
@@ -22,27 +23,19 @@ interface TreeViewProps {
 const TreeView = ({ totalCharacters, fruits, onNavigate, previousScreen, userPlan }: TreeViewProps) => {
   const [selectedFruit, setSelectedFruit] = useState<Fruit | null>(null);
 
-  // 文字数から木の成長段階を計算（6段階、テスト用に低い閾値）
-  const calculateTreeStage = (characters: number): number => {
-    if (characters < 20) return 1;    // 芽
-    if (characters < 50) return 2;    // 小さな苗
-    if (characters < 100) return 3;   // 若木
-    if (characters < 180) return 4;   // 中木
-    if (characters < 300) return 5;   // 大木
-    return 6;                         // 完全成長
-  };
+  // calculateTreeStage関数をutilsから使用
 
   const treeStage = calculateTreeStage(totalCharacters);
 
-  // 成長段階の情報（6段階、画像ファイルと一致）
+  // 成長段階の情報（6段階、画像ファイルtree_1.png～tree_6.pngと一致）
   const getGrowthStageInfo = (stage: number) => {
     switch (stage) {
-      case 1: return { stage: 1, name: '芽', description: 'あなたの育児の旅が始まりました' };
-      case 2: return { stage: 2, name: '小さな苗', description: '小さな努力が積み重なっています' };
-      case 3: return { stage: 3, name: '若木', description: '確実に成長を続けています' };
-      case 4: return { stage: 4, name: '中木', description: 'しっかりとした土台ができました' };
-      case 5: return { stage: 5, name: '大木', description: '立派に成長した証です' };
-      case 6: return { stage: 6, name: '完全成長', description: 'あなたの愛情が結実しました' };
+      case 1: return { stage: 1, name: '芽', description: 'あなたの育児の旅が始まりました' }; // tree_1.png
+      case 2: return { stage: 2, name: '小さな苗', description: '小さな努力が積み重なっています' }; // tree_2.png
+      case 3: return { stage: 3, name: '若木', description: '確実に成長を続けています' }; // tree_3.png
+      case 4: return { stage: 4, name: '中木', description: 'しっかりとした土台ができました' }; // tree_4.png
+      case 5: return { stage: 5, name: '大木', description: '立派に成長した証です' }; // tree_5.png
+      case 6: return { stage: 6, name: '完全成長', description: 'あなたの愛情が結実しました' }; // tree_6.png
       default: return { stage: 1, name: '芽', description: 'あなたの育児の旅が始まりました' };
     }
   };
@@ -109,7 +102,7 @@ const TreeView = ({ totalCharacters, fruits, onNavigate, previousScreen, userPla
           transition={{ delay: 0.2 }}
         >
           <WatercolorTree 
-            ageInDays={treeStage * 100} 
+            stage={treeStage}
             fruits={fruits}
             onFruitClick={handleFruitClick}
           />

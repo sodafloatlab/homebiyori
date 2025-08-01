@@ -53,7 +53,7 @@ const PremiumLandingPage = ({ onNavigate, onClose }: PremiumLandingPageProps) =>
       name: "月額プラン",
       price: "¥580",
       period: "月",
-      popular: true,
+      popular: false,
       features: [
         "グループチャット機能",
         "ディープモード使い放題",
@@ -65,7 +65,7 @@ const PremiumLandingPage = ({ onNavigate, onClose }: PremiumLandingPageProps) =>
       name: "年額プラン",
       price: "¥5,800",
       period: "年",
-      popular: false,
+      popular: true,
       discount: "約17%お得",
       features: [
         "月額プランと同じ全機能",
