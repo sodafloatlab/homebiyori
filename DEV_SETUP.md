@@ -6,12 +6,14 @@
 ## 前提条件
 
 ### 必要なソフトウェア
+- Python (v3.9以上推奨)
 - Node.js (v18以上推奨)
 - npm または yarn
 - Git
 
 ### 開発環境確認
 ```bash
+python --version  # v3.9以上であることを確認
 node --version    # v18以上であることを確認
 npm --version     # 最新版推奨
 git --version     # 最新版推奨
@@ -21,118 +23,75 @@ git --version     # 最新版推奨
 
 ```
 homebiyori/
-├── terraform/          # インフラストラクチャ定義
-├── homebiyori-demo/     # ローカルデモアプリ（Next.js）
+├── backend/            # バックエンド (Python, FastAPI)
+├── demo/               # フロントエンドデモ (Next.js)
+├── infrastructure/     # インフラ定義 (Terraform)
+├── image/              # 画像アセット
+├── tests/              # テストコード
 ├── CLAUDE.md           # Claude Code向け指示書
 ├── DEV_SETUP.md        # 本ファイル
 └── .kiro/specs/        # 仕様書
 ```
 
-## 手順1: ローカルデモアプリの初期化
+## 手順1: フロントエンド(Next.js)のセットアップ
 
 ### Next.jsプロジェクト作成
+*このプロジェクトは既に`demo`ディレクトリに作成済みです。*
+もし再作成が必要な場合は、以下のコマンドをプロジェクトルートで実行してください。
 ```bash
-# プロジェクトルートで実行
-npx create-next-app@latest homebiyori-demo --typescript --tailwind --eslint --app --src-dir --import-alias "@/*"
+# 既存のdemoディレクトリを削除してから実行
+npx create-next-app@latest demo --typescript --tailwind --eslint --app --src-dir --import-alias "@/*"
 ```
 
-実行オプション詳細:
-- `--typescript`: TypeScript有効化
-- `--tailwind`: Tailwind CSS有効化  
-- `--eslint`: ESLint有効化
-- `--app`: App Router使用
-- `--src-dir`: src/ディレクトリ構成
-- `--import-alias "@/*"`: インポートエイリアス設定
-
-### プロジェクト移動と依存関係インストール
+### 依存関係インストール
 ```bash
-cd homebiyori-demo
-npm install  # 依存関係のインストール
+cd demo
+npm install
 ```
 
-## 手順2: 開発サーバー起動確認
-
+### 開発サーバー起動確認
 ```bash
 npm run dev
 ```
+ブラウザで http://localhost:3000 にアクセスしてNext.jsの初期画面が表示されることを確認します。
 
-ブラウザで http://localhost:3000 にアクセスしてNext.jsの初期画面が表示されることを確認。
+## 手順2: バックエンド(Python)のセットアップ
 
-**確認済み環境:**
-- Next.js 15.4.3 (Turbopack)
-- 起動時間: 約1.9秒
-- ローカル: http://localhost:3000
-
-## 手順3: 基本ディレクトリ構造作成
-
+### 1. 仮想環境の作成
+プロジェクトのルートディレクトリで以下のコマンドを実行し、仮想環境を作成します。
 ```bash
-cd src
-mkdir -p components/ui components/features lib types
+python -m venv .venv
 ```
 
-作成されるディレクトリ構造:
-```
-src/
-├── app/
-├── components/
-│   ├── ui/          # 基本UIコンポーネント
-│   └── features/    # 機能別コンポーネント
-├── lib/             # ユーティリティ関数
-└── types/           # TypeScript型定義
-```
+### 2. 仮想環境のアクティベート
+開発作業を行う前に、必ず仮想環境をアクティベートしてください。
 
-## 手順4: 木の成長UIプロトタイプ確認
-
-以下のコンポーネントが実装済み:
-- `TreeGrowthDemo.tsx` - メインデモコンポーネント
-- `FamilyTree.tsx` - 木のSVG表示コンポーネント  
-- `PostButtons.tsx` - 投稿ボタンコンポーネント
-
-**機能確認:**
-- 年輪表示（育児日数45日でテスト）
-- AIロール別の光る実（ピンク・青・金色）
-- 実タップでメッセージ表示
-- 投稿ボタンでの状態更新
-
-## 手順5: アニメーションライブラリ追加
-
+**Windows (コマンドプロンプト / PowerShell):**
 ```bash
-npm install framer-motion
+.venv\Scripts\activate
 ```
 
-## 手順6: インタラクション演出の確認
+**macOS / Linux (bash / zsh):**
+```bash
+source .venv/bin/activate
+```
+アクティベートに成功すると、ターミナルのプロンプトの先頭に `(.venv)` と表示されます。
 
-実装済みの演出機能:
-- **FloatingMessage.tsx** - 実タップ時のふんわり浮遊演出
-- **CelebrationOverlay.tsx** - 投稿時の「静かに喜ぶ」演出
-- **LetterModal.tsx** - 初回投稿時の手紙演出
-- **EnhancedFamilyTree.tsx** - 大幅に改良された木のUI
+### 3. 依存関係のインストール
+バックエンドサービスの開発に必要なPythonライブラリをインストールします。
+```bash
+# 開発用の共通ライブラリをインストール
+pip install -r backend/requirements-dev.txt
 
-**演出確認手順:**
-1. 光る実をタップ → 浮遊メッセージ表示
-2. 投稿ボタンクリック → お祝い演出 → (初回のみ)手紙演出
-3. 葉っぱが自然に風で揺れる
+# 各サービスのライブラリをインストール (例: user-service)
+pip install -r backend/services/user-service/requirements.txt
+```
+*(注: 他のサービス (`chat-service`, `health-check`など) も同様にインストールが必要になる場合があります)*
 
-## 手順7: プロフェッショナルUIシステム実装
 
-**ArtisticFamilyTree.tsx** - Canvas による美しい木のUI:
-- **フラクタル樹木生成**: 数学的アルゴリズムによる自然な成長パターン  
-- **リアルタイムアニメーション**: 風による葉の揺れ、枝の微細な動き
-- **アーティスティック描画**: グラデーション、影、質感の詳細表現
-- **プロシージャル生成**: 育児日数に応じた動的な枝・葉の配置
-- **美しい色彩理論**: 自然な配色パレットによる調和の取れた表現
-- **インタラクティブ**: 実のクリック判定とスムーズなアニメーション
-
-**PremiumLayout.tsx** - プロフェッショナルなレイアウト:
-- 時間帯に応じた動的グリーティング
-- 高品質な背景エフェクトとノイズテクスチャ
-- ガラスモーフィズムデザイン
-- 洗練されたナビゲーション
-
-**PremiumPostButtons.tsx** - 高品質なCTA:
-- シマー効果とグロー演出
-- インタラクティブなマイクロアニメーション
-- プレミアムヒントカード
+## 手順3: UIプロトタイプの確認
+フロントエンドの`demo`ディレクトリには、UIのプロトタイプが実装されています。
+詳細は`demo/src/app/page.tsx`や`demo/src/components/`以下のファイルを確認してください。
 
 ## 現在の課題と今後の改善予定
 
@@ -162,3 +121,4 @@ npm install framer-motion
 - 2025-07-23: Canvas による美しい木のUI実装、アーティスティック品質実現
 - 2025-07-23: Canvas表示問題修正、SimplifiedCanvasTreeへの切り替え
 - 2025-07-23: 木のUI品質向上が優先課題として明確化、開発ステータス更新
+- 2025-08-02: Pythonバックエンドのセットアップ手順を追記。プロジェクト構成を現状に合わせて更新。

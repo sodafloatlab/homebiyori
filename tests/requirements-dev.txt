@@ -1,0 +1,7 @@
+# 開発・テスト環境専用のライブラリ
+
+pytest
+pytest-asyncio
+moto[dynamodb]
+requests
+boto3

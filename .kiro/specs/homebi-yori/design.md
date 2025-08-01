@@ -497,8 +497,9 @@ def lambda_handler(event, context):
   "selected_ai_role": "tama|madoka|hide", // 選択したAIキャラクター
   "praise_level": "light|standard|deep",  // 褒めレベル設定
   "subscription_plan": "free|premium",
-  "created_at": "2024-01-01T00:00:00Z",
-  "updated_at": "2024-01-01T00:00:00Z",
+  "created_at": "2024-01-01T09:00:00+09:00",
+  "updated_at": "2024-01-01T09:00:00+09:00",
+  // 注意: タイムゾーンは全てJST(日本標準時)で統一
   "nickname_updated_at": "2024-01-01T00:00:00Z",
   "GSI1PK": "USER",
   "GSI1SK": "PROFILE#user_id"
