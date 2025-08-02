@@ -14,16 +14,30 @@ variable "common_tags" {
   default     = {}
 }
 
-variable "callback_urls" {
-  description = "List of allowed callback URLs for OAuth"
+# User Pool URLs
+variable "user_callback_urls" {
+  description = "List of allowed callback URLs for user OAuth"
   type        = list(string)
-  default     = ["http://localhost:3000"]
+  default     = ["http://localhost:3000", "https://localhost:3000"]
 }
 
-variable "logout_urls" {
-  description = "List of allowed logout URLs for OAuth"
+variable "user_logout_urls" {
+  description = "List of allowed logout URLs for users"
   type        = list(string)
-  default     = ["http://localhost:3000"]
+  default     = ["http://localhost:3000", "https://localhost:3000"]
+}
+
+# Admin Pool URLs
+variable "admin_callback_urls" {
+  description = "List of allowed callback URLs for admin OAuth"
+  type        = list(string)
+  default     = ["http://localhost:3001/admin", "https://localhost:3001/admin"]
+}
+
+variable "admin_logout_urls" {
+  description = "List of allowed logout URLs for admins"
+  type        = list(string)
+  default     = ["http://localhost:3001/admin", "https://localhost:3001/admin"]
 }
 
 variable "enable_google_oauth" {
@@ -50,4 +64,11 @@ variable "create_identity_pool" {
   description = "Create Cognito Identity Pool for temporary AWS credentials"
   type        = bool
   default     = false
+}
+
+# Admin-specific settings
+variable "enable_admin_mfa" {
+  description = "Enable MFA for admin users"
+  type        = bool
+  default     = true
 }

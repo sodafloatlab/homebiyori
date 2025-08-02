@@ -14,18 +14,40 @@ variable "common_tags" {
   default     = {}
 }
 
-variable "core_service_invoke_arn" {
-  description = "Invoke ARN of the Core Service Lambda function"
+# Lambda Function Invoke ARNs - 5 Microservices
+variable "user_service_invoke_arn" {
+  description = "Invoke ARN of the User Service Lambda function"
   type        = string
 }
 
-variable "ai_service_invoke_arn" {
-  description = "Invoke ARN of the AI Service Lambda function"
+variable "chat_service_invoke_arn" {
+  description = "Invoke ARN of the Chat Service Lambda function"
   type        = string
 }
 
-variable "cognito_user_pool_arn" {
-  description = "ARN of the Cognito User Pool for authorization"
+variable "tree_service_invoke_arn" {
+  description = "Invoke ARN of the Tree Service Lambda function"
+  type        = string
+}
+
+variable "health_check_invoke_arn" {
+  description = "Invoke ARN of the Health Check Lambda function"
+  type        = string
+}
+
+variable "admin_service_invoke_arn" {
+  description = "Invoke ARN of the Admin Service Lambda function"
+  type        = string
+}
+
+# Cognito User Pool ARNs - Separated for Users and Admins
+variable "user_cognito_user_pool_arn" {
+  description = "ARN of the User Cognito User Pool for authorization"
+  type        = string
+}
+
+variable "admin_cognito_user_pool_arn" {
+  description = "ARN of the Admin Cognito User Pool for authorization"
   type        = string
 }
 

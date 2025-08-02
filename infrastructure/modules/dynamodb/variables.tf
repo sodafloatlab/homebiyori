@@ -19,3 +19,6 @@ variable "enable_point_in_time_recovery" {
   type        = bool
   default     = true
 }
+
+
+# Removed: enable_chat_tables variable (no longer needed with single chat table)

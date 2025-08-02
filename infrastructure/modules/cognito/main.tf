@@ -1,24 +1,37 @@
-# Cognito User Pool
-resource "aws_cognito_user_pool" "main" {
+# Cognito User Pools - Separated for Users and Admins
+# Based on design.md - implements separated authentication for users and administrators
+# Ensures proper access control and security isolation
+
+terraform {
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = "~> 5.0"
+    }
+  }
+}
+
+# User Pool for End Users (Google OAuth)
+resource "aws_cognito_user_pool" "users" {
   name = "${var.project_name}-${var.environment}-users"
 
-  # Password policy
+  # Password policy (less strict for social login)
   password_policy {
     minimum_length    = 8
-    require_lowercase = true
-    require_numbers   = true
+    require_lowercase = false
+    require_numbers   = false
     require_symbols   = false
-    require_uppercase = true
+    require_uppercase = false
   }
 
-  # User attributes
+  # User attributes - focus on minimal required data
   alias_attributes = ["email"]
   
   username_configuration {
     case_sensitive = false
   }
 
-  # Auto verification
+  # Auto verification for email
   auto_verified_attributes = ["email"]
 
   # Email configuration
@@ -45,40 +58,130 @@ resource "aws_cognito_user_pool" "main" {
     device_only_remembered_on_user_prompt = false
   }
 
-  # MFA configuration
+  # MFA configuration - disabled for user convenience
   mfa_configuration = "OFF"
 
+  # Schema configuration - minimal personal data
+  schema {
+    name                = "email"
+    attribute_data_type = "String"
+    required            = true
+    mutable            = true
+  }
+
+  schema {
+    name                = "email_verified"
+    attribute_data_type = "Boolean"
+    required            = false
+    mutable            = true
+  }
+
   tags = merge(var.common_tags, {
-    Name = "${var.project_name}-${var.environment}-user-pool"
+    Name = "${var.project_name}-${var.environment}-users-pool"
+    Type = "EndUser"
+    AuthMethod = "GoogleOAuth"
   })
 }
 
-# User Pool Domain
-resource "aws_cognito_user_pool_domain" "main" {
-  domain       = "${var.project_name}-${var.environment}-auth"
-  user_pool_id = aws_cognito_user_pool.main.id
+# User Pool for Administrators (Email/Password)
+resource "aws_cognito_user_pool" "admins" {
+  name = "${var.project_name}-${var.environment}-admins"
+
+  # Strict password policy for administrators
+  password_policy {
+    minimum_length    = 12
+    require_lowercase = true
+    require_numbers   = true
+    require_symbols   = true
+    require_uppercase = true
+  }
+
+  # Admin attributes
+  alias_attributes = ["email"]
+  
+  username_configuration {
+    case_sensitive = false
+  }
+
+  # Auto verification
+  auto_verified_attributes = ["email"]
+
+  # Email configuration
+  email_configuration {
+    email_sending_account = "COGNITO_DEFAULT"
+  }
+
+  # Account recovery
+  account_recovery_setting {
+    recovery_mechanism {
+      name     = "verified_email"
+      priority = 1
+    }
+  }
+
+  # Admin pool policies - more restrictive
+  admin_create_user_config {
+    allow_admin_create_user_only = true
+    temporary_password_validity_days = 1
+  }
+
+  # MFA configuration - recommended for admins
+  mfa_configuration = var.enable_admin_mfa ? "OPTIONAL" : "OFF"
+
+  # Admin schema
+  schema {
+    name                = "email"
+    attribute_data_type = "String"
+    required            = true
+    mutable            = true
+  }
+
+  schema {
+    name                = "name"
+    attribute_data_type = "String"
+    required            = false
+    mutable            = true
+  }
+
+  tags = merge(var.common_tags, {
+    Name = "${var.project_name}-${var.environment}-admins-pool"
+    Type = "Administrator"
+    AuthMethod = "EmailPassword"
+  })
 }
 
-# User Pool Client for web application
-resource "aws_cognito_user_pool_client" "web" {
-  name         = "${var.project_name}-${var.environment}-web-client"
-  user_pool_id = aws_cognito_user_pool.main.id
+# User Pool Domain for End Users
+resource "aws_cognito_user_pool_domain" "users" {
+  domain       = "${var.project_name}-${var.environment}-auth"
+  user_pool_id = aws_cognito_user_pool.users.id
+}
+
+# User Pool Domain for Administrators
+resource "aws_cognito_user_pool_domain" "admins" {
+  domain       = "${var.project_name}-${var.environment}-admin-auth"
+  user_pool_id = aws_cognito_user_pool.admins.id
+}
+
+# User Pool Client for End Users (Web Application)
+resource "aws_cognito_user_pool_client" "users_web" {
+  name         = "${var.project_name}-${var.environment}-users-web-client"
+  user_pool_id = aws_cognito_user_pool.users.id
 
   generate_secret = false
 
-  # OAuth configuration
+  # OAuth configuration for social login
   allowed_oauth_flows  = ["code"]
   allowed_oauth_scopes = ["openid", "email", "profile"]
   allowed_oauth_flows_user_pool_client = true
 
   # Callback and logout URLs
-  callback_urls = var.callback_urls
-  logout_urls   = var.logout_urls
+  callback_urls = var.user_callback_urls
+  logout_urls   = var.user_logout_urls
 
-  # Supported identity providers
+  # Supported identity providers - primarily Google
   supported_identity_providers = concat(["COGNITO"], var.enable_google_oauth ? ["Google"] : [])
 
-  # Token validity
+  # Token validity - aligned with design.md requirements
   access_token_validity  = 60   # 1 hour
   id_token_validity     = 60   # 1 hour
   refresh_token_validity = 30  # 30 days
@@ -89,25 +192,22 @@ resource "aws_cognito_user_pool_client" "web" {
     refresh_token = "days"
   }
 
+  # Refresh token rotation for security
+  enable_token_revocation = true
+  enable_propagate_additional_user_context_data = false
+
   # Prevent user existence errors
   prevent_user_existence_errors = "ENABLED"
 
-  # Read and write attributes
+  # Read attributes - minimal for privacy
   read_attributes = [
     "email",
-    "email_verified",
-    "name",
-    "family_name",
-    "given_name",
-    "picture"
+    "email_verified"
   ]
 
+  # Write attributes - minimal for privacy
   write_attributes = [
-    "email",
-    "name",
-    "family_name",
-    "given_name",
-    "picture"
+    "email"
   ]
 
   # Explicit auth flows
@@ -117,10 +217,64 @@ resource "aws_cognito_user_pool_client" "web" {
   ]
 }
 
-# Google Identity Provider (optional)
+# User Pool Client for Administrators
+resource "aws_cognito_user_pool_client" "admins_web" {
+  name         = "${var.project_name}-${var.environment}-admins-web-client"
+  user_pool_id = aws_cognito_user_pool.admins.id
+
+  generate_secret = false
+
+  # OAuth configuration for admin login
+  allowed_oauth_flows  = ["code"]
+  allowed_oauth_scopes = ["openid", "email", "profile"]
+  allowed_oauth_flows_user_pool_client = true
+
+  # Admin callback and logout URLs
+  callback_urls = var.admin_callback_urls
+  logout_urls   = var.admin_logout_urls
+
+  # Admin identity providers - email/password only
+  supported_identity_providers = ["COGNITO"]
+
+  # Token validity - shorter for security
+  access_token_validity  = 30   # 30 minutes
+  id_token_validity     = 30   # 30 minutes
+  refresh_token_validity = 1   # 1 day
+
+  token_validity_units {
+    access_token  = "minutes"
+    id_token      = "minutes"
+    refresh_token = "days"
+  }
+
+  # Security settings
+  enable_token_revocation = true
+  prevent_user_existence_errors = "ENABLED"
+
+  # Admin attributes
+  read_attributes = [
+    "email",
+    "email_verified",
+    "name"
+  ]
+
+  write_attributes = [
+    "email",
+    "name"
+  ]
+
+  # Explicit auth flows for admins
+  explicit_auth_flows = [
+    "ALLOW_USER_SRP_AUTH",
+    "ALLOW_REFRESH_TOKEN_AUTH",
+    "ALLOW_ADMIN_USER_PASSWORD_AUTH"
+  ]
+}
+
+# Google Identity Provider for End Users
 resource "aws_cognito_identity_provider" "google" {
   count         = var.enable_google_oauth ? 1 : 0
-  user_pool_id  = aws_cognito_user_pool.main.id
+  user_pool_id  = aws_cognito_user_pool.users.id
   provider_name = "Google"
   provider_type = "Google"
 
@@ -130,87 +284,27 @@ resource "aws_cognito_identity_provider" "google" {
     authorize_scopes = "openid email profile"
   }
 
+  # Minimal attribute mapping for privacy
   attribute_mapping = {
     email          = "email"
     email_verified = "email_verified"
-    name           = "name"
-    picture        = "picture"
-    given_name     = "given_name"
-    family_name    = "family_name"
+    # Note: name, picture, etc. are intentionally not mapped
+    # to maintain privacy and avoid storing personal information
   }
 }
 
-# Identity Pool for temporary AWS credentials (optional)
+# Optional Identity Pool for temporary AWS credentials (deprecated approach)
+# This is kept for backward compatibility but not recommended for new designs
 resource "aws_cognito_identity_pool" "main" {
   count                            = var.create_identity_pool ? 1 : 0
   identity_pool_name               = "${var.project_name}-${var.environment}-identity"
   allow_unauthenticated_identities = false
 
   cognito_identity_providers {
-    client_id               = aws_cognito_user_pool_client.web.id
-    provider_name           = aws_cognito_user_pool.main.endpoint
+    client_id               = aws_cognito_user_pool_client.users_web.id
+    provider_name           = aws_cognito_user_pool.users.endpoint
     server_side_token_check = false
   }
 
   tags = var.common_tags
-}
-
-# IAM role for authenticated users (if identity pool is created)
-resource "aws_iam_role" "authenticated" {
-  count = var.create_identity_pool ? 1 : 0
-  name  = "${var.project_name}-${var.environment}-cognito-authenticated"
-
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Effect = "Allow"
-        Principal = {
-          Federated = "cognito-identity.amazonaws.com"
-        }
-        Action = "sts:AssumeRoleWithWebIdentity"
-        Condition = {
-          StringEquals = {
-            "cognito-identity.amazonaws.com:aud" = aws_cognito_identity_pool.main[0].id
-          }
-          "ForAnyValue:StringLike" = {
-            "cognito-identity.amazonaws.com:amr" = "authenticated"
-          }
-        }
-      }
-    ]
-  })
-
-  tags = var.common_tags
-}
-
-# IAM policy for authenticated users
-resource "aws_iam_role_policy" "authenticated" {
-  count = var.create_identity_pool ? 1 : 0
-  name  = "${var.project_name}-${var.environment}-cognito-authenticated-policy"
-  role  = aws_iam_role.authenticated[0].id
-
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Effect = "Allow"
-        Action = [
-          "cognito-sync:*",
-          "cognito-identity:*"
-        ]
-        Resource = "*"
-      }
-    ]
-  })
-}
-
-# Identity pool role attachment
-resource "aws_cognito_identity_pool_roles_attachment" "main" {
-  count            = var.create_identity_pool ? 1 : 0
-  identity_pool_id = aws_cognito_identity_pool.main[0].id
-
-  roles = {
-    "authenticated" = aws_iam_role.authenticated[0].arn
-  }
 }

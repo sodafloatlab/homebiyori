@@ -52,7 +52,7 @@ graph TB
 **インフラストラクチャ**
 - AWS Lambda (サーバーレス実行環境)
 - Amazon API Gateway (RESTful API)
-- Amazon DynamoDB (NoSQLデータベース)
+- Amazon DynamoDB (NoSQLデータベース - ハイブリッド構成: TTL要件別テーブル分離)
 - Amazon S3 (静的ホスティング、コンテンツストレージ)
 - Amazon Cognito (認証・認可)
 - Amazon Bedrock (Claude 3 Haiku)
@@ -192,6 +192,10 @@ Parameter Store (/homebiyori/maintenance/*) ← 全Lambda参照
 | **chat-service** | AI応答・チャット | 1024MB | 60秒 | 50 | Bedrock, DynamoDB, Parameter Store |
 | **tree-service** | 木の成長管理 | 512MB | 30秒 | 100 | DynamoDB, S3, Parameter Store |
 | **user-service** | ユーザー管理 | 256MB | 15秒 | 100 | DynamoDB, Parameter Store |
+| **billing-service** | Stripe課金管理 | 512MB | 30秒 | 50 | Stripe API, DynamoDB, Parameter Store |
+| **webhook-service** | Webhook処理 | 256MB | 15秒 | 100 | Stripe API, DynamoDB, SQS, Parameter Store |
+| **notification-service** | 通知管理 | 256MB | 15秒 | 100 | DynamoDB, Parameter Store |
+| **ttl-updater** | TTL一括更新 | 256MB | 300秒 | 10 | DynamoDB, SQS |
 | **health-check** | 死活監視 | 128MB | 5秒 | 1000 | Parameter Store |
 | **admin-service** | システム管理 | 512MB | 30秒 | 10 | CloudWatch, DynamoDB, Parameter Store |
 
@@ -208,10 +212,6 @@ Cognito User Pool (セッション管理)
 ├── Refresh Token (30日, 自動更新)
 └── フロントエンド自動更新
 
-DynamoDB User Sessions (オプション)
-├── user_id + session_id (セッション追跡)
-├── last_activity (アクティビティ追跡)
-└── device_info (デバイス管理, 将来拡張用)
 ```
 
 **メンテナンス制御フロー:**
@@ -219,6 +219,63 @@ DynamoDB User Sessions (オプション)
 Parameter Store → API (503 + メンテナンス情報) → フロントエンド
                                                ↓
                                          メンテナンス画面表示
+```
+
+**プラン切り替え + TTL更新フロー:**
+```
+1. Stripe Webhook (subscription.updated/deleted)
+   ↓
+2. webhook-service Lambda
+   ├── Webhook署名検証
+   ├── イベント種別判定
+   ├── ユーザープロフィール更新
+   └── SQSにTTL更新メッセージ送信
+   ↓
+3. SQS Queue (ttl-update-queue)
+   ↓
+4. ttl-updater Lambda (SQSトリガー)
+   ├── ユーザーの全チャット履歴を取得
+   ├── TTL値を一括更新 (±150日調整)
+   └── notification-serviceに通知作成依頼
+```
+
+**課金システム統合アーキテクチャ:**
+```
+Stripe Dashboard ←→ Stripe API
+                     ↓ Webhooks
+                  webhook-service
+                     ↓
+    ┌────────────────┼────────────────┐
+    ↓                ↓                ↓
+DynamoDB          SQS Queue     notification-service
+(User Profile)   (TTL Updates)   (App内通知)
+                     ↓
+                 ttl-updater
+```
+
+**Lambda間の責務分離:**
+```
+billing-service:
+├── Stripe Checkout作成
+├── サブスクリプション状態取得
+├── 解約・再開処理
+└── Customer Portal URL取得
+
+webhook-service:
+├── Stripe Webhook受信・検証
+├── サブスクリプション状態同期
+├── プラン変更検出
+└── SQS TTL更新キュー送信
+
+notification-service:
+├── 通知作成・管理
+├── 未読通知取得
+└── 通知既読化
+
+ttl-updater:
+├── SQS経由TTL一括更新
+├── チャット履歴TTL調整
+└── 更新完了通知
 ```
 
 #### Lambda Layers構成
@@ -233,15 +290,21 @@ Layers/
 │       ├── logging/       # 構造化ログ
 │       ├── validation/    # バリデーション
 │       ├── maintenance/   # メンテナンス状態チェック (Parameter Store)
+│       ├── notifications/ # 通知システム共通処理
 │       └── utils/         # ユーザー情報取得ヘルパー
 │           ├── auth.py    # Cognito認証情報取得
 │           └── user.py    # ユーザーID変換処理
-└── homebiyori-ai-layer/
+├── homebiyori-ai-layer/
+│   └── python/lib/
+│       ├── langchain-community
+│       ├── bedrock/       # Bedrock共通クライアント
+│       ├── prompts/       # プロンプトテンプレート
+│       └── chains/        # LangChainチェーン
+└── homebiyori-payment-layer/
     └── python/lib/
-        ├── langchain-community
-        ├── bedrock/       # Bedrock共通クライアント
-        ├── prompts/       # プロンプトテンプレート
-        └── chains/        # LangChainチェーン
+        ├── stripe         # Stripe SDK
+        ├── payment/       # 課金システム共通処理
+        └── webhook/       # Webhook処理共通
 ```
 
 ### アーキテクチャパターン
@@ -293,6 +356,75 @@ tree-service/
 │   ├── __init__.py
 │   └── tree_models.py       # 木関連モデル
 └── requirements.txt         # 依存関係
+```
+
+**billing-service Lambda:**
+```
+billing-service/
+├── handler.py               # Lambda エントリーポイント
+├── main.py                 # FastAPI アプリケーション
+├── routers/                # APIルート
+│   ├── __init__.py
+│   ├── checkout.py         # Stripe Checkout連携
+│   ├── subscription.py     # サブスクリプション状態管理
+│   └── portal.py           # Customer Portal連携
+├── services/               # ビジネスロジック
+│   ├── __init__.py
+│   ├── stripe_service.py   # Stripe API連携
+│   └── billing_service.py  # 課金処理
+├── models/                 # Pydanticモデル
+│   ├── __init__.py
+│   └── billing_models.py   # 課金関連モデル
+└── requirements.txt        # 依存関係（stripe, fastapi, pydantic）
+```
+
+**webhook-service Lambda:**
+```
+webhook-service/
+├── handler.py              # Lambda エントリーポイント
+├── main.py                # FastAPI アプリケーション
+├── routers/               # APIルート
+│   ├── __init__.py
+│   └── webhooks.py        # Stripe Webhook処理
+├── services/              # ビジネスロジック
+│   ├── __init__.py
+│   ├── webhook_processor.py # Webhook処理
+│   ├── subscription_sync.py # サブスクリプション同期
+│   └── ttl_queue_service.py # SQS TTL更新キュー
+├── models/                # Pydanticモデル
+│   ├── __init__.py
+│   └── webhook_models.py  # Webhook関連モデル
+└── requirements.txt       # 依存関係（stripe, boto3）
+```
+
+**notification-service Lambda:**
+```
+notification-service/
+├── handler.py             # Lambda エントリーポイント
+├── main.py               # FastAPI アプリケーション
+├── routers/              # APIルート
+│   ├── __init__.py
+│   └── notifications.py  # 通知管理API
+├── services/             # ビジネスロジック
+│   ├── __init__.py
+│   └── notification_service.py # 通知処理
+├── models/               # Pydanticモデル
+│   ├── __init__.py
+│   └── notification_models.py # 通知モデル
+└── requirements.txt      # 依存関係（fastapi, pydantic）
+```
+
+**ttl-updater Lambda:**
+```
+ttl-updater/
+├── handler.py            # Lambda エントリーポイント（SQSトリガー）
+├── services/             # ビジネスロジック
+│   ├── __init__.py
+│   └── ttl_service.py    # TTL一括更新処理
+├── models/               # Pydanticモデル
+│   ├── __init__.py
+│   └── ttl_models.py     # TTL更新モデル
+└── requirements.txt      # 依存関係（boto3）
 ```
 
 **共通ディレクトリ構成:**
@@ -431,9 +563,70 @@ def lambda_handler(event, context):
 
 ### DynamoDB テーブル設計
 
-**Single Table Design**を採用し、効率的なアクセスパターンを実現します。
+**最適化された2テーブル構成**を採用し、シンプルかつ効率的な設計を実現します。
 
-**Primary Table: homebiyori-data**
+**設計思想**:
+1. **TTL柔軟性**: 単一チャットテーブルで、ユーザー別にTTL値を動的設定
+2. **データ特性の最適化**: 永続データと一時データを適切に分離
+3. **運用効率**: プラン切り替え時はTTL値の直接更新で対応、データ移行不要
+
+#### プラン切り替え時TTL更新仕様
+
+**SQS + Lambda非同期処理によるTTL一括更新:**
+
+```python
+# plan-switch-processor Lambda (SQS経由)
+import boto3
+from datetime import datetime, timedelta
+
+def process_plan_switch(event, context):
+    """
+    プラン切り替え時のTTL一括更新処理
+    """
+    for record in event['Records']:
+        message = json.loads(record['body'])
+        user_id = message['user_id']
+        old_plan = message['old_plan'] 
+        new_plan = message['new_plan']
+        
+        # TTL差分計算 (150日 = 180日 - 30日)
+        ttl_adjustment_days = 150 if new_plan == "premium" else -150
+        ttl_adjustment_seconds = ttl_adjustment_days * 24 * 60 * 60
+        
+        # ユーザーの全チャット履歴を更新
+        update_user_chat_ttl(user_id, ttl_adjustment_seconds)
+
+def update_user_chat_ttl(user_id: str, ttl_adjustment: int):
+    """
+    指定ユーザーの全チャット履歴のTTLを更新
+    """
+    dynamodb = boto3.resource('dynamodb')
+    table = dynamodb.Table('homebiyori-chat')
+    
+    # ユーザーのチャット履歴を全取得
+    response = table.query(
+        KeyConditionExpression=Key('PK').eq(f'USER#{user_id}') &
+                             Key('SK').begins_with('CHAT#')
+    )
+    
+    # バッチでTTL更新
+    with table.batch_writer() as batch:
+        for item in response['Items']:
+            current_ttl = item.get('TTL')
+            if current_ttl:
+                new_ttl = current_ttl + ttl_adjustment
+                # 過去日付になる場合は即座に削除されるよう調整
+                if new_ttl <= int(datetime.now().timestamp()):
+                    new_ttl = int(datetime.now().timestamp()) + 86400  # 1日後
+                
+                batch.put_item(Item={
+                    **item,
+                    'TTL': new_ttl
+                })
+```
+
+#### 1. ユーザーデータテーブル (`homebiyori-data`)
+**永続データ用 - 統合テーブル設計**
 
 ```json
 {
@@ -496,7 +689,13 @@ def lambda_handler(event, context):
   "onboarding_completed": "boolean",      // オンボーディング完了フラグ
   "selected_ai_role": "tama|madoka|hide", // 選択したAIキャラクター
   "praise_level": "light|standard|deep",  // 褒めレベル設定
-  "subscription_plan": "free|premium",
+  "subscription_plan": "free|monthly|yearly", // サブスクリプションプラン
+  "stripe_customer_id": "string",         // Stripe Customer ID（匿名）
+  "subscription_id": "string",            // Stripe Subscription ID
+  "subscription_status": "active|canceled|cancel_scheduled|past_due|unpaid", // サブスクリプション状態
+  "subscription_end_date": "2024-01-31T23:59:59Z", // 次回請求日 or 解約日
+  "premium_access": "boolean",            // プレミアム機能アクセス権
+  "last_status_check": "2024-01-01T12:00:00Z", // 最終状態確認日時
   "created_at": "2024-01-01T09:00:00+09:00",
   "updated_at": "2024-01-01T09:00:00+09:00",
   // 注意: タイムゾーンは全てJST(日本標準時)で統一
@@ -509,7 +708,41 @@ def lambda_handler(event, context):
 // 必要時はJWTクレームから一時的に取得
 ```
 
-**2. Chat Messages**
+#### 2. チャットテーブル (`homebiyori-chat`)
+
+**設計理由**: 単一テーブルでTTL値を動的設定することで、プラン別保持期限を実現。
+
+**テーブル構成**
+```json
+{
+  "TableName": "homebiyori-chat",
+  "KeySchema": [
+    {"AttributeName": "PK", "KeyType": "HASH"},
+    {"AttributeName": "SK", "KeyType": "RANGE"}
+  ],
+  "AttributeDefinitions": [
+    {"AttributeName": "PK", "AttributeType": "S"},
+    {"AttributeName": "SK", "AttributeType": "S"},
+    {"AttributeName": "GSI1PK", "AttributeType": "S"},
+    {"AttributeName": "GSI1SK", "AttributeType": "S"}
+  ],
+  "GlobalSecondaryIndexes": [
+    {
+      "IndexName": "GSI1",
+      "KeySchema": [
+        {"AttributeName": "GSI1PK", "KeyType": "HASH"},
+        {"AttributeName": "GSI1SK", "KeyType": "RANGE"}
+      ]
+    }
+  ],
+  "TimeToLiveSpecification": {
+    "AttributeName": "TTL",
+    "Enabled": true
+  }
+}
+```
+
+**チャットメッセージデータ構造**
 ```json
 {
   "PK": "USER#user_id",
@@ -525,12 +758,74 @@ def lambda_handler(event, context):
   "character_count": "number",
   "emotion_detected": "joy|sadness|fatigue|accomplishment|worry",
   "created_at": "2024-01-01T12:00:00Z",
+  "TTL": 1708516200,
+  "subscription_plan": "free|monthly|yearly",
   "GSI1PK": "CHAT#user_id",
   "GSI1SK": "2024-01-01T12:00:00Z"
 }
 ```
 
-**3. Tree Growth Data**
+**TTL設定ロジック**:
+- フリーユーザー: TTL = created_at + 30日
+- 月額プレミアムユーザー: TTL = created_at + 180日
+- 年額プレミアムユーザー: TTL = created_at + 180日
+
+#### 3. 通知テーブル (`homebiyori-notifications`)
+
+**設計理由**: アプリ内通知システムでメール代替機能を提供。課金状態変更の確実な通知を実現。
+
+**テーブル構成**
+```json
+{
+  "TableName": "homebiyori-notifications",
+  "KeySchema": [
+    {"AttributeName": "PK", "KeyType": "HASH"},
+    {"AttributeName": "SK", "KeyType": "RANGE"}
+  ],
+  "AttributeDefinitions": [
+    {"AttributeName": "PK", "AttributeType": "S"},
+    {"AttributeName": "SK", "AttributeType": "S"},
+    {"AttributeName": "GSI1PK", "AttributeType": "S"},
+    {"AttributeName": "GSI1SK", "AttributeType": "S"}
+  ],
+  "GlobalSecondaryIndexes": [
+    {
+      "IndexName": "GSI1",
+      "KeySchema": [
+        {"AttributeName": "GSI1PK", "KeyType": "HASH"},
+        {"AttributeName": "GSI1SK", "KeyType": "RANGE"}
+      ]
+    }
+  ],
+  "TimeToLiveSpecification": {
+    "AttributeName": "expires_at",
+    "Enabled": true
+  }
+}
+```
+
+**通知データ構造**
+```json
+{
+  "PK": "USER#user_id",
+  "SK": "NOTIFICATION#2024-01-01T12:00:00Z",
+  "notification_id": "string",
+  "user_id": "string",
+  "type": "subscription_canceled|subscription_reactivated|payment_succeeded|payment_failed|plan_changed",
+  "title": "string",
+  "message": "string",
+  "is_read": "boolean",
+  "priority": "low|normal|high",
+  "action_url": "string",
+  "created_at": "2024-01-01T12:00:00Z",
+  "read_at": "2024-01-01T12:30:00Z",
+  "expires_at": 1708516200,
+  "GSI1PK": "NOTIFICATION#user_id",
+  "GSI1SK": "2024-01-01T12:00:00Z"
+}
+```
+
+**4. Tree Growth Data**
 ```json
 {
   "PK": "USER#user_id",
@@ -557,21 +852,135 @@ def lambda_handler(event, context):
 
 ### アクセスパターン
 
+#### ユーザーデータテーブル (`homebiyori-data`)
+
 **1. ユーザープロフィール取得 (ニックネームのみ)**
 - Query: PK = "USER#user_id", SK = "PROFILE" 
-- 取得項目: user_id, nickname, onboarding_completed, selected_ai_role, praise_level
+- 取得項目: user_id, nickname, onboarding_completed, selected_ai_role, praise_level, subscription_plan
 - 個人情報（email, name）は含まない
 
-**2. チャット履歴取得**
-- Query: PK = "USER#user_id", SK begins_with "CHAT#"
-
-**3. 木の成長データ取得**
+**2. 木の成長データ取得**
 - Query: PK = "USER#user_id", SK = "TREE#STATS"
 
-**4. 全ユーザー一覧 (管理用 - ニックネームのみ表示)**
+**3. 全ユーザー一覧 (管理用 - ニックネームのみ表示)**
 - Query: GSI1PK = "USER", GSI1SK begins_with "PROFILE#"
 - 取得項目: user_id, nickname, onboarding_completed, subscription_plan, created_at
 - 注意: email, name等の個人情報は取得しない
+
+#### チャット専用テーブル (サブスクリプション別)
+
+**4. チャット履歴取得**
+- フリーユーザー: `homebiyori-chat-free`テーブルをQuery
+- プレミアムユーザー: `homebiyori-chat-premium`テーブルをQuery
+- Query: PK = "USER#user_id", SK begins_with "CHAT#"
+- 注意: ユーザーのsubscription_planに基づいて適切なテーブルを選択
+
+**5. チャット投稿**
+- subscription_planに基づいてテーブル判定
+- フリー: `homebiyori-chat-free`、TTL = 作成日時 + 30日
+- プレミアム: `homebiyori-chat-premium`、TTL = 作成日時 + 365日
+
+### プラン切り替え時のデータ移行戦略
+
+#### 問題: 既存データのTTL変更不可
+
+DynamoDBの制約により、一度設定されたTTLは変更できません。プラン切り替え時の対応策：
+
+#### 解決策: データ移行＋段階的移行
+
+**1. フリー → プレミアム升级（データ延長保存）**
+```python
+async def upgrade_to_premium(user_id: str):
+    """フリーからプレミアムへのアップグレード処理"""
+    
+    # 1. フリーテーブルから既存データを取得
+    existing_chats = await get_user_chats_from_free_table(user_id)
+    
+    # 2. プレミアムテーブルに新しいTTLでコピー
+    for chat in existing_chats:
+        new_chat = chat.copy()
+        # 新しいTTL設定（作成日時 + 365日）
+        new_chat['TTL'] = int((
+            datetime.fromisoformat(chat['created_at']) + 
+            timedelta(days=365)
+        ).timestamp())
+        
+        await put_chat_to_premium_table(new_chat)
+    
+    # 3. ユーザープロフィールのプラン更新
+    await update_user_subscription_plan(user_id, "premium")
+    
+    # 4. フリーテーブルのデータは自然にTTLで削除される
+    # （削除処理は不要、コスト削減）
+```
+
+**2. プレミアム → フリー降格（データ早期削除）**
+```python
+async def downgrade_to_free(user_id: str):
+    """プレミアムからフリーへの降格処理"""
+    
+    # 1. プレミアムテーブルから最近30日のデータのみ取得
+    cutoff_date = datetime.now() - timedelta(days=30)
+    recent_chats = await get_user_chats_after_date(
+        user_id, cutoff_date, table="premium"
+    )
+    
+    # 2. フリーテーブルに新しいTTLでコピー
+    for chat in recent_chats:
+        new_chat = chat.copy()
+        # 新しいTTL設定（作成日時 + 30日）
+        new_chat['TTL'] = int((
+            datetime.fromisoformat(chat['created_at']) + 
+            timedelta(days=30)
+        ).timestamp())
+        
+        await put_chat_to_free_table(new_chat)
+    
+    # 3. ユーザープロフィールのプラン更新
+    await update_user_subscription_plan(user_id, "free")
+    
+    # 4. プレミアムテーブルの古いデータは放置
+    # （TTLで自然削除、手動削除はコスト高）
+```
+
+#### 3. 段階移行期間の処理
+
+**チャット履歴取得時の統合処理:**
+```python
+async def get_user_chat_history(user_id: str, current_plan: str):
+    """プラン切り替え過渡期における統合チャット履歴取得"""
+    
+    chats = []
+    
+    if current_plan == "premium":
+        # プレミアムユーザー：両テーブルから取得
+        premium_chats = await get_chats_from_table(user_id, "premium")
+        free_chats = await get_chats_from_table(user_id, "free")
+        chats = merge_and_deduplicate(premium_chats, free_chats)
+    else:
+        # フリーユーザー：フリーテーブルのみ
+        chats = await get_chats_from_table(user_id, "free")
+    
+    return sort_by_timestamp(chats)
+```
+
+#### 4. 運用上の考慮事項
+
+**コスト最適化:**
+- データ移行は非同期バッチ処理で実行
+- 古いデータの手動削除は行わない（TTL自動削除を利用）
+- 移行期間は最大30日程度を想定
+
+**ユーザー体験:**
+- プラン変更は即座に反映
+- 移行中もチャット履歴は継続表示
+- データ損失は発生しない（アップグレード時）
+
+**監視・アラート:**
+- 移行処理の成功/失敗監視
+- 重複データの検知・アラート
+- 移行コスト監視
+
 
 ## AI機能設計
 
@@ -732,6 +1141,23 @@ class FruitManager:
 - `PUT /api/users/profile` - プロフィール更新
 - `DELETE /api/users/account` - アカウント削除
 
+**課金・サブスクリプション管理（billing-service）**
+- `POST /api/billing/checkout` - Stripe Checkout セッション作成
+- `GET /api/billing/subscription` - サブスクリプション状態取得
+- `POST /api/billing/cancel` - サブスクリプション解約（期間末解約）
+- `POST /api/billing/reactivate` - サブスクリプション再開
+- `GET /api/billing/portal` - Customer Portal URL取得
+
+**Webhook処理（webhook-service）**
+- `POST /api/webhook/stripe` - Stripe Webhook処理
+- `GET /api/webhook/health` - Webhook エンドポイント死活確認
+
+**通知管理（notification-service）**
+- `GET /api/notifications` - 未読通知一覧取得
+- `PUT /api/notifications/{id}/read` - 通知既読化
+- `GET /api/notifications/unread-count` - 未読通知数取得
+- `POST /api/notifications/create` - 通知作成（内部API）
+
 **システム**
 - `GET /api/health` - ヘルスチェック
 
@@ -790,6 +1216,244 @@ class FruitManager:
   }
 }
 ```
+
+**チャットLambda - TTL格納仕様:**
+```python
+# chat-service Lambda内でのTTL計算・格納ロジック
+import time
+from datetime import datetime, timedelta
+
+def calculate_ttl(subscription_plan: str, created_at: datetime) -> int:
+    """
+    サブスクリプションプランに基づくTTL計算
+    """
+    if subscription_plan in ["monthly", "yearly"]:
+        ttl_datetime = created_at + timedelta(days=180)
+    else:  # free plan
+        ttl_datetime = created_at + timedelta(days=30)
+    
+    return int(ttl_datetime.timestamp())
+
+# DynamoDBアイテム保存時
+chat_item = {
+    "PK": f"USER#{user_id}",
+    "SK": f"CHAT#{timestamp}",
+    "message_id": message_id,
+    "user_message": user_message,
+    "ai_response": ai_response,
+    "created_at": created_at.isoformat(),
+    "TTL": calculate_ttl(user_subscription_plan, created_at),  # ← 重要
+    "subscription_plan": user_subscription_plan,
+    # ... other attributes
+}
+```
+
+**課金システム - Stripe Checkout作成:**
+```json
+// POST /api/payment/checkout
+{
+  "plan": "monthly" // or "yearly"
+}
+
+// Response
+{
+  "checkout_url": "https://checkout.stripe.com/pay/cs_test_..."
+}
+```
+
+**課金システム - サブスクリプション状態取得:**
+```json
+// GET /api/payment/subscription
+
+// Response
+{
+  "subscription_status": "active",
+  "current_plan": "monthly",
+  "subscription_end_date": "2024-01-31T23:59:59Z",
+  "premium_access": true,
+  "next_billing_amount": 580,
+  "cancel_at_period_end": false
+}
+```
+
+**課金システム - サブスクリプション解約（期間末解約）:**
+```json
+// POST /api/billing/cancel
+{
+  "reason": "price_too_high",
+  "feedback": "もう少し安ければ継続したい"
+}
+
+// Response
+{
+  "success": true,
+  "end_date": "2024-01-31T23:59:59Z",
+  "message": "プランの解約手続きが完了しました",
+  "status": "cancel_scheduled",
+  "continues_until": "2024-01-31T23:59:59Z",
+  "warning": "解約日まではプレミアム機能をご利用いただけます"
+}
+```
+
+**プレミアム機能アクセス制御（期間末解約対応）:**
+```json
+// 解約予定ユーザーのAPI呼び出し時
+// Response Headers:
+X-Subscription-Warning: "利用期限: 2024年1月31日"
+X-Expires-At: "2024-01-31T23:59:59Z"
+
+// プレミアム機能API レスポンス例
+{
+  "data": "通常のレスポンス",
+  "subscription_warning": {
+    "status": "cancel_scheduled",
+    "expires_at": "2024-01-31T23:59:59Z",
+    "message": "プランは2024年1月31日に解約されます",
+    "action_url": "/account/reactivate"
+  }
+}
+```
+
+**通知システム - 未読通知取得:**
+```json
+// GET /api/notifications
+
+// Response
+{
+  "notifications": [
+    {
+      "id": "notification_123",
+      "type": "subscription_canceled",
+      "title": "プラン解約のお知らせ",
+      "message": "プランの解約手続きが完了しました。2024年1月31日まではプレミアム機能をご利用いただけます。",
+      "priority": "high",
+      "action_url": "/account/reactivate",
+      "created_at": "2024-01-01T12:00:00Z",
+      "is_read": false
+    }
+  ],
+  "unread_count": 1
+}
+```
+
+**Stripe Webhook処理（期間末解約対応）:**
+```python
+# POST /api/webhook/stripe
+# webhook-service Lambda内での詳細なWebhook処理
+
+@webhook_handler
+async def handle_subscription_updated(subscription: dict):
+    """
+    サブスクリプション更新時の処理
+    期間末解約設定と解約キャンセルを区別
+    
+    重要：cancel_at_period_end設定時は即座にWebhookが配信される
+    """
+    user_id = await get_user_id_from_stripe_customer(subscription['customer'])
+    
+    if subscription.get('cancel_at_period_end'):
+        # 解約予定が設定された場合（即座に実行される処理）
+        await update_user_profile({
+            'user_id': user_id,
+            'subscription_status': 'cancel_scheduled',
+            'subscription_end_date': subscription['current_period_end'],
+            'premium_access': True,  # 期間内はまだアクセス可能
+            'cancellation_date': subscription['current_period_end']
+        })
+        
+        # 解約予定の通知作成（即座に）
+        await create_cancellation_notification(user_id, subscription['current_period_end'])
+        
+    elif subscription['status'] == 'active' and not subscription.get('cancel_at_period_end'):
+        # 解約予定がキャンセルされた場合
+        await update_user_profile({
+            'user_id': user_id,
+            'subscription_status': 'active',
+            'premium_access': True,
+            # 解約理由とキャンセル日をクリア
+        })
+        
+        # 解約キャンセルの通知作成
+        await create_reactivation_notification(user_id)
+
+@webhook_handler 
+async def handle_subscription_deleted(subscription: dict):
+    """
+    サブスクリプション削除時の処理
+    実際の解約実行時の処理（期間終了時に実行）
+    """
+    user_id = await get_user_id_from_stripe_customer(subscription['customer'])
+    
+    await update_user_profile({
+        'user_id': user_id,
+        'subscription_status': 'canceled',
+        'premium_access': False,  # アクセス権剥奪
+        'subscription_end_date': subscription['canceled_at']
+    })
+    
+    # 解約完了の通知作成
+    await create_subscription_deleted_notification(user_id)
+
+async def check_premium_access(user_id: str) -> dict:
+    """
+    プレミアム機能アクセス判定
+    cancel_scheduled状態での期間内アクセス制御
+    """
+    user = await get_user_profile(user_id)
+    
+    if not user or not user.get('subscription_id'):
+        return {'has_access': False, 'reason': 'no_subscription'}
+    
+    # cancel_scheduledの場合は期間終了まで利用可能
+    if user['subscription_status'] == 'cancel_scheduled':
+        now = datetime.now()
+        end_date = datetime.fromtimestamp(user['subscription_end_date'])
+        
+        if now <= end_date:
+            return {
+                'has_access': True,
+                'reason': 'cancel_scheduled',
+                'expires_at': end_date,
+                'warning_message': f"利用期限: {end_date.strftime('%Y年%m月%d日')}"
+            }
+        else:
+            # 期間終了後（Webhook遅延保険処理）
+            await force_subscription_termination(user_id)
+            return {'has_access': False, 'reason': 'subscription_expired'}
+    
+    if user['subscription_status'] == 'active':
+        return {'has_access': True, 'reason': 'active'}
+    
+    return {'has_access': False, 'reason': user['subscription_status']}
+```
+
+### 期間末解約フロー詳細
+
+**Webhookタイミングの重要な注意点:**
+
+1. **解約操作時（即座）:**
+   - `cancel_at_period_end: true`設定 → **即座に**`subscription.updated`配信
+   - アプリ側で`cancel_scheduled`状態に変更
+   - 解約予定通知を即座に作成
+   - プレミアム機能は継続利用可能
+
+2. **期間終了時:**
+   - 実際の期間終了時 → `subscription.deleted`配信
+   - アプリ側で`canceled`状態に変更
+   - プレミアム機能のアクセス権を剥奪
+
+**解約フロー状態管理パターン:**
+```
+1. 解約操作 → cancel_scheduled（即座・継続利用可能）
+2. 期間内 → プレミアム機能利用可能（警告表示）
+3. 期間終了 → canceled（アクセス権剥奪）
+```
+
+**重要な実装ポイント:**
+- **Webhook遅延対策**: アプリ側でも期間チェックを実装
+- **アクセス制御**: `cancel_scheduled`状態では期間内のみアクセス許可
+- **ユーザー体験**: 解約後も期間内は通常通り利用可能
+- **通知管理**: 解約予定と解約完了で異なる通知を送信
 
 **メンテナンス時API レスポンス例:**
 ```json
@@ -955,7 +1619,7 @@ SK: SESSION#session_id
 - last_activity: timestamp
 - device_info: string
 - is_active: boolean
-- expires_at: timestamp (TTL)
+- TTL: timestamp (TTL)
 ```
 
 **用途:**
@@ -1269,7 +1933,7 @@ jobs:
 | サービス | 単一Lambda | 分割Lambda | 差額 | 備考 |
 |---------|-----------|-----------|------|------|
 | **Amazon Bedrock** | $1.20 | $1.20 | $0.00 | Claude 3 Haiku |
-| **DynamoDB** | $2.50 | $2.50 | $0.00 | オンデマンド |
+| **DynamoDB** | $2.50 | $2.70 | +$0.20 | ハイブリッド構成（2テーブル） |
 | **Lambda実行** | $0.30 | $0.35 | +$0.05 | 複数関数による若干増加 |
 | **Lambda リクエスト** | $0.20 | $0.30 | +$0.10 | 100万リクエスト/月 |
 | **API Gateway** | $0.35 | $0.35 | $0.00 | REST API |
@@ -1277,11 +1941,11 @@ jobs:
 | **CloudFront** | $8.50 | $8.50 | $0.00 | CDN |
 | **Cognito** | $0.55 | $0.55 | $0.00 | 認証 |
 | **CloudWatch** | $2.00 | $2.20 | +$0.20 | 追加ログストリーム |
-| **合計** | **$15.85** | **$16.20** | **+$0.35** | |
+| **合計** | **$15.85** | **$16.40** | **+$0.55** | |
 
 #### 分割によるメリット評価
 
-**追加コスト: +$0.35/月 (2.2%増)**
+**追加コスト: +$0.55/月 (3.5%増)**
 
 **得られるメリット:**
 
@@ -1293,7 +1957,13 @@ jobs:
 | **スケーラビリティ** | 300%向上 | 将来の拡張容易性 |
 | **セキュリティ** | 200%向上 | 権限分離によるリスク削減 |
 
-**ROI分析: 月額$0.35の追加投資で月額$500以上の効果**
+**ROI分析: 月額$0.55の追加投資で月額$500以上の効果**
+
+#### ハイブリッド構成の追加メリット
+- **TTL柔軟性**: サブスクリプションプラン別データ保持期限対応
+- **コスト効率**: データ特性に応じた最適化
+- **GDPR準拠**: 自動データ削除による法的コンプライアンス
+- **拡張性**: 将来的な保持期限変更への対応容易性
 
 ### 最適化戦略
 
@@ -1303,9 +1973,10 @@ jobs:
 - 不要なAPI呼び出し削減
 
 **2. DynamoDB最適化**
-- Single Table Design
-- オンデマンド課金
-- 適切なキー設計
+- ハイブリッド構成によるデータ特性別最適化
+- オンデマンド課金によるコスト効率
+- TTL自動削除による不要データ排除
+- 適切なキー設計とGSI活用
 
 **3. Lambda最適化**
 - 適切なメモリサイズ
@@ -1340,3 +2011,36 @@ jobs:
 - データプライバシー
 
 この設計に基づいて実装することで、高品質で保守性の高いアプリケーションを構築できます。
+
+## 設計変更履歴
+
+### v2.0 - DynamoDBハイブリッド構成採用 (2024年)
+
+**変更理由**: TTL制約とデータ特性に基づく最適化
+
+**主な変更内容**:
+1. **データベース設計変更**
+   - Single Table Design → ハイブリッド構成に変更
+   - チャット専用テーブルをサブスクリプション別に分離（フリー/プレミアム）
+   - ユーザーデータテーブルは統合設計を維持
+
+2. **TTL制約対応**
+   - フリーユーザー: 30日チャット保持 (`homebiyori-chat-free`)
+   - プレミアムユーザー: 365日チャット保持 (`homebiyori-chat-premium`)
+   - プラン切り替え時のデータ移行戦略を策定
+
+3. **コスト影響**
+   - 追加コスト: +$0.55/月 (3.5%増)
+   - ROI: TTL柔軟性とGDPR準拠の価値が追加コストを上回る
+
+4. **実装上の変更点**
+   - チャットサービスでのテーブル選択ロジック追加
+   - ユーザープロフィールのsubscription_plan基準テーブル判定
+   - プラン切り替え時のデータ移行処理追加
+   - IAM権限のテーブル別最適化
+
+**技術的メリット**:
+- DynamoDBのTTL制約を適切に回避
+- データ特性に応じた最適化
+- GDPR等法的要件への自動対応
+- 将来的なプラン変更への柔軟性
