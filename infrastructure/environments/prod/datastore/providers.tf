@@ -9,12 +9,12 @@ terraform {
   }
   
   backend "s3" {
-    bucket  = "homebiyori-terraform-state"
+    bucket  = "prod-homebiyori-terraform-state"
     key     = "datastore/terraform.tfstate"
     region  = "ap-northeast-1"
     encrypt = true
     
-    dynamodb_table = "homebiyori-terraform-locks"
+    dynamodb_table = "prod-homebiyori-terraform-locks"
   }
 }
 

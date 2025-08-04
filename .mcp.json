@@ -1,0 +1,38 @@
+{
+  "mcpServers": {
+    "terraform-mcp-server": {
+      "type": "stdio",
+      "command": "docker",
+      "args": [
+        "run",
+        "-i",
+        "--rm",
+        "hashicorp/terraform-mcp-server"
+      ],
+      "env": {}
+    },
+    "awslabs.aws-documentation-mcp-server": {
+        "command": "uvx",
+        "args": ["--from", "awslabs-aws-documentation-mcp-server", "awslabs.aws-documentation-mcp-server.exe"],
+        "env": {
+          "FASTMCP_LOG_LEVEL": "ERROR"
+        },
+        "disabled": false,
+        "autoApprove": []
+    },
+    "serena": {
+      "command": "uvx",
+      "args": [
+        "--from",
+        "git+https://github.com/oraios/serena",
+        "serena-mcp-server",
+        "--context",
+        "ide-assistant",
+        "--project",
+        "/c/Users/hplat/Desktop/Develop/Kiro/homebiyori"
+      ],
+      "env": {},
+      "disabled": false
+    }
+  }
+}

@@ -82,7 +82,7 @@ logger = get_logger(__name__)
 # =====================================
 
 # MangumアダプターでFastAPIアプリケーションをLambda形式に変換
-# 
+#
 # ■Mangum設定オプション■
 # - lifespan: FastAPIライフサイクルイベント（startup/shutdown）対応
 # - api_gateway_base_path: API Gatewayのベースパス処理
@@ -97,25 +97,26 @@ logger = get_logger(__name__)
 handler = Mangum(
     app,
     lifespan="off",  # Lambda環境では手動ライフサイクル管理が効率的
-    api_gateway_base_path="/api"  # API Gatewayのベースパス設定
+    api_gateway_base_path="/api",  # API Gatewayのベースパス設定
 )
+
 
 def lambda_handler(event, context):
     """
     AWS Lambda関数のメインエントリーポイント
-    
+
     ■機能概要■
     Lambda実行時に最初に呼び出される関数。
     Mangumアダプター経由でFastAPIアプリケーションを実行し、
     Lambda Event/Response形式の変換を自動実行。
-    
+
     Args:
         event: Lambda実行イベント（API Gateway Proxy Integration形式）
         context: Lambda実行コンテキスト（関数情報、実行環境等）
-        
+
     Returns:
         dict: Lambda Response形式（status, headers, body等）
-        
+
     ■Lambda Event構造■
     {
         "httpMethod": "GET|POST|PUT|DELETE",
@@ -126,13 +127,13 @@ def lambda_handler(event, context):
             "authorizer": {"claims": {"sub": "user_id"}}
         }
     }
-    
+
     ■セキュリティ■
     - Authorization Header: API Gatewayで事前検証済み
     - Request Context: Cognito認証情報含む
     - 入力検証: Pydanticモデルによる厳密な検証
     - エラーレスポンス: 機密情報の漏洩防止
-    
+
     ■監視・ログ■
     実行時の詳細情報をCloudWatch Logsに出力:
     - Request ID, User ID（マスク済み）
@@ -145,40 +146,50 @@ def lambda_handler(event, context):
     request_id = context.aws_request_id
     http_method = event.get("httpMethod", "UNKNOWN")
     path = event.get("path", "UNKNOWN")
-    
-    logger.info("Lambda function started", extra={
-        "request_id": request_id,
-        "http_method": http_method,
-        "path": path,
-        "remaining_time_ms": context.get_remaining_time_in_millis()
-    })
-    
+
+    logger.info(
+        "Lambda function started",
+        extra={
+            "request_id": request_id,
+            "http_method": http_method,
+            "path": path,
+            "remaining_time_ms": context.get_remaining_time_in_millis(),
+        },
+    )
+
     try:
         # Mangumアダプター経由でFastAPIアプリケーション実行
         # Lambda Event → HTTP Request → FastAPI処理 → HTTP Response → Lambda Response
         response = handler(event, context)
-        
+
         # 成功ログ
         # レスポンス統計とパフォーマンス情報を記録
-        logger.info("Lambda function completed successfully", extra={
-            "request_id": request_id,
-            "status_code": response.get("statusCode"),
-            "response_size": len(str(response.get("body", ""))),
-            "remaining_time_ms": context.get_remaining_time_in_millis()
-        })
-        
+        logger.info(
+            "Lambda function completed successfully",
+            extra={
+                "request_id": request_id,
+                "status_code": response.get("statusCode"),
+                "response_size": len(str(response.get("body", ""))),
+                "remaining_time_ms": context.get_remaining_time_in_millis(),
+            },
+        )
+
         return response
-        
+
     except Exception as e:
         # Lambda実行エラー
         # アプリケーションエラーと区別し、詳細な情報をログ出力
-        logger.error("Lambda function failed", extra={
-            "request_id": request_id,
-            "error": str(e),
-            "error_type": type(e).__name__,
-            "remaining_time_ms": context.get_remaining_time_in_millis()
-        }, exc_info=True)
-        
+        logger.error(
+            "Lambda function failed",
+            extra={
+                "request_id": request_id,
+                "error": str(e),
+                "error_type": type(e).__name__,
+                "remaining_time_ms": context.get_remaining_time_in_millis(),
+            },
+            exc_info=True,
+        )
+
         # クライアントには最小限のエラー情報のみ返却
         # セキュリティ上、内部エラー詳細は隠蔽
         return {
@@ -187,9 +198,9 @@ def lambda_handler(event, context):
                 "Content-Type": "application/json",
                 "Access-Control-Allow-Origin": "*",  # CORS対応
                 "Access-Control-Allow-Methods": "GET,POST,PUT,DELETE,OPTIONS",
-                "Access-Control-Allow-Headers": "Content-Type,Authorization"
+                "Access-Control-Allow-Headers": "Content-Type,Authorization",
             },
-            "body": '{"error": "INTERNAL_SERVER_ERROR", "message": "An unexpected error occurred"}'
+            "body": '{"error": "INTERNAL_SERVER_ERROR", "message": "An unexpected error occurred"}',
         }
 
 
@@ -197,77 +208,78 @@ def lambda_handler(event, context):
 # Lambda Layer統合確認
 # =====================================
 
+
 def verify_lambda_layers():
     """
     Lambda Layers統合状態の確認
-    
+
     ■機能概要■
     homebiyori-common-layer と homebiyori-ai-layer の
     正常な読み込みを確認し、依存関係の整合性を検証。
-    
+
     ■検証項目■
     1. homebiyori-common-layer: 共通機能（認証、DB、ログ等）
     2. homebiyori-ai-layer: AI機能（キャラクター、プロンプト等）
     3. 環境変数: 必要な設定値の存在確認
     4. DynamoDB接続: データベース疎通確認
-    
+
     Returns:
         dict: 検証結果とシステム状態
     """
     import os
+
     verification_results = {
         "lambda_layers": {},
         "environment_variables": {},
-        "system_status": "healthy"
+        "system_status": "healthy",
     }
-    
+
     try:
         # homebiyori-common-layer 確認
         from homebiyori_common import __version__ as common_version
+
         verification_results["lambda_layers"]["homebiyori-common-layer"] = {
             "status": "available",
-            "version": common_version
+            "version": common_version,
         }
     except ImportError as e:
         verification_results["lambda_layers"]["homebiyori-common-layer"] = {
             "status": "error",
-            "error": str(e)
+            "error": str(e),
         }
         verification_results["system_status"] = "degraded"
-    
+
     try:
         # homebiyori-ai-layer 確認
         from homebiyori_ai import __version__ as ai_version
+
         verification_results["lambda_layers"]["homebiyori-ai-layer"] = {
-            "status": "available", 
-            "version": ai_version
+            "status": "available",
+            "version": ai_version,
         }
     except ImportError as e:
         verification_results["lambda_layers"]["homebiyori-ai-layer"] = {
             "status": "error",
-            "error": str(e)
+            "error": str(e),
         }
-    
+
     # 環境変数確認
-    required_env_vars = [
-        "DYNAMODB_TABLE",
-        "AWS_REGION", 
-        "ENVIRONMENT"
-    ]
-    
+    required_env_vars = ["DYNAMODB_TABLE", "AWS_REGION", "ENVIRONMENT"]
+
     for env_var in required_env_vars:
         value = os.environ.get(env_var)
         verification_results["environment_variables"][env_var] = {
             "status": "set" if value else "missing",
-            "value": value[:10] + "..." if value and len(value) > 10 else value
+            "value": value[:10] + "..." if value and len(value) > 10 else value,
         }
         if not value:
             verification_results["system_status"] = "degraded"
-    
-    logger.info("Lambda layers verification completed", extra={
-        "verification_results": verification_results
-    })
-    
+
+    logger.info(
+        "Lambda layers verification completed",
+        extra={"verification_results": verification_results},
+    )
+
     return verification_results
 
 

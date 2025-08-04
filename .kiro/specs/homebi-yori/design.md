@@ -20,7 +20,7 @@ graph TB
     APIGW --> Lambda[Lambda Function]
     
     Lambda --> DynamoDB[DynamoDB]
-    Lambda --> S3Content[S3 Content Storage]
+    Lambda --> DynamoDB
     Lambda --> Bedrock[Amazon Bedrock]
     
     subgraph "Monitoring"
@@ -53,7 +53,7 @@ graph TB
 - AWS Lambda (サーバーレス実行環境)
 - Amazon API Gateway (RESTful API)
 - Amazon DynamoDB (NoSQLデータベース - ハイブリッド構成: TTL要件別テーブル分離)
-- Amazon S3 (静的ホスティング、コンテンツストレージ)
+- Amazon S3 (静的ホスティング)
 - Amazon Cognito (認証・認可)
 - Amazon Bedrock (Claude 3 Haiku)
 - AWS CloudFront (CDN)
@@ -167,7 +167,7 @@ src/
 
 ```
 📱 エンドユーザー向け API Gateway (prod-user-api)
-├── Cognito User Pool: homebiyori-users (Google OAuth)
+├── Cognito User Pool: prod-homebiyori-users (Google OAuth)
 ├── /api/chat/*     → chat-service Lambda (1024MB, 60s) [要認証]
 ├── /api/tree/*     → tree-service Lambda (512MB, 30s) [要認証]
 ├── /api/users/*    → user-service Lambda (256MB, 15s) [要認証]
@@ -200,7 +200,7 @@ Parameter Store (/homebiyori/maintenance/*) ← 全Lambda参照
 | **admin-service** | システム管理 | 512MB | 30秒 | 10 | CloudWatch, DynamoDB, Parameter Store |
 
 **認証方式: 分離されたAPI Gateway + Cognito Authorizer**
-- ユーザー認証: Google OAuth (homebiyori-users)
+- ユーザー認証: Google OAuth (prod-homebiyori-users)
 - 管理者認証: Email/Password (homebiyori-admins)
 - 管理者APIは別ドメイン・Cognito User Poolで完全分離
 
@@ -422,7 +422,7 @@ ttl-updater:
 **アクセス制御:**
 ```
 API Gateway (User向け)
-├── Cognito Authorizer (homebiyori-users)
+├── Cognito Authorizer (prod-homebiyori-users)
 ├── CORS設定: フロントエンドドメインのみ
 ├── Rate Limiting: 100req/min/user
 └── WAF: 一般的な攻撃パターンをブロック
@@ -609,7 +609,7 @@ User API Gateway
 ```
 
 **セキュリティ設定:**
-- Cognito Authorizer (homebiyori-users)
+- Cognito Authorizer (prod-homebiyori-users)
 - CORS: フロントエンドドメインのみ
 - Rate Limiting: ユーザー別制限
 - WAF: DDoS、SQLインジェクション対策
@@ -942,171 +942,199 @@ def lambda_handler(event, context):
 
 ## データモデル設計
 
-### DynamoDB テーブル設計
+### DynamoDB 7テーブル構成
 
-**最適化された2テーブル構成**を採用し、シンプルかつ効率的な設計を実現します。
+**設計思想の変遷:**
+当初は3テーブル（統合）→ 5テーブル（機能分割）→ **7テーブル（最適化完了）** に発展。  
+各テーブルが単一責任を持ち、データ特性に応じた最適化を実現。
 
-**設計思想**:
-1. **TTL柔軟性**: 単一チャットテーブルで、ユーザー別にTTL値を動的設定
-2. **データ特性の最適化**: 永続データと一時データを適切に分離
-3. **運用効率**: プラン切り替え時はTTL値の直接更新で対応、データ移行不要
+**プライバシー保護の強化:**
+- 子供情報の保存を廃止（個人情報保護の徹底）
+- メールアドレス、実名等の個人識別情報は一切保存しない
+- Cognito subのみでユーザー識別を行う
 
-#### プラン切り替え時TTL更新仕様
+#### テーブル構成と責務分離
 
-**SQS + Lambda非同期処理によるTTL一括更新:**
-
-```python
-# plan-switch-processor Lambda (SQS経由)
-import boto3
-from datetime import datetime, timedelta
-
-def process_plan_switch(event, context):
-    """
-    プラン切り替え時のTTL一括更新処理
-    """
-    for record in event['Records']:
-        message = json.loads(record['body'])
-        user_id = message['user_id']
-        old_plan = message['old_plan'] 
-        new_plan = message['new_plan']
-        
-        # TTL差分計算 (150日 = 180日 - 30日)
-        ttl_adjustment_days = 150 if new_plan == "premium" else -150
-        ttl_adjustment_seconds = ttl_adjustment_days * 24 * 60 * 60
-        
-        # ユーザーの全チャット履歴を更新
-        update_user_chat_ttl(user_id, ttl_adjustment_seconds)
-
-def update_user_chat_ttl(user_id: str, ttl_adjustment: int):
-    """
-    指定ユーザーの全チャット履歴のTTLを更新
-    """
-    dynamodb = boto3.resource('dynamodb')
-    table = dynamodb.Table('homebiyori-chat')
+```mermaid
+graph TB
+    Users[prod-homebiyori-users<br/>ユーザープロフィール<br/>永続保存]
+    Subscriptions[prod-homebiyori-subscriptions<br/>サブスクリプション管理<br/>永続保存]
+    Trees[prod-homebiyori-trees<br/>木の状態管理<br/>永続保存]
+    Fruits[prod-homebiyori-fruits<br/>実の情報<br/>永続保存]
+    Chats[prod-homebiyori-chats<br/>チャット履歴<br/>TTL管理]
+    Notifications[prod-homebiyori-notifications<br/>アプリ内通知<br/>TTL管理]
+    Feedback[prod-homebiyori-feedback<br/>解約理由アンケート<br/>永続保存・分析用]
     
-    # ユーザーのチャット履歴を全取得
-    response = table.query(
-        KeyConditionExpression=Key('PK').eq(f'USER#{user_id}') &
-                             Key('SK').begins_with('CHAT#')
-    )
-    
-    # バッチでTTL更新
-    with table.batch_writer() as batch:
-        for item in response['Items']:
-            current_ttl = item.get('TTL')
-            if current_ttl:
-                new_ttl = current_ttl + ttl_adjustment
-                # 過去日付になる場合は即座に削除されるよう調整
-                if new_ttl <= int(datetime.now().timestamp()):
-                    new_ttl = int(datetime.now().timestamp()) + 86400  # 1日後
-                
-                batch.put_item(Item={
-                    **item,
-                    'TTL': new_ttl
-                })
+    Users --> Trees
+    Users --> Subscriptions
+    Chats --> Fruits
+    Subscriptions --> Chats
 ```
 
-#### 1. ユーザーデータテーブル (`homebiyori-data`)
-**永続データ用 - 統合テーブル設計**
+### 1. prod-homebiyori-users（ユーザープロフィール）
+
+**設計意図:**
+- 最小限の個人情報でユーザー体験を実現
+- プライバシー保護を最優先に設計
+- オンボーディング状態とAI設定の管理
 
 ```json
 {
-  "TableName": "homebiyori-data",
+  "TableName": "prod-homebiyori-users",
   "KeySchema": [
-    {
-      "AttributeName": "PK",
-      "KeyType": "HASH"
-    },
-    {
-      "AttributeName": "SK", 
-      "KeyType": "RANGE"
-    }
+    {"AttributeName": "PK", "KeyType": "HASH"},
+    {"AttributeName": "SK", "KeyType": "RANGE"}
   ],
   "AttributeDefinitions": [
-    {
-      "AttributeName": "PK",
-      "AttributeType": "S"
-    },
-    {
-      "AttributeName": "SK",
-      "AttributeType": "S"
-    },
-    {
-      "AttributeName": "GSI1PK",
-      "AttributeType": "S"
-    },
-    {
-      "AttributeName": "GSI1SK",
-      "AttributeType": "S"
-    }
-  ],
+    {"AttributeName": "PK", "AttributeType": "S"},
+    {"AttributeName": "SK", "AttributeType": "S"}
+  ]
+}
+```
+
+**エンティティ構造:**
+```json
+{
+  "PK": "USER#user_id",
+  "SK": "PROFILE",
+  "user_id": "string",                    // Cognito sub (UUID)
+  "nickname": "string?",                  // ユーザー設定ニックネーム（1-20文字）
+  "ai_character": "tama|madoka|hide",     // 選択したAIキャラクター
+  "praise_level": "normal|deep",          // 褒めレベル設定（2段階）
+  "onboarding_completed": "boolean",      // オンボーディング完了フラグ
+  "created_at": "2024-01-01T09:00:00+09:00",
+  "updated_at": "2024-01-01T09:00:00+09:00"
+}
+```
+
+**重要な設計決定:**
+- メールアドレス、実名は保存しない（Cognito JWTから一時取得）
+- ニックネームのみで個人化を実現
+- praise_level は normal|deep の2段階（light削除）
+
+### 2. prod-homebiyori-subscriptions（サブスクリプション管理）
+
+**設計意図:**
+- Stripe連携によるサブスクリプション状態の正確な管理
+- プラン変更時のチャットデータTTL制御情報を保持
+- 課金関連の監査証跡を確保
+
+```json
+{
+  "PK": "USER#user_id",
+  "SK": "SUBSCRIPTION",
+  "user_id": "string",
+  "subscription_id": "string?",           // Stripe Subscription ID
+  "customer_id": "string?",               // Stripe Customer ID
+  "current_plan": "free|monthly|yearly",
+  "status": "active|canceled|cancel_scheduled|past_due",
+  "current_period_start": "2024-01-01T00:00:00+09:00",
+  "current_period_end": "2024-02-01T00:00:00+09:00",
+  "cancel_at_period_end": "boolean",
+  "ttl_days": "number",                   // チャット保持期間設定
+  "created_at": "2024-01-01T09:00:00+09:00",
+  "updated_at": "2024-01-01T09:00:00+09:00"
+}
+```
+
+**TTL管理戦略:**
+- フリープラン: 30日間保持
+- プレミアムプラン: 180日間保持
+- プラン変更時は一括TTL更新処理を実行
+
+### 3. prod-homebiyori-trees（木の状態管理）
+
+**設計意図:**
+- ユーザーの育児努力を木の成長で可視化
+- AIキャラクター別テーマカラーシステム
+- 成長進捗の統計情報を効率的に管理
+
+```json
+{
+  "PK": "USER#user_id",
+  "SK": "TREE",
+  "user_id": "string",
+  "current_stage": "0-5",                // 木の成長段階（6段階）
+  "total_characters": "number",          // 累積文字数
+  "total_messages": "number",            // 総メッセージ数
+  "total_fruits": "number",              // 総実数
+  "theme_color": "warm_pink|cool_blue|warm_orange", // AIキャラクター対応
+  "last_message_date": "2024-01-01T12:00:00+09:00",
+  "last_fruit_date": "2024-01-01T12:00:00+09:00",
+  "created_at": "2024-01-01T09:00:00+09:00",
+  "updated_at": "2024-01-01T09:00:00+09:00"
+}
+```
+
+**AIキャラクター別テーマカラー:**
+- **たまさん (tama)**: warm_pink - ピンク系（温かい下町のおばちゃん）
+- **まどか姉さん (madoka)**: cool_blue - ブルー系（クールなバリキャリママ）  
+- **ヒデじい (hide)**: warm_orange - オレンジ系（秋の夕陽のような元教師）
+
+### 4. prod-homebiyori-fruits（実の情報）
+
+**設計意図:**
+- 感情的価値のある瞬間を「実」として永続保存
+- ユーザーとAIの会話内容を完全保存
+- AIキャラクター別の実の色分けシステム
+
+```json
+{
+  "TableName": "prod-homebiyori-fruits",
   "GlobalSecondaryIndexes": [
     {
       "IndexName": "GSI1",
       "KeySchema": [
-        {
-          "AttributeName": "GSI1PK",
-          "KeyType": "HASH"
-        },
-        {
-          "AttributeName": "GSI1SK",
-          "KeyType": "RANGE"
-        }
+        {"AttributeName": "GSI1PK", "KeyType": "HASH"},
+        {"AttributeName": "GSI1SK", "KeyType": "RANGE"}
       ]
     }
   ]
 }
 ```
 
-### エンティティ設計
-
-**1. User Profile (プライバシー重視)**
+**エンティティ構造:**
 ```json
 {
   "PK": "USER#user_id",
-  "SK": "PROFILE",
-  "user_id": "string",                    // Cognito sub (UUID)
-  "nickname": "string",                   // ユーザー設定ニックネーム
-  "onboarding_completed": "boolean",      // オンボーディング完了フラグ
-  "selected_ai_role": "tama|madoka|hide", // 選択したAIキャラクター
-  "praise_level": "light|standard|deep",  // 褒めレベル設定
-  "subscription_plan": "free|monthly|yearly", // サブスクリプションプラン
-  "stripe_customer_id": "string",         // Stripe Customer ID（匿名）
-  "subscription_id": "string",            // Stripe Subscription ID
-  "subscription_status": "active|canceled|cancel_scheduled|past_due|unpaid", // サブスクリプション状態
-  "subscription_end_date": "2024-01-31T23:59:59Z", // 次回請求日 or 解約日
-  "premium_access": "boolean",            // プレミアム機能アクセス権
-  "last_status_check": "2024-01-01T12:00:00Z", // 最終状態確認日時
-  "created_at": "2024-01-01T09:00:00+09:00",
-  "updated_at": "2024-01-01T09:00:00+09:00",
-  // 注意: タイムゾーンは全てJST(日本標準時)で統一
-  "nickname_updated_at": "2024-01-01T00:00:00Z",
-  "GSI1PK": "USER",
-  "GSI1SK": "PROFILE#user_id"
+  "SK": "FRUIT#2024-01-01T12:00:00Z",
+  "fruit_id": "string",
+  "user_id": "string",
+  
+  // 会話内容の完全保存
+  "user_message": "string",               // 実生成のきっかけとなったユーザーメッセージ
+  "ai_response": "string",                // AIキャラクターの応答メッセージ
+  "ai_character": "tama|madoka|hide",     // どのAIキャラクターとの会話か
+  
+  // 感情分析結果
+  "detected_emotion": "joy|sadness|fatigue|accomplishment|worry",
+  "fruit_color": "warm_pink|cool_blue|warm_orange", // AIキャラクター別の実の色
+  
+  "created_at": "2024-01-01T12:00:00+09:00",
+  "GSI1PK": "FRUIT#user_id",
+  "GSI1SK": "2024-01-01T12:00:00Z"
 }
-
-// 注意: email, name等の個人情報は保存しない
-// 必要時はJWTクレームから一時的に取得
 ```
 
-#### 2. チャットテーブル (`homebiyori-chat`)
+**重要な設計変更:**
+- x_position, y_position を削除（描画時に動的計算）
+- fruit_type と emotion_source を detected_emotion に統一
+- AI応答メッセージを完全保存で思い出機能を強化
 
-**設計理由**: 単一テーブルでTTL値を動的設定することで、プラン別保持期限を実現。
+### 5. prod-homebiyori-chats（チャット履歴TTL管理）
 
-**テーブル構成**
+**設計意図:**
+- プラン別データ保持期間の動的制御
+- LangChain最適化のためのコンテキスト情報保持
+- 木の成長に寄与した履歴の詳細記録
+
 ```json
 {
-  "TableName": "homebiyori-chat",
-  "KeySchema": [
-    {"AttributeName": "PK", "KeyType": "HASH"},
-    {"AttributeName": "SK", "KeyType": "RANGE"}
-  ],
-  "AttributeDefinitions": [
-    {"AttributeName": "PK", "AttributeType": "S"},
-    {"AttributeName": "SK", "AttributeType": "S"},
-    {"AttributeName": "GSI1PK", "AttributeType": "S"},
-    {"AttributeName": "GSI1SK", "AttributeType": "S"}
-  ],
+  "TableName": "prod-homebiyori-chats",
+  "TimeToLiveSpecification": {
+    "AttributeName": "TTL",
+    "Enabled": true
+  },
   "GlobalSecondaryIndexes": [
     {
       "IndexName": "GSI1",
@@ -1115,69 +1143,59 @@ def update_user_chat_ttl(user_id: str, ttl_adjustment: int):
         {"AttributeName": "GSI1SK", "KeyType": "RANGE"}
       ]
     }
-  ],
-  "TimeToLiveSpecification": {
-    "AttributeName": "TTL",
-    "Enabled": true
-  }
+  ]
 }
 ```
 
-**チャットメッセージデータ構造**
+**エンティティ構造:**
 ```json
 {
   "PK": "USER#user_id",
   "SK": "CHAT#2024-01-01T12:00:00Z",
-  "message_id": "string",
+  "chat_id": "string",
   "user_id": "string",
-  "chat_type": "individual|group",
-  "ai_role": "tama|madoka|hide", 
-  "current_mood": "praise|listen",
-  "message_type": "text|emotion|system",
+  
+  // メッセージ内容（DynamoDB直接保存）
   "user_message": "string",
   "ai_response": "string",
-  "character_count": "number",
-  "emotion_detected": "joy|sadness|fatigue|accomplishment|worry",
-  "created_at": "2024-01-01T12:00:00Z",
-  "TTL": 1708516200,
-  "subscription_plan": "free|monthly|yearly",
+  
+  // AI設定メタデータ
+  "ai_character": "tama|madoka|hide",
+  "praise_level": "normal|deep",          // 修正: 2段階
+  "detected_emotions": ["joy", "accomplishment"],
+  
+  // 木の成長関連
+  "growth_points_gained": "number",
+  "new_fruits_generated": ["joy", "accomplishment"],
+  "tree_stage_at_time": "0-5",
+  
+  // タイムスタンプ（JST統一）
+  "created_at": "2024-01-01T12:00:00+09:00",
+  
+  // プラン別TTL設定
+  "TTL": "1708516200",                    // エポック秒
+  "subscription_plan": "free|monthly|yearly", // TTL計算基準
+  
   "GSI1PK": "CHAT#user_id",
   "GSI1SK": "2024-01-01T12:00:00Z"
 }
 ```
 
-**TTL設定ロジック**:
+**TTL管理方式:**
 - フリーユーザー: TTL = created_at + 30日
-- 月額プレミアムユーザー: TTL = created_at + 180日
-- 年額プレミアムユーザー: TTL = created_at + 180日
+- プレミアムユーザー: TTL = created_at + 180日  
+- プラン変更時: SQS + Lambda非同期でTTL一括更新
 
-#### 3. 通知テーブル (`homebiyori-notifications`)
+### 6. prod-homebiyori-notifications（アプリ内通知）
 
-**設計理由**: アプリ内通知システムでメール代替機能を提供。課金状態変更の確実な通知を実現。
+**設計意図:**
+- メール送信に依存しない確実な通知配信
+- サブスクリプション状態変更の重要な通知を確実に配信
+- 90日間の適度な保持期間でストレージ最適化
 
-**テーブル構成**
 ```json
 {
-  "TableName": "homebiyori-notifications",
-  "KeySchema": [
-    {"AttributeName": "PK", "KeyType": "HASH"},
-    {"AttributeName": "SK", "KeyType": "RANGE"}
-  ],
-  "AttributeDefinitions": [
-    {"AttributeName": "PK", "AttributeType": "S"},
-    {"AttributeName": "SK", "AttributeType": "S"},
-    {"AttributeName": "GSI1PK", "AttributeType": "S"},
-    {"AttributeName": "GSI1SK", "AttributeType": "S"}
-  ],
-  "GlobalSecondaryIndexes": [
-    {
-      "IndexName": "GSI1",
-      "KeySchema": [
-        {"AttributeName": "GSI1PK", "KeyType": "HASH"},
-        {"AttributeName": "GSI1SK", "KeyType": "RANGE"}
-      ]
-    }
-  ],
+  "TableName": "prod-homebiyori-notifications",
   "TimeToLiveSpecification": {
     "AttributeName": "expires_at",
     "Enabled": true
@@ -1185,183 +1203,155 @@ def update_user_chat_ttl(user_id: str, ttl_adjustment: int):
 }
 ```
 
-**通知データ構造**
+**エンティティ構造:**
 ```json
 {
   "PK": "USER#user_id",
   "SK": "NOTIFICATION#2024-01-01T12:00:00Z",
   "notification_id": "string",
   "user_id": "string",
-  "type": "subscription_canceled|subscription_reactivated|payment_succeeded|payment_failed|plan_changed",
+  "type": "subscription_canceled|payment_succeeded|plan_changed|system_maintenance",
   "title": "string",
   "message": "string",
   "is_read": "boolean",
   "priority": "low|normal|high",
-  "action_url": "string",
-  "created_at": "2024-01-01T12:00:00Z",
-  "read_at": "2024-01-01T12:30:00Z",
-  "expires_at": 1708516200,
+  "action_url": "string?",               // アクション可能な通知のURL
+  "created_at": "2024-01-01T12:00:00+09:00",
+  "expires_at": "1738876800",            // 90日後に自動削除
   "GSI1PK": "NOTIFICATION#user_id",
   "GSI1SK": "2024-01-01T12:00:00Z"
 }
 ```
 
-**4. Tree Growth Data**
+### 7. prod-homebiyori-feedback（解約理由アンケート）
+
+**設計意図:**
+- サービス改善のための解約理由分析
+- 匿名化可能な設計でプライバシー保護
+- 月次・四半期レポート生成の効率化
+
 ```json
 {
-  "PK": "USER#user_id",
-  "SK": "TREE#STATS",
-  "user_id": "string",
-  "total_characters": "number",
-  "tree_stage": "number",
-  "total_fruits": "number",
-  "fruits": [
+  "TableName": "prod-homebiyori-feedback",
+  "GlobalSecondaryIndexes": [
     {
-      "id": "string",
-      "ai_role": "tama|madoka|hide",
-      "ai_response": "string",
-      "created_date": "2024-01-01",
-      "emotion": "string"
+      "IndexName": "GSI1",
+      "KeySchema": [
+        {"AttributeName": "GSI1PK", "KeyType": "HASH"},
+        {"AttributeName": "GSI1SK", "KeyType": "RANGE"}
+      ]
     }
-  ],
-  "last_growth_date": "2024-01-01",
-  "updated_at": "2024-01-01T12:00:00Z",
-  "GSI1PK": "TREE",
-  "GSI1SK": "STATS#user_id"
+  ]
 }
 ```
 
-### アクセスパターン
-
-#### ユーザーデータテーブル (`homebiyori-data`)
-
-**1. ユーザープロフィール取得 (ニックネームのみ)**
-- Query: PK = "USER#user_id", SK = "PROFILE" 
-- 取得項目: user_id, nickname, onboarding_completed, selected_ai_role, praise_level, subscription_plan
-- 個人情報（email, name）は含まない
-
-**2. 木の成長データ取得**
-- Query: PK = "USER#user_id", SK = "TREE#STATS"
-
-**3. 全ユーザー一覧 (管理用 - ニックネームのみ表示)**
-- Query: GSI1PK = "USER", GSI1SK begins_with "PROFILE#"
-- 取得項目: user_id, nickname, onboarding_completed, subscription_plan, created_at
-- 注意: email, name等の個人情報は取得しない
-
-#### チャット専用テーブル (サブスクリプション別)
-
-**4. チャット履歴取得**
-- フリーユーザー: `homebiyori-chat-free`テーブルをQuery
-- プレミアムユーザー: `homebiyori-chat-premium`テーブルをQuery
-- Query: PK = "USER#user_id", SK begins_with "CHAT#"
-- 注意: ユーザーのsubscription_planに基づいて適切なテーブルを選択
-
-**5. チャット投稿**
-- subscription_planに基づいてテーブル判定
-- フリー: `homebiyori-chat-free`、TTL = 作成日時 + 30日
-- プレミアム: `homebiyori-chat-premium`、TTL = 作成日時 + 365日
-
-### プラン切り替え時のデータ移行戦略
-
-#### 問題: 既存データのTTL変更不可
-
-DynamoDBの制約により、一度設定されたTTLは変更できません。プラン切り替え時の対応策：
-
-#### 解決策: データ移行＋段階的移行
-
-**1. フリー → プレミアム升级（データ延長保存）**
-```python
-async def upgrade_to_premium(user_id: str):
-    """フリーからプレミアムへのアップグレード処理"""
-    
-    # 1. フリーテーブルから既存データを取得
-    existing_chats = await get_user_chats_from_free_table(user_id)
-    
-    # 2. プレミアムテーブルに新しいTTLでコピー
-    for chat in existing_chats:
-        new_chat = chat.copy()
-        # 新しいTTL設定（作成日時 + 365日）
-        new_chat['TTL'] = int((
-            datetime.fromisoformat(chat['created_at']) + 
-            timedelta(days=365)
-        ).timestamp())
-        
-        await put_chat_to_premium_table(new_chat)
-    
-    # 3. ユーザープロフィールのプラン更新
-    await update_user_subscription_plan(user_id, "premium")
-    
-    # 4. フリーテーブルのデータは自然にTTLで削除される
-    # （削除処理は不要、コスト削減）
+**エンティティ構造:**
+```json
+{
+  "PK": "FEEDBACK#2024-01",              // 月次集計用のパーティション
+  "SK": "CANCELLATION#user_id#timestamp",
+  "feedback_id": "string",
+  "user_id": "string",                   // 必要に応じて匿名化可能
+  "feedback_type": "cancellation_reason",
+  "reason_category": "price|features|usability|other",
+  "reason_text": "string?",             // 自由記述
+  "satisfaction_score": "1-5",          // 満足度スコア
+  "improvement_suggestions": "string?",  // 改善提案
+  "created_at": "2024-01-01T12:00:00+09:00",
+  "GSI1PK": "FEEDBACK#cancellation",
+  "GSI1SK": "2024-01-01T12:00:00Z"
+}
 ```
 
-**2. プレミアム → フリー降格（データ早期削除）**
-```python
-async def downgrade_to_free(user_id: str):
-    """プレミアムからフリーへの降格処理"""
-    
-    # 1. プレミアムテーブルから最近30日のデータのみ取得
-    cutoff_date = datetime.now() - timedelta(days=30)
-    recent_chats = await get_user_chats_after_date(
-        user_id, cutoff_date, table="premium"
-    )
-    
-    # 2. フリーテーブルに新しいTTLでコピー
-    for chat in recent_chats:
-        new_chat = chat.copy()
-        # 新しいTTL設定（作成日時 + 30日）
-        new_chat['TTL'] = int((
-            datetime.fromisoformat(chat['created_at']) + 
-            timedelta(days=30)
-        ).timestamp())
-        
-        await put_chat_to_free_table(new_chat)
-    
-    # 3. ユーザープロフィールのプラン更新
-    await update_user_subscription_plan(user_id, "free")
-    
-    # 4. プレミアムテーブルの古いデータは放置
-    # （TTLで自然削除、手動削除はコスト高）
+### データアクセスパターンと最適化
+
+#### 主要なクエリパターン
+
+**1. ユーザー情報取得（認証後）**
+```
+GET prod-homebiyori-users: PK=USER#user_id, SK=PROFILE
+GET prod-homebiyori-subscriptions: PK=USER#user_id, SK=SUBSCRIPTION  
+GET prod-homebiyori-trees: PK=USER#user_id, SK=TREE
 ```
 
-#### 3. 段階移行期間の処理
-
-**チャット履歴取得時の統合処理:**
-```python
-async def get_user_chat_history(user_id: str, current_plan: str):
-    """プラン切り替え過渡期における統合チャット履歴取得"""
-    
-    chats = []
-    
-    if current_plan == "premium":
-        # プレミアムユーザー：両テーブルから取得
-        premium_chats = await get_chats_from_table(user_id, "premium")
-        free_chats = await get_chats_from_table(user_id, "free")
-        chats = merge_and_deduplicate(premium_chats, free_chats)
-    else:
-        # フリーユーザー：フリーテーブルのみ
-        chats = await get_chats_from_table(user_id, "free")
-    
-    return sort_by_timestamp(chats)
+**2. チャット履歴表示**
+```
+QUERY prod-homebiyori-chats: PK=USER#user_id, SK begins_with CHAT#
+ORDER BY SK DESC, LIMIT 20 (最新20件)
 ```
 
-#### 4. 運用上の考慮事項
+**3. 実の一覧表示**
+```
+QUERY prod-homebiyori-fruits: GSI1PK=FRUIT#user_id
+ORDER BY GSI1SK DESC (作成日時降順)
+```
 
-**コスト最適化:**
-- データ移行は非同期バッチ処理で実行
-- 古いデータの手動削除は行わない（TTL自動削除を利用）
-- 移行期間は最大30日程度を想定
+**4. 通知一覧取得**
+```
+QUERY prod-homebiyori-notifications: PK=USER#user_id, SK begins_with NOTIFICATION#
+FILTER is_read = false (未読のみ)
+```
 
-**ユーザー体験:**
-- プラン変更は即座に反映
-- 移行中もチャット履歴は継続表示
-- データ損失は発生しない（アップグレード時）
+**5. 解約理由分析（管理者用）**
+```
+QUERY prod-homebiyori-feedback: GSI1PK=FEEDBACK#cancellation
+GROUP BY reason_category (月次レポート)
+```
 
-**監視・アラート:**
-- 移行処理の成功/失敗監視
-- 重複データの検知・アラート
-- 移行コスト監視
+### プラン変更時のTTL更新戦略
 
+**SQS + Lambda非同期処理によるTTL一括更新:**
+
+```python
+# プラン変更検知（Stripe Webhook）
+async def handle_subscription_change(user_id: str, old_plan: str, new_plan: str):
+    """サブスクリプション変更処理"""
+    
+    # 1. サブスクリプション情報更新
+    await update_subscription_table(user_id, new_plan)
+    
+    # 2. TTL変更処理をSQSに送信
+    ttl_adjustment_days = calculate_ttl_difference(old_plan, new_plan)
+    await send_ttl_update_message(user_id, ttl_adjustment_days)
+
+# TTL一括更新処理（SQSトリガーLambda）
+async def process_ttl_update(user_id: str, ttl_adjustment_days: int):
+    """ユーザーの全チャット履歴TTL更新"""
+    
+    # TTL差分計算（秒単位）
+    ttl_adjustment_seconds = ttl_adjustment_days * 24 * 60 * 60
+    
+    # ユーザーの全チャット履歴を取得・更新
+    paginator = dynamodb.get_paginator('query')
+    for page in paginator.paginate(
+        TableName='prod-homebiyori-chats',
+        KeyConditionExpression='PK = :pk AND begins_with(SK, :sk)',
+        ExpressionAttributeValues={
+            ':pk': f'USER#{user_id}',
+            ':sk': 'CHAT#'
+        }
+    ):
+        # バッチでTTL更新
+        with table.batch_writer() as batch:
+            for item in page['Items']:
+                current_ttl = item.get('TTL')
+                if current_ttl:
+                    new_ttl = max(
+                        current_ttl + ttl_adjustment_seconds,
+                        int(datetime.now().timestamp()) + 86400  # 最低1日は保持
+                    )
+                    batch.put_item(Item={**item, 'TTL': new_ttl})
+```
+
+### 7テーブル設計のメリット
+
+✅ **責務の明確な分離**: 各テーブルが単一責任を持つ  
+✅ **独立したスケーリング**: テーブル毎に最適なキャパシティ設定  
+✅ **障害影響の局所化**: 一部テーブルの問題が全体に波及しない  
+✅ **バックアップ戦略の柔軟性**: データ特性に応じた保護レベル  
+✅ **分析とレポーティング**: フィードバックデータの独立分析  
+✅ **プライバシー保護強化**: 個人情報最小化の徹底  
+✅ **運用効率**: データライフサイクルに応じた最適管理
 
 ## AI機能設計
 
@@ -1502,7 +1492,7 @@ class FruitManager:
 ### エンドポイント一覧
 
 **認証 (分離されたCognito連携)**
-- **ユーザー認証**: AWS Amplify Auth + Google OAuth (homebiyori-users)
+- **ユーザー認証**: AWS Amplify Auth + Google OAuth (prod-homebiyori-users)
 - **管理者認証**: AWS Amplify Auth + Email/Password (homebiyori-admins)
 - JWT自動更新・管理、API Gateway経由で各Lambdaに渡される
 
