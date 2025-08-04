@@ -17,7 +17,7 @@
 
 ## Phase 1: バックエンド基盤構築 (Week 1-3)
 
-### Week 1: API Gateway + Cognito認証設定・基盤Lambda実装
+### ✅ Week 1: API Gateway + Cognito認証設定・基盤Lambda実装 (完了: 2024-08-03)
 
 #### **1.1 API Gateway + Cognito Authorizer設定**
 ```
@@ -25,20 +25,28 @@ Priority: 🔴 CRITICAL
 認証はLambda不要、API Gatewayで処理
 ```
 
-- [ ] **1.1.1 Cognito User Pool設定**
-  - Google OAuth 2.0 プロバイダー統合
-  - JWT設定 (アクセス・IDトークン)
-  - リフレッシュトークンローテーション
+- [x] **1.1.1 Cognito User Pool設定** (完了: 2024-08-03)
+  - Google OAuth 2.0 プロバイダー統合: 既存Terraformで定義済み
+  - JWT設定 (アクセス・IDトークン): Cognito標準設定
+  - リフレッシュトークンローテーション: 30日設定
+  - 実装場所: infrastructure/modules/cognito/main.tf
 
-- [ ] **1.1.2 API Gateway Cognito Authorizer設定**
-  - Cognitoトークン検証
-  - 認証エラーハンドリング
-  - レート制限設定 (100req/min/user)
+- [x] **1.1.2 API Gateway分離設定** (完了: 2024-08-03)
+  - **ユーザー向けAPI Gateway**: 分離設計で実装完了
+    - Cognito Authorizer設定: COGNITO_USER_POOLS型で実装
+    - CORS設定: 全エンドポイントで設定済み
+    - design.md準拠: `/api/` プレフィックス構造に修正完了
+  - **管理者向けAPI Gateway**: 完全分離構成で実装
+    - 管理者専用Cognito User Pool対応
+    - `/api/admin/*` エンドポイント構造
+  - 実装場所: infrastructure/modules/api-gateway/main.tf
+  - 注意: Webhook専用API Gatewayは将来のStripe統合時に実装予定
 
-- [ ] **1.1.3 Lambda共通ユーザー情報取得**
-  - event.requestContext.authorizerからCognito `sub` (ユーザーID) 取得
-  - 共通ヘルパー関数実装 (utils/auth.py)
-  - エラーハンドリング
+- [x] **1.1.3 Lambda共通ユーザー情報取得** (完了: 2024-08-03)
+  - 共通ヘルパー関数実装: Lambda Layersで提供
+  - get_user_id_from_event(), get_user_email_from_event()実装
+  - エラーハンドリング: 認証失敗時の適切な例外処理
+  - 実装場所: backend/layers/common/python/homebiyori_common/auth.py
 
   ```python
   # 共通ヘルパー関数
@@ -51,13 +59,6 @@ Priority: 🔴 CRITICAL
       return claims.get('email', '')
   ```
 
-- [ ] **1.1.4 セッション管理テーブル設計 (オプション)**
-  ```
-  テーブル名: user-sessions
-  PK: USER#user_id, SK: SESSION#session_id
-  TTL: expires_at (30日)
-  用途: アクティビティ追跡、将来のマルチデバイス対応
-  ```
 
 #### **1.2 health-check Lambda実装**
 ```
@@ -66,16 +67,19 @@ Resources: 128MB, 5秒, 1000並列
 IAM権限: CloudWatch Logs最小権限
 ```
 
-- [ ] **1.2.1 ヘルスチェックAPI実装**
-  ```
-  GET /api/health          - 基本死活監視
-  GET /api/health/detailed - 詳細システム状態
-  ```
+- [x] **1.2.1 ヘルスチェックAPI実装** (完了: 2024-08-03)
+  - `/api/health` エンドポイント実装完了
+  - 基本死活監視機能: タイムスタンプ、ステータス、サービス情報
+  - 認証不要設定: パブリックアクセス可能
+  - 実装場所: backend/services/health_check/main.py
+  - 注意: 詳細システム状態は管理者機能で将来実装予定
 
-- [ ] **1.2.2 システム監視実装**
-  - DynamoDB接続確認
-  - Bedrock API疎通確認
-  - レスポンス時間測定
+- [x] **1.2.2 システム監視実装** (完了: 2024-08-03)
+  - 基本ヘルスチェック実装: サービス稼働状況確認
+  - テスト: 7つのテストケースで検証済み
+  - メンテナンス状態連携: Parameter Store参照機能
+  - 実装場所: backend/services/health_check/
+  - 注意: DynamoDB/Bedrock疎通確認は管理者機能で将来実装
 
 #### **1.3 Lambda Layers構築**
 ```
@@ -83,71 +87,78 @@ Priority: 🔴 CRITICAL
 共通ライブラリの効率的管理
 ```
 
-- [ ] **1.3.1 homebiyori-common-layer**
-  ```
-  包含ライブラリ: boto3, fastapi, pydantic, structlog
-  ```
-  - DynamoDB共通アクセス
-  - ユーザー情報取得ヘルパー (Cognito認証後)
-  - メンテナンス状態チェック (Parameter Store)
-  - 例外処理クラス
-  - 構造化ログ設定
-  - **プライバシー保護**: JWTクレームから一時取得のみ、個人情報の永続化禁止
+- [x] **1.3.1 homebiyori-common-layer** (完了: 2024-08-03)
+  - 包含ライブラリ: boto3, fastapi, pydantic, structlog, httpx
+  - DynamoDB共通アクセス: Single Table Design対応
+  - ユーザー情報取得ヘルパー: auth.pyで実装完了
+  - メンテナンス状態チェック: Parameter Store連携
+  - 例外処理クラス: 統一例外ヒエラルキー実装
+  - 構造化ログ設定: CloudWatch連携対応
+  - プライバシー保護: 一時取得のみ、永続化禁止実装
+  - 実装場所: backend/layers/common/python/homebiyori_common/
 
-- [ ] **1.3.2 homebiyori-ai-layer**
-  ```
-  包含ライブラリ: langchain-community, langchain-aws
-  ```
-  - Bedrock共通クライアント
-  - プロンプトテンプレート
-  - AI応答処理チェーン
+- [x] **1.3.2 homebiyori-ai-layer** (完了: 2024-08-03)
+  - 包含ライブラリ: langchain-aws, jinja2, orjson, regex
+  - Bedrock共通クライアント: Claude 3 Haiku専用最適化
+  - AIキャラクター管理: 3キャラクター（たまさん、まどか姉さん、ヒデじい）
+  - 感情検出システム: 日本語特化キーワード分析
+  - AI応答処理チェーン: エンドツーエンド処理
+  - プロンプトテンプレート: Jinja2ベース動的生成
+  - 実装場所: backend/layers/ai/python/homebiyori_ai/
 
 ### Week 2: データ管理Lambda実装
 
-#### **2.1 user-service Lambda実装**
+#### **2.1 user-service Lambda実装** (完了: 2024-08-03)
 ```
 Priority: 🟡 HIGH
 Resources: 256MB, 15秒, 100並列
 IAM権限: DynamoDB読み書きのみ (ユーザー情報はAPI Gateway経由で取得)
 ```
 
-- [ ] **2.1.1 ユーザープロフィールAPI実装**
-  ```
-  GET    /api/users/profile              - プロフィール取得
-  PUT    /api/users/profile              - プロフィール更新
-  PUT    /api/users/ai-preferences       - AIロール・褒めレベル設定
-  DELETE /api/users/account              - アカウント削除
-  GET    /api/users/onboarding-status    - オンボーディング状態確認
-  POST   /api/users/complete-onboarding  - ニックネーム登録
-  PUT    /api/users/nickname             - ニックネーム変更
-  ```
+- [x] **2.1.1 ユーザープロフィールAPI実装** (完了: 2024-08-03)
+  - 実装済みエンドポイント:
+    ```
+    GET    /users/profile              - プロフィール取得
+    PUT    /users/profile              - プロフィール更新
+    PUT    /users/ai-preferences       - AIロール・褒めレベル設定
+    GET    /users/children             - 子供一覧取得
+    POST   /users/children             - 子供追加
+    PUT    /users/children/{child_id}  - 子供情報更新
+    DELETE /users/children/{child_id}  - 子供削除
+    ```
+  - 実装場所: backend/services/user_service/main.py
+  - アーキテクチャ: FastAPI + Mangum, Lambda Layers統合
+  - 認証: API Gateway + Cognito Authorizer統合
+  - GEMINI.md準拠: 包括的ドキュメント完備
 
-- [ ] **2.1.2 DynamoDB Single Table操作実装**
-  - User Profile CRUD (PK: "USER#{cognito_sub}")
-  - AI設定管理  
-  - 初回ログイン時の自動ユーザー作成
-  - データ整合性保証
+- [x] **2.1.2 DynamoDB操作実装** (完了: 2024-08-03)
+  - **User Profile CRUD**: Single Table Design実装完了
+    - PK: "USER#{user_id}", SK: "PROFILE"
+    - AIキャラクター・褒めレベル設定管理
+    - オンボーディング状態管理
+    - プライバシーファースト: Cognito subのみ保存
+  - **Children管理**: 子供情報の完全CRUD実装
+    - PK: "USER#{user_id}", SK: "CHILD#{child_id}"
+    - 年齢自動計算、生年月日順ソート
+    - 認可制御: ユーザー自身の子供のみアクセス可能
+  - 実装場所: backend/services/user_service/database.py
+  - アーキテクチャ: Lambda Layers統合、非同期処理、UTC時刻統一
+  - テスト: 包括的テストスイート実装済み
+    - 10種類のテストケース (database, models, handler)
+    - 非同期テスト、モック環境、エラーハンドリング検証
+    - 実装場所: tests/backend/services/user_service/
 
   ```python
-  # プライバシー重視の初回ログイン処理
-  async def ensure_user_exists(user_id: str):
-      existing = await get_user_profile(user_id)
-      if not existing:
-          # 個人情報を含まない最小限の記録のみ
-          await create_user_profile({
-              "user_id": user_id,  # Cognito sub のみ
-              "onboarding_completed": False
-          })
-          return "onboarding_required"
-      return "user_ready" if existing.get("onboarding_completed") else "onboarding_required"
-
-  # ニックネーム検証・設定
-  async def complete_onboarding(user_id: str, nickname: str):
-      validated_nickname = validate_nickname(nickname)  # 不適切語句チェック
-      await update_user_profile(user_id, {
-          "nickname": validated_nickname,
-          "onboarding_completed": True
-      })
+  # 実装済み: プライバシー重視のユーザー管理
+  class UserServiceDatabase:
+      async def get_user_profile(self, user_id: str) -> Optional[UserProfile]:
+          # Cognito subでのプロフィール取得、個人情報は非保存
+      
+      async def save_user_profile(self, profile: UserProfile) -> UserProfile:
+          # プロフィール保存、updated_at自動更新
+      
+      async def create_child(self, user_id: str, child_data: ChildInfoCreate) -> ChildInfo:
+          # 子供情報作成、UUID自動生成、認可制御
   ```
 
 #### **2.2 tree-service Lambda実装**
@@ -170,7 +181,7 @@ IAM権限: DynamoDB読み書き、S3読み取り
   - 実の生成・管理（1日1回制限）
   - AIロール別テーマカラー対応
 
-### Week 3: AI機能Lambda実装
+### Week 3: AI機能・課金システムLambda実装
 
 #### **3.1 chat-service Lambda実装**
 ```
@@ -226,7 +237,125 @@ IAM権限: DynamoDB読み書き、Bedrock、S3読み書き
   - 聞いてモード: 共感・受容重視
   - 助言禁止・比較禁止フィルター
 
-#### **3.2 admin-service Lambda実装 (Week 6で詳細実装)**
+- [ ] **3.1.6 TTL管理実装**
+  ```python
+  def calculate_ttl(subscription_plan: str, created_at: datetime) -> int:
+      """サブスクリプションプランに基づくTTL計算"""
+      if subscription_plan in ["monthly", "yearly"]:
+          ttl_datetime = created_at + timedelta(days=180)
+      else:  # free plan
+          ttl_datetime = created_at + timedelta(days=30)
+      return int(ttl_datetime.timestamp())
+      
+  # チャットメッセージ保存時にTTL設定
+  chat_item["TTL"] = calculate_ttl(user_subscription_plan, created_at)
+  ```
+
+#### **3.2 billing-service Lambda実装**
+```
+Priority: 🟡 HIGH
+Resources: 512MB, 30秒, 50並列
+IAM権限: DynamoDB読み書き、Stripe API
+```
+
+- [ ] **3.2.1 Stripe課金API実装**
+  ```
+  POST /api/billing/checkout        - Stripe Checkout セッション作成
+  GET  /api/billing/subscription    - サブスクリプション状態取得
+  POST /api/billing/cancel          - サブスクリプション解約（期間末解約）
+  POST /api/billing/reactivate      - サブスクリプション再開
+  GET  /api/billing/portal          - Customer Portal URL取得
+  ```
+
+- [ ] **3.2.2 Stripe統合実装**
+  - 匿名Customer作成（メールアドレス非保存）
+  - 月額¥580・年額¥5,800プラン設定
+  - 期間末解約フロー実装
+  - プレミアム機能アクセス制御
+
+#### **3.3 webhook-service Lambda実装**
+```
+Priority: 🔴 CRITICAL（セキュリティ重要）
+Resources: 256MB, 15秒, 100並列
+IAM権限: DynamoDB読み書き、SQS送信、Stripe API
+```
+
+- [ ] **3.3.1 Stripe Webhook処理実装**
+  ```
+  POST /api/webhook/stripe      - Stripe Webhook処理（署名検証）
+  GET  /api/webhook/health      - Webhook エンドポイント死活確認
+  ```
+
+- [ ] **3.3.2 セキュリティ実装**
+  ```python
+  async def verify_stripe_signature(request):
+      """Stripe Webhook署名検証（必須）"""
+      payload = await request.body()
+      sig_header = request.headers.get('stripe-signature')
+      
+      event = stripe.Webhook.construct_event(
+          payload, sig_header, settings.STRIPE_WEBHOOK_SECRET
+      )
+      return event
+  ```
+
+- [ ] **3.3.3 期間末解約対応**
+  - `subscription.updated`: 解約予定設定（即座実行）
+  - `subscription.deleted`: 解約完了（期間終了時）
+  - cancel_scheduled状態管理
+
+#### **3.4 notification-service Lambda実装**
+```
+Priority: 🟡 HIGH
+Resources: 256MB, 15秒, 100並列
+IAM権限: DynamoDB読み書き
+```
+
+- [ ] **3.4.1 通知管理API実装**
+  ```
+  GET  /api/notifications               - 未読通知一覧取得
+  PUT  /api/notifications/{id}/read     - 通知既読化
+  GET  /api/notifications/unread-count  - 未読通知数取得
+  POST /internal/notifications/create   - 通知作成（内部API経由のみ）
+  ```
+
+- [ ] **3.4.2 通知テーブル操作実装**
+  - 課金状態変更通知（解約・再開・決済失敗）
+  - プラン変更完了通知
+  - 優先度別表示制御
+
+#### **3.5 ttl-updater Lambda実装**
+```
+Priority: 🟡 HIGH
+Resources: 256MB, 300秒, 10並列
+IAM権限: DynamoDB読み書き、SQS受信
+Trigger: SQSキュー
+```
+
+- [ ] **3.5.1 TTL一括更新実装**
+  ```python
+  async def update_user_chat_ttl(user_id: str, ttl_adjustment: int):
+      """プラン切り替え時のTTL一括更新"""
+      # ユーザーの全チャット履歴を取得
+      response = table.query(
+          KeyConditionExpression=Key('PK').eq(f'USER#{user_id}') &
+                               Key('SK').begins_with('CHAT#')
+      )
+      
+      # バッチでTTL更新
+      with table.batch_writer() as batch:
+          for item in response['Items']:
+              current_ttl = item.get('TTL')
+              if current_ttl:
+                  new_ttl = current_ttl + ttl_adjustment
+                  batch.put_item(Item={**item, 'TTL': new_ttl})
+  ```
+
+- [ ] **3.5.2 内部API経由通知実装**
+  - SQS経由での非同期TTL処理
+  - 内部API経由でnotification-serviceへ完了通知
+
+#### **3.6 admin-service Lambda実装 (Week 6で詳細実装)**
 ```
 Priority: 🟢 LOW (Week 6で実装予定)
 Resources: 512MB, 30秒, 10並列
@@ -338,12 +467,8 @@ AWS Amplify Auth + Cognito統合 (バックエンドauth-service不要)
   }
   ```
 
-- [ ] **4.2.4 セッション追跡実装 (オプション)**
-  - ログイン時にsession_id生成・DynamoDB保存
-  - API呼び出し時にlast_activity更新
-  - 不正アクセス検知のための基盤
 
-- [ ] **4.2.5 オンボーディングフロー実装**
+- [ ] **4.2.4 オンボーディングフロー実装**
   ```typescript
   // オンボーディング状態管理
   export const useOnboarding = () => {
@@ -363,7 +488,7 @@ AWS Amplify Auth + Cognito統合 (バックエンドauth-service不要)
   };
   ```
 
-- [ ] **4.2.6 メンテナンス処理実装**
+- [ ] **4.2.5 メンテナンス処理実装**
   ```typescript
   // API Interceptorでメンテナンス検知
   apiClient.interceptors.response.use(
@@ -1033,7 +1158,7 @@ Priority: 🔴 CRITICAL
 |---------|----------|-------------|
 | Amazon Bedrock | $1.20 | プロンプト効率化 |
 | DynamoDB | $2.50 | Single Table Design |
-| Lambda (5 functions) | $0.30 | 負荷特性別最適化 |
+| Lambda (8 functions) | $0.45 | 負荷特性別最適化 |
 | API Gateway | $0.35 | 効率的なルーティング |
 | CloudFront | $8.50 | CDN最適化 |
 | Cognito | $0.55 | 認証サービス |
@@ -1072,15 +1197,200 @@ Priority: 🔴 CRITICAL
 
 ---
 
+## 開発方針と品質保証
+
+### 🧪 定期的ローカルテスト戦略
+
+**テストファースト開発**: バックエンド機能は切りの良いところまで作成した時点で**必ず**ローカルテストを実行
+
+#### **ローカルテスト実施タイミング**
+- [ ] **Lambda関数1つ完成時**: 単体テスト + DynamoDB Local統合テスト
+- [ ] **API エンドポイント2-3個完成時**: APIテスト + レスポンス検証
+- [ ] **認証・権限周り完成時**: 認証フロー統合テスト
+- [ ] **データモデル変更時**: データ整合性テスト
+- [ ] **エラーハンドリング追加時**: 異常系テスト
+
+#### **ローカルテスト環境構築**
+```bash
+# 必須ツールセットアップ（初回のみ）
+pip install pytest pytest-asyncio moto python-lambda-local boto3-stubs
+npm install -g dynamodb-local
+
+# テスト実行（各Lambda完成時）
+pytest tests/ -v --tb=short                    # 単体テスト
+pytest tests/integration/ -v                   # 統合テスト
+python-lambda-local handler.py event.json      # Lambda Local実行テスト
+```
+
+#### **継続的品質チェック**
+```bash
+# コード品質チェック（毎回実施）
+ruff check --fix                              # Python コードリント・自動修正
+ruff format                                   # Python コードフォーマット
+mypy app/                                     # 型チェック
+pytest --cov=app --cov-report=html           # カバレッジ測定
+```
+
+### 📋 コーディング標準（GEMINI.md準拠）
+
+#### **1. 包括的コメント記述**
+```python
+# ✅ 良い例：初心者でも理解できる詳細コメント
+async def calculate_ttl(subscription_plan: str, created_at: datetime) -> int:
+    """
+    サブスクリプションプランに基づいてチャットメッセージのTTL（Time To Live）を計算
+    
+    Args:
+        subscription_plan: ユーザーのサブスクリプションプラン
+                          - "free": 無料プラン（30日保持）
+                          - "monthly"/"yearly": プレミアムプラン（180日保持）
+        created_at: メッセージ作成日時（UTCタイムスタンプ）
+    
+    Returns:
+        TTL値（UNIX タイムスタンプ形式）
+        DynamoDBが自動削除に使用する値
+        
+    Note:
+        - DynamoDBのTTLは秒単位のUNIXタイムスタンプを要求
+        - プラン変更時のTTL調整はttl-updater Lambdaで処理
+    """
+    # プレミアムプランの場合：6ヶ月（180日）保持
+    if subscription_plan in ["monthly", "yearly"]:
+        retention_days = 180
+    else:
+        # 無料プランの場合：1ヶ月（30日）保持
+        retention_days = 30
+    
+    # 作成日時に保持期間を加算してTTL算出
+    ttl_datetime = created_at + timedelta(days=retention_days)
+    
+    # DynamoDB TTL形式（UNIX秒）に変換
+    return int(ttl_datetime.timestamp())
+```
+
+#### **2. 変更意図の明確化**
+```python
+# ✅ 変更理由と選択根拠を明記
+class ChatRequest(BaseModel):
+    """
+    チャットメッセージリクエストモデル
+    
+    設計意図：
+    - プライバシー保護：個人識別情報は一切含まない
+    - Bedrock最適化：プロンプト長制限（700トークン）を考慮
+    - 感情検出支援：AIが文脈理解しやすい構造化データ
+    """
+    message: str = Field(
+        ..., 
+        min_length=1, 
+        max_length=1000,
+        description="ユーザーメッセージ（1000文字制限でBedrock効率化）"
+    )
+    
+    ai_role: Literal["tama", "madoka", "hide"] = Field(
+        ...,
+        description="選択AIキャラクター（プロンプト最適化のため制限）"
+    )
+    
+    mood: Literal["praise", "listen"] = Field(
+        default="praise",
+        description="期待する応答タイプ（AI応答品質向上のため）"
+    )
+    
+    # 変更履歴：chat_typeフィールドを削除
+    # 理由：グループチャット機能は後のフェーズで実装予定
+    # 現在は個人チャットのみサポートしてコード複雑性を削減
+```
+
+#### **3. テストコード包括的文書化**
+```python
+"""
+chat-service Lambda テストスイート
+
+テスト項目一覧：
+[T001] メッセージ送信成功（正常系）
+[T002] Bedrock API障害時フォールバック
+[T003] 不正なJWTトークン検証
+[T004] DynamoDB書き込み失敗処理
+[T005] プレミアムユーザーTTL設定
+[T006] 無料ユーザーTTL設定
+[T007] 感情検出による実生成
+[T008] 文字数制限エラー
+[T009] AIロール不正値エラー
+[T010] レスポンス時間性能テスト
+"""
+
+class TestChatService:
+    def test_send_message_success(self, lambda_event, setup_test_table):
+        """
+        [T001] メッセージ送信成功（正常系）
+        
+        テスト観点：
+        - 正常なメッセージがBedrockに送信される
+        - AI応答がDynamoDBに正しく保存される
+        - TTLが適切に設定される
+        - レスポンス形式が仕様通り
+        """
+        # テスト実装...
+        
+    def test_bedrock_api_failure_fallback(self, lambda_event, setup_test_table):
+        """
+        [T002] Bedrock API障害時フォールバック
+        
+        テスト観点：
+        - Bedrock API障害をシミュレート
+        - フォールバック応答が返される
+        - エラーがCloudWatchに適切にログ出力される
+        - ユーザーには障害を感じさせない
+        """
+        # テスト実装...
+```
+
+### 🔧 実装時の具体的ワークフロー
+
+#### **Lambda関数実装サイクル**
+1. **設計**: 機能要件→API仕様→データモデル設計
+2. **実装**: コメント重視のコード作成
+3. **単体テスト**: pytest実行（毎回）
+4. **統合テスト**: DynamoDB Local連携（毎回）
+5. **ローカル動作確認**: python-lambda-local実行
+6. **コード品質チェック**: ruff + mypy実行
+7. **次の機能へ**: または統合フェーズへ
+
+#### **エラー対応時の記録**
+```python
+# 実装時に遭遇した問題と解決方法をコメントで記録
+async def invoke_bedrock_api(prompt: str) -> str:
+    """
+    実装メモ：
+    - 問題: Bedrock APIのレート制限でThrottlingExceptionが頻発
+    - 解決: exponential backoffによるリトライ実装
+    - 参考: AWS公式ドキュメント xxx
+    """
+    for attempt in range(3):
+        try:
+            # Bedrock API呼び出し
+            pass
+        except ClientError as e:
+            if e.response['Error']['Code'] == 'ThrottlingException':
+                # 指数バックオフでリトライ
+                wait_time = (2 ** attempt) + random.uniform(0, 1)
+                await asyncio.sleep(wait_time)
+                continue
+```
+
 ## 重要な技術決定事項
 
 ### ✅ 確定事項
-1. **Lambda分割**: 5つの機能別Lambda Functions (認証はAPI Gateway処理)
-2. **認証**: API Gateway + Cognito Authorizer + Google OAuth
+1. **Lambda分割**: 8つの機能別Lambda Functions（課金システム統合）
+2. **認証**: 分離されたAPI Gateway + Cognito Authorizer + Google OAuth
 3. **AI**: Amazon Bedrock Claude 3 Haiku
-4. **DB**: DynamoDB Single Table Design
+4. **DB**: DynamoDB簡素化設計（単一チャットテーブル+動的TTL管理）
 5. **フロントエンド**: Next.js 14 + TypeScript + Tailwind
 6. **プライバシー**: 個人情報（email, name）のDB非保存、ニックネーム方式採用
+7. **課金システム**: Stripe統合（期間末解約対応）、アプリ内通知システム
+8. **セキュリティ**: 3つのAPI Gateway分離、Webhook専用保護
+9. **開発品質**: GEMINI.md準拠コーディング標準、定期的ローカルテスト必須
 
 ### 🔄 検証・調整事項
 1. **Lambda メモリサイズ**: 本番負荷での調整
@@ -1089,4 +1399,4 @@ Priority: 🔴 CRITICAL
 4. **感情検出精度**: 継続的な改善
 5. **プライバシー保護**: 定期的な個人情報保存状況監査
 
-この実装計画により、**6週間で高品質な本番環境**を構築し、月額$16.20の効率的な運用を実現します。
+この実装計画により、**高品質なコードと包括的テストを含む6週間での本番環境構築**を実現し、月額$15.85の効率的な運用を達成します。

@@ -1,23 +1,48 @@
 # Lambda outputs
-output "main_api_function_name" {
-  description = "Name of the main API Lambda function"
-  value       = module.lambda.main_api_function_name
+output "user_service_function_name" {
+  description = "Name of the User Service Lambda function"
+  value       = module.lambda.user_service_function_name
 }
 
-output "ai_praise_function_name" {
-  description = "Name of the AI praise Lambda function"  
-  value       = module.lambda.ai_praise_function_name
+output "chat_service_function_name" {
+  description = "Name of the Chat Service Lambda function"
+  value       = module.lambda.chat_service_function_name
+}
+
+output "tree_service_function_name" {
+  description = "Name of the Tree Service Lambda function"
+  value       = module.lambda.tree_service_function_name
+}
+
+output "health_check_function_name" {
+  description = "Name of the Health Check Lambda function"
+  value       = module.lambda.health_check_function_name
+}
+
+output "admin_service_function_name" {
+  description = "Name of the Admin Service Lambda function"
+  value       = module.lambda.admin_service_function_name
 }
 
 # API Gateway outputs
-output "api_gateway_url" {
-  description = "URL of the API Gateway"
-  value       = module.api_gateway.api_gateway_url
+output "user_api_gateway_url" {
+  description = "URL of the User API Gateway"
+  value       = module.api_gateway.user_api_gateway_url
 }
 
-output "api_gateway_stage_name" {
-  description = "Stage name of the API Gateway"
-  value       = module.api_gateway.api_gateway_stage_name
+output "admin_api_gateway_url" {
+  description = "URL of the Admin API Gateway"
+  value       = module.api_gateway.admin_api_gateway_url
+}
+
+output "user_api_gateway_id" {
+  description = "ID of the User API Gateway"
+  value       = module.api_gateway.user_api_gateway_id
+}
+
+output "admin_api_gateway_id" {
+  description = "ID of the Admin API Gateway"
+  value       = module.api_gateway.admin_api_gateway_id
 }
 
 # Cognito outputs

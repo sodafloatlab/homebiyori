@@ -26,17 +26,60 @@ variable "common_tags" {
   }
 }
 
-# Lambda configuration
-variable "core_service_zip_path" {
-  description = "Path to the Core Service Lambda deployment package"
+# Lambda configuration - 5 microservices
+variable "user_service_zip_path" {
+  description = "Path to the User Service Lambda deployment package"
   type        = string
-  default     = "core_service.zip"
+  default     = "user_service.zip"
 }
 
-variable "ai_service_zip_path" {
-  description = "Path to the AI Service Lambda deployment package"
+variable "chat_service_zip_path" {
+  description = "Path to the Chat Service Lambda deployment package"
   type        = string
-  default     = "ai_service.zip"
+  default     = "chat_service.zip"
+}
+
+variable "tree_service_zip_path" {
+  description = "Path to the Tree Service Lambda deployment package"
+  type        = string
+  default     = "tree_service.zip"
+}
+
+variable "health_check_zip_path" {
+  description = "Path to the Health Check Lambda deployment package"
+  type        = string
+  default     = "health_check.zip"
+}
+
+variable "admin_service_zip_path" {
+  description = "Path to the Admin Service Lambda deployment package"
+  type        = string
+  default     = "admin_service.zip"
+}
+
+# Lambda Layers configuration
+variable "common_layer_zip_path" {
+  description = "Path to the Common Layer deployment package"
+  type        = string
+  default     = "common_layer.zip"
+}
+
+variable "ai_layer_zip_path" {
+  description = "Path to the AI Layer deployment package"
+  type        = string
+  default     = "ai_layer.zip"
+}
+
+variable "create_common_layer" {
+  description = "Whether to create the common dependencies layer"
+  type        = bool
+  default     = true
+}
+
+variable "create_ai_layer" {
+  description = "Whether to create the AI dependencies layer"
+  type        = bool
+  default     = true
 }
 
 variable "environment_variables" {

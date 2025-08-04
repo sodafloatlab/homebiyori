@@ -1,2 +1,20 @@
-langchain-community
-langchain-aws
+# Homebiyori AI Lambda Layer Requirements
+# GEMINI.md準拠: AI機能専用の依存関係
+
+# Amazon Bedrock Integration
+langchain-aws==0.1.9         # Bedrock LLM統合、Claude 3 Haiku連携
+langchain-community==0.2.7   # LangChainコミュニティ拡張
+langchain-core==0.2.23       # LangChain基盤ライブラリ
+
+# AWS SDK (AI特化)
+boto3==1.34.0                # Bedrock クライアント
+botocore==1.34.0             # boto3低レベル実装
+
+# プロンプト処理・テンプレート
+jinja2==3.1.2                # プロンプトテンプレート処理
+
+# テキスト処理・自然言語処理
+regex==2023.10.3             # 高性能正規表現（感情検出用）
+
+# JSON処理（AI レスポンス用）
+orjson==3.9.10               # 高速JSON処理

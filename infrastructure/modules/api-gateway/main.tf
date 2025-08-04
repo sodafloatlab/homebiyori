@@ -64,38 +64,38 @@ resource "aws_api_gateway_authorizer" "user_cognito" {
   identity_source       = "method.request.header.Authorization"
 }
 
-# User API Resources
-resource "aws_api_gateway_resource" "user_api_v1" {
+# API prefix resource
+resource "aws_api_gateway_resource" "api" {
   rest_api_id = aws_api_gateway_rest_api.user_api.id
   parent_id   = aws_api_gateway_rest_api.user_api.root_resource_id
-  path_part   = "v1"
+  path_part   = "api"
 }
 
 # Health Check Resource (Public)
 resource "aws_api_gateway_resource" "health" {
   rest_api_id = aws_api_gateway_rest_api.user_api.id
-  parent_id   = aws_api_gateway_resource.user_api_v1.id
+  parent_id   = aws_api_gateway_resource.api.id
   path_part   = "health"
 }
 
 # User Service Resources
 resource "aws_api_gateway_resource" "users" {
   rest_api_id = aws_api_gateway_rest_api.user_api.id
-  parent_id   = aws_api_gateway_resource.user_api_v1.id
+  parent_id   = aws_api_gateway_resource.api.id
   path_part   = "users"
 }
 
 # Chat Service Resources
 resource "aws_api_gateway_resource" "chat" {
   rest_api_id = aws_api_gateway_rest_api.user_api.id
-  parent_id   = aws_api_gateway_resource.user_api_v1.id
+  parent_id   = aws_api_gateway_resource.api.id
   path_part   = "chat"
 }
 
 # Tree Service Resources
 resource "aws_api_gateway_resource" "tree" {
   rest_api_id = aws_api_gateway_rest_api.user_api.id
-  parent_id   = aws_api_gateway_resource.user_api_v1.id
+  parent_id   = aws_api_gateway_resource.api.id
   path_part   = "tree"
 }
 
@@ -221,15 +221,15 @@ resource "aws_api_gateway_authorizer" "admin_cognito" {
 }
 
 # Admin API Resources
-resource "aws_api_gateway_resource" "admin_api_v1" {
+resource "aws_api_gateway_resource" "admin_api_prefix" {
   rest_api_id = aws_api_gateway_rest_api.admin_api.id
   parent_id   = aws_api_gateway_rest_api.admin_api.root_resource_id
-  path_part   = "v1"
+  path_part   = "api"
 }
 
 resource "aws_api_gateway_resource" "admin" {
   rest_api_id = aws_api_gateway_rest_api.admin_api.id
-  parent_id   = aws_api_gateway_resource.admin_api_v1.id
+  parent_id   = aws_api_gateway_resource.admin_api_prefix.id
   path_part   = "admin"
 }
 
@@ -274,6 +274,7 @@ resource "aws_api_gateway_deployment" "user_api" {
 
   triggers = {
     redeployment = sha1(jsonencode([
+      aws_api_gateway_resource.api.id,
       aws_api_gateway_resource.health.id,
       aws_api_gateway_method.health_get.id,
       aws_api_gateway_integration.health_get.id,
@@ -304,6 +305,8 @@ resource "aws_api_gateway_deployment" "admin_api" {
 
   triggers = {
     redeployment = sha1(jsonencode([
+      aws_api_gateway_resource.admin_api_prefix.id,
+      aws_api_gateway_resource.admin.id,
       aws_api_gateway_resource.admin_proxy.id,
       aws_api_gateway_method.admin_proxy_any.id,
       aws_api_gateway_integration.admin_lambda_proxy.id,
@@ -537,4 +540,59 @@ resource "aws_api_gateway_integration_response" "tree_options" {
     "Access-Control-Allow-Methods" = "'GET,OPTIONS,POST,PUT,DELETE'"
     "Access-Control-Allow-Origin"  = "'*'"
   }
+}
+
+# ==============================
+# LAMBDA PERMISSIONS
+# ==============================
+
+# Local values to extract function names from invoke ARNs
+locals {
+  user_service_function_name  = regex("function:([^:]+)", var.user_service_invoke_arn)[0]
+  chat_service_function_name  = regex("function:([^:]+)", var.chat_service_invoke_arn)[0]
+  tree_service_function_name  = regex("function:([^:]+)", var.tree_service_invoke_arn)[0]
+  health_check_function_name  = regex("function:([^:]+)", var.health_check_invoke_arn)[0]
+  admin_service_function_name = regex("function:([^:]+)", var.admin_service_invoke_arn)[0]
+}
+
+# Lambda permissions for API Gateway - User Services
+resource "aws_lambda_permission" "api_gateway_user" {
+  statement_id  = "AllowExecutionFromUserAPIGateway"
+  action        = "lambda:InvokeFunction"
+  function_name = local.user_service_function_name
+  principal     = "apigateway.amazonaws.com"
+  source_arn    = "${aws_api_gateway_rest_api.user_api.execution_arn}/*/*"
+}
+
+resource "aws_lambda_permission" "api_gateway_chat" {
+  statement_id  = "AllowExecutionFromUserAPIGateway"
+  action        = "lambda:InvokeFunction"
+  function_name = local.chat_service_function_name
+  principal     = "apigateway.amazonaws.com"
+  source_arn    = "${aws_api_gateway_rest_api.user_api.execution_arn}/*/*"
+}
+
+resource "aws_lambda_permission" "api_gateway_tree" {
+  statement_id  = "AllowExecutionFromUserAPIGateway"
+  action        = "lambda:InvokeFunction"
+  function_name = local.tree_service_function_name
+  principal     = "apigateway.amazonaws.com"
+  source_arn    = "${aws_api_gateway_rest_api.user_api.execution_arn}/*/*"
+}
+
+resource "aws_lambda_permission" "api_gateway_health" {
+  statement_id  = "AllowExecutionFromAPIGateway"
+  action        = "lambda:InvokeFunction"
+  function_name = local.health_check_function_name
+  principal     = "apigateway.amazonaws.com"
+  source_arn    = "${aws_api_gateway_rest_api.user_api.execution_arn}/*/*"
+}
+
+# Lambda permissions for API Gateway - Admin Services
+resource "aws_lambda_permission" "api_gateway_admin" {
+  statement_id  = "AllowExecutionFromAdminAPIGateway"
+  action        = "lambda:InvokeFunction"
+  function_name = local.admin_service_function_name
+  principal     = "apigateway.amazonaws.com"
+  source_arn    = "${aws_api_gateway_rest_api.admin_api.execution_arn}/*/*"
 }

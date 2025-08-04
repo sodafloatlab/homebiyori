@@ -57,3 +57,16 @@ variable "log_retention_days" {
   type        = number
   default     = 14
 }
+
+# API Gateway execution ARNs - Lambda permissions用
+variable "user_api_gateway_execution_arn" {
+  description = "Execution ARN of the User API Gateway (for Lambda permissions)"
+  type        = string
+  default     = ""
+}
+
+variable "admin_api_gateway_execution_arn" {
+  description = "Execution ARN of the Admin API Gateway (for Lambda permissions)"
+  type        = string
+  default     = ""
+}

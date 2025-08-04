@@ -1,7 +1,23 @@
 # 開発・テスト環境専用のライブラリ
+# GEMINI.md準拠: tests配下でのテスト実行に必要な依存関係
 
-pytest
-pytest-asyncio
-moto[dynamodb]
-requests
-boto3
+# テストフレームワーク
+pytest==7.4.3                 # メインテストフレームワーク
+pytest-asyncio==0.21.1        # 非同期テスト対応
+pytest-cov==4.1.0            # カバレッジ測定
+
+# FastAPI テスト用
+httpx==0.25.2                 # FastAPI TestClient用HTTPクライアント
+
+# AWS サービスモック
+moto[dynamodb,s3,ssm]==4.2.10 # AWSサービスモック（DynamoDB、S3、Parameter Store）
+boto3==1.34.0                 # AWS SDK（モック対象）
+botocore==1.34.0              # boto3の低レベル実装
+
+# HTTP リクエスト
+requests==2.31.0              # 統合テスト用HTTPクライアント
+
+# コード品質
+ruff==0.1.6                   # Pythonリンター・フォーマッター
+mypy==1.7.0                   # 型チェッカー
+types-requests==2.31.0        # requests用型情報

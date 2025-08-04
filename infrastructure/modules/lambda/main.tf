@@ -427,47 +427,7 @@ resource "aws_cloudwatch_log_group" "admin_service" {
   })
 }
 
-# Lambda permissions for API Gateway - User Services
-resource "aws_lambda_permission" "api_gateway_user" {
-  statement_id  = "AllowExecutionFromUserAPIGateway"
-  action        = "lambda:InvokeFunction"
-  function_name = aws_lambda_function.user_service.function_name
-  principal     = "apigateway.amazonaws.com"
-  source_arn    = "${var.user_api_gateway_execution_arn}/*/*"
-}
-
-resource "aws_lambda_permission" "api_gateway_chat" {
-  statement_id  = "AllowExecutionFromUserAPIGateway"
-  action        = "lambda:InvokeFunction"
-  function_name = aws_lambda_function.chat_service.function_name
-  principal     = "apigateway.amazonaws.com"
-  source_arn    = "${var.user_api_gateway_execution_arn}/*/*"
-}
-
-resource "aws_lambda_permission" "api_gateway_tree" {
-  statement_id  = "AllowExecutionFromUserAPIGateway"
-  action        = "lambda:InvokeFunction"
-  function_name = aws_lambda_function.tree_service.function_name
-  principal     = "apigateway.amazonaws.com"
-  source_arn    = "${var.user_api_gateway_execution_arn}/*/*"
-}
-
-resource "aws_lambda_permission" "api_gateway_health" {
-  statement_id  = "AllowExecutionFromAPIGateway"
-  action        = "lambda:InvokeFunction"
-  function_name = aws_lambda_function.health_check.function_name
-  principal     = "apigateway.amazonaws.com"
-  source_arn    = "${var.user_api_gateway_execution_arn}/*/*"
-}
-
-# Lambda permissions for API Gateway - Admin Services
-resource "aws_lambda_permission" "api_gateway_admin" {
-  statement_id  = "AllowExecutionFromAdminAPIGateway"
-  action        = "lambda:InvokeFunction"
-  function_name = aws_lambda_function.admin_service.function_name
-  principal     = "apigateway.amazonaws.com"
-  source_arn    = "${var.admin_api_gateway_execution_arn}/*/*"
-}
+# 注意: Lambda permissionsはAPI Gatewayモジュールで管理されます
 
 # データソース
 data "aws_caller_identity" "current" {}

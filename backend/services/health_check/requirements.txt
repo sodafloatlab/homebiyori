@@ -1,2 +1,9 @@
-fastapi
-mangum
+# Health Check Lambda Requirements（シンプル構成版）
+# GEMINI.md準拠: 依存関係の理由を明記
+
+# Web Framework
+fastapi==0.104.1           # 軽量WebフレームワーK、基本的なヘルスチェックAPI用
+pydantic==2.5.0           # データバリデーション、FastAPIと統合
+
+# AWS Lambda Integration  
+mangum==0.17.0            # ASGI-Lambda間のアダプター、FastAPIをLambdaで実行するため

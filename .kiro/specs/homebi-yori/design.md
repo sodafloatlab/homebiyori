@@ -221,22 +221,155 @@ Parameter Store → API (503 + メンテナンス情報) → フロントエン�
                                          メンテナンス画面表示
 ```
 
-**プラン切り替え + TTL更新フロー:**
+**プラン切り替え + TTL更新フロー（セキュリティ考慮）:**
 ```
 1. Stripe Webhook (subscription.updated/deleted)
-   ↓
+   ↓ 🔒Stripe署名検証
 2. webhook-service Lambda
    ├── Webhook署名検証
    ├── イベント種別判定
    ├── ユーザープロフィール更新
-   └── SQSにTTL更新メッセージ送信
+   └── SQSにTTL更新メッセージ送信 🔒IAM Role
    ↓
-3. SQS Queue (ttl-update-queue)
+3. SQS Queue (ttl-update-queue) 🔒IAM Role制限
    ↓
 4. ttl-updater Lambda (SQSトリガー)
    ├── ユーザーの全チャット履歴を取得
    ├── TTL値を一括更新 (±150日調整)
-   └── notification-serviceに通知作成依頼
+   └── notification-serviceに通知作成依頼 🔒Lambda間呼び出し
+```
+
+### Lambda間内部通信セキュリティ
+
+**1. SQS経由通信（webhook-service → ttl-updater）**
+```python
+# webhook-service内での通知送信
+async def send_ttl_update_message(user_id: str, plan_change: dict):
+    """
+    SQS経由でTTL更新を依頼（セキュア）
+    """
+    message = {
+        'user_id': user_id,
+        'old_plan': plan_change['old_plan'],
+        'new_plan': plan_change['new_plan'],
+        'timestamp': datetime.now().isoformat(),
+        'source': 'webhook-service',
+        'request_id': context.aws_request_id  # Lambda context
+    }
+    
+    # SQSメッセージ送信（IAM Roleで認証）
+    await sqs_client.send_message(
+        QueueUrl=settings.TTL_UPDATE_QUEUE_URL,
+        MessageBody=json.dumps(message),
+        MessageAttributes={
+            'source_lambda': {
+                'StringValue': 'webhook-service',
+                'DataType': 'String'
+            }
+        }
+    )
+```
+
+**2. 内部API経由の通知作成（ttl-updater → API Gateway → notification-service）**
+```python
+# ttl-updater内での通知作成依頼
+import httpx
+import os
+
+async def create_completion_notification(user_id: str, plan_info: dict):
+    """
+    内部API経由で通知作成（統一経路管理）
+    """
+    
+    payload = {
+        'action': 'create_notification',
+        'user_id': user_id,
+        'type': 'plan_change_completed', 
+        'title': 'プラン変更完了',
+        'message': f'{plan_info["old_plan"]}から{plan_info["new_plan"]}への変更が完了しました',
+        'priority': 'normal',
+        'source_lambda': 'ttl-updater'
+    }
+    
+    try:
+        # 内部API経由で通知作成（統一経路管理）
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            response = await client.post(
+                f"{settings.INTERNAL_API_BASE_URL}/internal/notifications/create",
+                json=payload,
+                headers={
+                    'X-API-Key': settings.INTERNAL_API_KEY,
+                    'Content-Type': 'application/json',
+                    'X-Source-Lambda': 'ttl-updater'
+                }
+            )
+            response.raise_for_status()
+            logger.info(f"Notification created: {response.json()}")
+            
+    except httpx.HTTPError as e:
+        logger.error(f"Internal API error: {e}")
+        # 通知作成失敗は非致命的エラーとして処理
+        pass
+
+# または、SQS経由での非同期通信も選択肢
+async def create_notification_via_sqs(user_id: str, notification_data: dict):
+    """
+    SQS経由での通知作成依頼（代替案）
+    """
+    sqs_client = boto3.client('sqs')
+    
+    message = {
+        'action': 'create_notification',
+        'user_id': user_id,
+        **notification_data,
+        'source': 'ttl-updater',
+        'timestamp': datetime.now().isoformat()
+    }
+    
+    await sqs_client.send_message(
+        QueueUrl=settings.NOTIFICATION_QUEUE_URL,
+        MessageBody=json.dumps(message)
+    )
+```
+
+**3. IAM Role分離**
+```terraform
+# webhook-service用IAMロール
+resource "aws_iam_role" "webhook_service_role" {
+  name = "homebiyori-webhook-service-role"
+  
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Action = "sts:AssumeRole"
+        Effect = "Allow"
+        Principal = {
+          Service = "lambda.amazonaws.com"
+        }
+      }
+    ]
+  })
+}
+
+# SQS送信権限のみ
+resource "aws_iam_role_policy" "webhook_sqs_policy" {
+  name = "webhook-sqs-policy"
+  role = aws_iam_role.webhook_service_role.id
+  
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "sqs:SendMessage"
+        ]
+        Resource = aws_sqs_queue.ttl_update_queue.arn
+      }
+    ]
+  })
+}
 ```
 
 **課金システム統合アーキテクチャ:**
@@ -247,10 +380,15 @@ Stripe Dashboard ←→ Stripe API
                      ↓
     ┌────────────────┼────────────────┐
     ↓                ↓                ↓
-DynamoDB          SQS Queue     notification-service
-(User Profile)   (TTL Updates)   (App内通知)
+DynamoDB          SQS Queue         直接通知
+(User Profile)   (TTL Updates)
                      ↓
                  ttl-updater
+                     ↓ 内部API
+              ┌──────────────┐
+              ↓              ↓
+         API Gateway    notification-service
+         (内部用)        (App内通知)
 ```
 
 **Lambda間の責務分離:**
@@ -275,8 +413,251 @@ notification-service:
 ttl-updater:
 ├── SQS経由TTL一括更新
 ├── チャット履歴TTL調整
-└── 更新完了通知
+└── 内部API経由更新完了通知
 ```
+
+### Lambdaアクセス制御・セキュリティ設計
+
+#### 1. billing-service Lambda
+**アクセス制御:**
+```
+API Gateway (User向け)
+├── Cognito Authorizer (homebiyori-users)
+├── CORS設定: フロントエンドドメインのみ
+├── Rate Limiting: 100req/min/user
+└── WAF: 一般的な攻撃パターンをブロック
+```
+
+**セキュリティ実装:**
+```python
+# billing-service/middleware/auth.py
+@require_authentication
+@require_valid_subscription  # 既存サブスクリプション必須（一部API）
+async def billing_endpoint(request, user_context):
+    user_id = user_context['sub']  # Cognito sub
+    # Stripe Customer IDとユーザーIDの紐付け検証
+    if not await verify_user_stripe_association(user_id):
+        raise HTTPException(403, "Invalid user-billing association")
+```
+
+#### 2. webhook-service Lambda
+**アクセス制御:**
+```
+API Gateway (Webhook専用)
+├── 認証なし（Stripe署名検証で代替）
+├── IP制限: Stripeの公開IPレンジのみ許可
+├── Custom Domain: webhook.homebiyori.com
+└── WAF: Stripe以外のリクエストをブロック
+```
+
+**Stripe署名検証実装:**
+```python
+# webhook-service/middleware/stripe_verification.py
+import stripe
+import hmac
+import hashlib
+
+async def verify_stripe_signature(request):
+    """
+    Stripe Webhook署名検証（必須）
+    """
+    payload = await request.body()
+    sig_header = request.headers.get('stripe-signature')
+    
+    if not sig_header:
+        raise HTTPException(401, "Missing Stripe signature")
+    
+    try:
+        # Stripe署名検証
+        event = stripe.Webhook.construct_event(
+            payload, 
+            sig_header, 
+            settings.STRIPE_WEBHOOK_SECRET
+        )
+        return event
+    except ValueError:
+        raise HTTPException(400, "Invalid payload")
+    except stripe.error.SignatureVerificationError:
+        raise HTTPException(401, "Invalid signature")
+
+@webhook_verification_required
+async def stripe_webhook_endpoint(request):
+    # 検証済みStripeイベントのみ処理
+    pass
+```
+
+**Stripe IP制限設定:**
+```terraform
+# API Gateway Resource Policy
+resource "aws_api_gateway_rest_api_policy" "webhook_policy" {
+  rest_api_id = aws_api_gateway_rest_api.webhook.id
+  
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Principal = "*"
+        Action = "execute-api:Invoke"
+        Resource = "${aws_api_gateway_rest_api.webhook.execution_arn}/*/*"
+        Condition = {
+          IpAddress = {
+            "aws:SourceIp" = [
+              "54.187.174.169/32",
+              "54.187.205.235/32", 
+              "54.187.216.72/32",
+              "54.241.31.99/32",
+              "54.241.31.102/32",
+              "54.241.34.107/32"
+              # Stripe's webhook IP ranges
+            ]
+          }
+        }
+      }
+    ]
+  })
+}
+```
+
+#### 3. notification-service Lambda  
+**アクセス制御:**
+```
+API Gateway (User向け)
+├── 外部用エンドポイント: /api/*
+└── 内部用エンドポイント: /internal/*
+├── ユーザー向けAPI: Cognito Authorizer必須
+├── 内部API: Lambda間呼び出しのみ
+├── Lambda間通信: IAM Role認証
+└── Rate Limiting: 200req/min/user
+```
+
+**内部API保護実装:**
+```python
+# notification-service/middleware/internal_auth.py
+@internal_api_only
+async def create_notification_internal(request):
+    """
+    内部API: 他のLambdaからの通知作成
+    Lambda間呼び出しのみ許可
+    """
+    # Lambda間呼び出しの認証ヘッダー確認
+    lambda_source = request.headers.get('X-Source-Lambda')
+    if lambda_source not in ['ttl-updater', 'webhook-service']:
+        raise HTTPException(403, "Access denied: Invalid Lambda source")
+    
+    # Lambda間のIAM Role認証
+    lambda_context = request.headers.get('X-Lambda-Context')
+    if not verify_lambda_caller_role(lambda_context):
+        raise HTTPException(403, "Invalid Lambda caller")
+
+@require_authentication  
+async def get_notifications_user(request, user_context):
+    """
+    ユーザー向けAPI: 認証必須
+    """
+    user_id = user_context['sub']
+    # ユーザー自身の通知のみアクセス可能
+    pass
+```
+
+#### 4. ttl-updater Lambda
+**アクセス制御:**
+```
+SQSトリガーのみ
+├── API Gateway経由のアクセス不可
+├── SQSキューへのメッセージ送信は認証済みLambdaのみ
+├── Dead Letter Queue設定
+└── 実行失敗時のアラート
+```
+
+**SQSセキュリティ設定:**
+```terraform
+# SQS Queue Policy
+resource "aws_sqs_queue_policy" "ttl_update_queue_policy" {
+  queue_url = aws_sqs_queue.ttl_update_queue.id
+  
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Principal = {
+          AWS = aws_iam_role.webhook_service_role.arn
+        }
+        Action = [
+          "sqs:SendMessage"
+        ]
+        Resource = aws_sqs_queue.ttl_update_queue.arn
+      }
+    ]
+  })
+}
+```
+
+### API Gateway分離戦略
+
+#### 1. ユーザー向けAPI Gateway
+**ドメイン: `api.homebiyori.com`**
+```
+User API Gateway
+├── /api/chat/* → chat-service
+├── /api/tree/* → tree-service  
+├── /api/users/* → user-service
+├── /api/billing/* → billing-service
+├── /api/notifications/* → notification-service
+└── /api/health → health-check
+```
+
+**セキュリティ設定:**
+- Cognito Authorizer (homebiyori-users)
+- CORS: フロントエンドドメインのみ
+- Rate Limiting: ユーザー別制限
+- WAF: DDoS、SQLインジェクション対策
+
+#### 2. Webhook専用API Gateway  
+**ドメイン: `webhook.homebiyori.com`**
+```
+Webhook API Gateway
+├── /stripe → webhook-service (Stripe専用)
+└── /health → webhook-service (死活確認)
+```
+
+**セキュリティ設定:**
+- 認証なし（Stripe署名検証で代替）
+- IP制限: Stripe公開IPレンジのみ
+- Rate Limiting: なし（Stripeからの正当なリクエストのみ）
+- Custom WAF: Stripe以外完全ブロック
+
+#### 3. 管理者向けAPI Gateway
+**ドメイン: `admin-api.homebiyori.com`**
+```
+Admin API Gateway  
+├── /api/admin/* → admin-service
+└── 完全分離（ユーザーAPIとは別Cognito）
+```
+
+### セキュリティレイヤー構成
+
+```
+Internet
+    ↓
+CloudFront (CDN)
+    ↓ 
+AWS WAF (Layer 7 Protection)
+    ↓
+API Gateway (Authentication & Rate Limiting)
+    ↓
+Lambda (Application Logic)
+    ↓
+AWS Managed Services (DynamoDB/S3/Cognito)
+```
+
+**各レイヤーの責務:**
+1. **CloudFront**: DDoS軽減、地理的制限、HTTPSターミネーション
+2. **WAF**: アプリケーション層攻撃防御、IP制限
+3. **API Gateway**: 認証・認可・Rate Limiting・CORS
+4. **Lambda**: ビジネスロジック・データ検証・IAM権限制御
+5. **AWS Managed Services**: データ保護・暗号化・アクセス制御
 
 #### Lambda Layers構成
 
@@ -1142,21 +1523,21 @@ class FruitManager:
 - `DELETE /api/users/account` - アカウント削除
 
 **課金・サブスクリプション管理（billing-service）**
-- `POST /api/billing/checkout` - Stripe Checkout セッション作成
-- `GET /api/billing/subscription` - サブスクリプション状態取得
-- `POST /api/billing/cancel` - サブスクリプション解約（期間末解約）
-- `POST /api/billing/reactivate` - サブスクリプション再開
-- `GET /api/billing/portal` - Customer Portal URL取得
+- `POST /api/billing/checkout` - Stripe Checkout セッション作成 🔐認証必須
+- `GET /api/billing/subscription` - サブスクリプション状態取得 🔐認証必須
+- `POST /api/billing/cancel` - サブスクリプション解約（期間末解約） 🔐認証必須
+- `POST /api/billing/reactivate` - サブスクリプション再開 🔐認証必須
+- `GET /api/billing/portal` - Customer Portal URL取得 🔐認証必須
 
 **Webhook処理（webhook-service）**
-- `POST /api/webhook/stripe` - Stripe Webhook処理
-- `GET /api/webhook/health` - Webhook エンドポイント死活確認
+- `POST /api/webhook/stripe` - Stripe Webhook処理 🔒Stripe署名検証のみ
+- `GET /api/webhook/health` - Webhook エンドポイント死活確認 ⚡認証不要
 
 **通知管理（notification-service）**
-- `GET /api/notifications` - 未読通知一覧取得
-- `PUT /api/notifications/{id}/read` - 通知既読化
-- `GET /api/notifications/unread-count` - 未読通知数取得
-- `POST /api/notifications/create` - 通知作成（内部API）
+- `GET /api/notifications` - 未読通知一覧取得 🔐認証必須
+- `PUT /api/notifications/{id}/read` - 通知既読化 🔐認証必須
+- `GET /api/notifications/unread-count` - 未読通知数取得 🔐認証必須
+- `POST /api/notifications/create` - 通知作成 🔒Lambda間呼び出しのみ
 
 **システム**
 - `GET /api/health` - ヘルスチェック
@@ -1794,7 +2175,7 @@ CORS_SETTINGS = {
 **2. アクセス制御**
 - IAM最小権限原則
 - リソースベースポリシー
-- VPCエンドポイント使用
+- IAM Role最小権限原則
 
 **3. 個人情報保護**
 - 個人情報（email, name）のDB非保存

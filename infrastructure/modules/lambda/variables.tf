@@ -96,27 +96,31 @@ variable "log_retention_days" {
   default     = 14
 }
 
-# API Gateway ARN - 分離されたアーキテクチャ
-variable "user_api_gateway_execution_arn" {
-  description = "ARN of the User API Gateway for Lambda permissions"
-  type        = string
-  default     = ""
-}
-
-variable "admin_api_gateway_execution_arn" {
-  description = "ARN of the Admin API Gateway for Lambda permissions"
-  type        = string
-  default     = ""
-}
+# 注意: API Gateway execution ARNsはAPI Gatewayモジュールで管理されます
 
 # DynamoDB テーブル設定
-variable "dynamodb_table_name" {
-  description = "Name of the main DynamoDB table"
+variable "user_data_table_name" {
+  description = "Name of the user data DynamoDB table"
   type        = string
 }
 
-variable "dynamodb_table_arns" {
-  description = "List of DynamoDB table ARNs for IAM policies"
+variable "user_data_table_arn" {
+  description = "ARN of the user data DynamoDB table"
+  type        = string
+}
+
+variable "chat_free_table_name" {
+  description = "Name of the free chat DynamoDB table"
+  type        = string
+}
+
+variable "chat_premium_table_name" {
+  description = "Name of the premium chat DynamoDB table"
+  type        = string
+}
+
+variable "chat_table_arns" {
+  description = "List of chat DynamoDB table ARNs for IAM policies"
   type        = list(string)
   default     = []
 }
