@@ -4,9 +4,5 @@
 # Lambda専用軽量依存関係
 mangum==0.17.0
 
-# 日付・時刻処理（JST対応）
-python-dateutil==2.8.2
-pytz==2023.3
-
 # JSONエンコーディング最適化
 orjson==3.9.9

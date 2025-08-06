@@ -1,11 +1,21 @@
 variable "project_name" {
   description = "Name of the project"
   type        = string
+  
+  validation {
+    condition     = length(var.project_name) > 0 && length(var.project_name) <= 50
+    error_message = "Project name must be between 1-50 characters."
+  }
 }
 
 variable "environment" {
   description = "Environment name"
   type        = string
+  
+  validation {
+    condition     = contains(["dev", "staging", "prod"], var.environment)
+    error_message = "Environment must be one of: dev, staging, prod."
+  }
 }
 
 variable "common_tags" {
@@ -51,6 +61,11 @@ variable "google_client_id" {
   type        = string
   default     = ""
   sensitive   = true
+  
+  validation {
+    condition     = var.enable_google_oauth ? length(var.google_client_id) > 0 : true
+    error_message = "Google client ID is required when Google OAuth is enabled."
+  }
 }
 
 variable "google_client_secret" {
@@ -58,6 +73,11 @@ variable "google_client_secret" {
   type        = string
   default     = ""
   sensitive   = true
+  
+  validation {
+    condition     = var.enable_google_oauth ? length(var.google_client_secret) > 0 : true
+    error_message = "Google client secret is required when Google OAuth is enabled."
+  }
 }
 
 variable "create_identity_pool" {

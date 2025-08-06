@@ -4,10 +4,6 @@
 # Lambda専用軽量依存関係
 mangum==0.17.0
 
-# 日付・時刻処理（JST対応）
-python-dateutil==2.8.2
-pytz==2023.3
-
 # Stripe決済処理
 stripe==7.8.0
 

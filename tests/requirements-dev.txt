@@ -7,7 +7,9 @@ pytest-asyncio==0.21.1        # 非同期テスト対応
 pytest-cov==4.1.0            # カバレッジ測定
 
 # FastAPI テスト用
+fastapi==0.104.1              # FastAPI フレームワーク（テスト対象）
 httpx==0.25.2                 # FastAPI TestClient用HTTPクライアント
+pydantic==2.5.0               # データバリデーション（Lambda Layers統合）
 
 # AWS サービスモック
 moto[dynamodb,s3,ssm]==4.2.10 # AWSサービスモック（DynamoDB、S3、Parameter Store）

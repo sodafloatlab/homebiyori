@@ -49,6 +49,7 @@ import uuid
 from homebiyori_common.database import DynamoDBClient
 from homebiyori_common.logger import get_logger
 from homebiyori_common.exceptions import DatabaseError, NotFoundError
+from homebiyori_common.utils.datetime_utils import get_current_jst as get_current_utc
 
 # ローカルモジュール
 from .models import (
@@ -56,7 +57,6 @@ from .models import (
     ChildInfo,
     ChildInfoCreate,
     ChildInfoUpdate,
-    get_current_utc,
 )
 
 # 構造化ログ設定

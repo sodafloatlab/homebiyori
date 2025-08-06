@@ -46,6 +46,7 @@ import re
 
 # homebiyori-common-layer からバリデーション機能をインポート
 from homebiyori_common.utils import validate_nickname
+from homebiyori_common.utils.datetime_utils import get_current_jst
 
 
 # =======================================
@@ -84,14 +85,7 @@ class PraiseLevel(str, Enum):
 # =======================================
 
 
-def get_current_utc() -> datetime:
-    """
-    現在のUTC時刻を取得
-
-    Returns:
-        datetime: UTC timezone付きの現在時刻
-    """
-    return datetime.now(timezone.utc)
+# UTC時刻関数は共通Layerから使用（homebiyori_common.utils.datetime_utils.get_current_jst）
 
 
 def validate_child_name(name: str) -> str:
@@ -185,7 +179,7 @@ class UserProfile(BaseModel):
         description="Cognito User Pool sub (UUID形式)",
         min_length=36,
         max_length=36,
-        regex=r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+        pattern=r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
     )
 
     nickname: Optional[str] = Field(
@@ -203,11 +197,11 @@ class UserProfile(BaseModel):
     onboarding_completed: bool = Field(False, description="オンボーディング完了フラグ")
 
     created_at: datetime = Field(
-        default_factory=get_current_utc, description="作成日時（UTC）"
+        default_factory=get_current_jst, description="作成日時（UTC）"
     )
 
     updated_at: datetime = Field(
-        default_factory=get_current_utc, description="更新日時（UTC）"
+        default_factory=get_current_jst, description="更新日時（UTC）"
     )
 
     @validator("nickname")
@@ -312,7 +306,7 @@ class ChildInfo(BaseModel):
         description="子供一意ID（UUID形式）",
         min_length=36,
         max_length=36,
-        regex=r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+        pattern=r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
     )
 
     name: str = Field(..., description="子供の名前", min_length=1, max_length=50)
@@ -320,11 +314,11 @@ class ChildInfo(BaseModel):
     birth_date: date = Field(..., description="生年月日")
 
     created_at: datetime = Field(
-        default_factory=get_current_utc, description="作成日時（UTC）"
+        default_factory=get_current_jst, description="作成日時（UTC）"
     )
 
     updated_at: datetime = Field(
-        default_factory=get_current_utc, description="更新日時（UTC）"
+        default_factory=get_current_jst, description="更新日時（UTC）"
     )
 
     @validator("name")

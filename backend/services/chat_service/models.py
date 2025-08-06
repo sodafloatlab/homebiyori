@@ -3,29 +3,19 @@ Chat Service Models for Homebiyori
 データモデル定義 - JST時刻対応、DynamoDB直接保存、画像機能削除版
 """
 
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Literal
 from enum import Enum
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
+from typing import Dict, List, Literal, Optional, Union, Any
 from pydantic import BaseModel, Field, validator
-import pytz
 import uuid
 
-def get_current_jst() -> datetime:
-    """現在時刻をJST（日本標準時）で取得"""
-    jst = pytz.timezone('Asia/Tokyo')
-    return datetime.now(jst)
+# 共通Layerから日時処理とログ機能をインポート
+from homebiyori_common.utils.datetime_utils import get_current_jst, to_jst_string
+from homebiyori_common.logger import get_logger
+import uuid
 
-def to_jst_string(dt: datetime) -> str:
-    """datetimeをJST文字列に変換"""
-    if dt.tzinfo is None:
-        # ナイーブなdatetimeの場合、JSTと仮定
-        jst = pytz.timezone('Asia/Tokyo')
-        dt = jst.localize(dt)
-    else:
-        # タイムゾーン付きdatetimeをJSTに変換
-        jst = pytz.timezone('Asia/Tokyo')
-        dt = dt.astimezone(jst)
-    return dt.isoformat()
+# 共通Layerから使用するため削除（homebiyori_common.utils.datetime_utils を使用）
 
 # =====================================
 # AI キャラクター定義
@@ -37,11 +27,10 @@ class AICharacterType(str, Enum):
     MADOKA = "madoka"       # まどか姉さん：お姉さん的
     HIDE = "hide"           # ヒデじい：おじいちゃん的
 
-class PraiseLevel(str, Enum):
-    """褒めレベル"""
-    LIGHT = "light"         # ライト：簡潔で優しい励まし（1文程度）
-    STANDARD = "standard"   # スタンダード：適度なサポートと承認（2-3文程度）
-    DEEP = "deep"          # ディープ：思慮深く詳細な肯定と共感（4-5文程度）
+class MoodType(str, Enum):
+    """気分タイプ"""
+    PRAISE = "praise"       # 褒めてほしい
+    LISTEN = "listen"       # 聞いてほしい
 
 # =====================================
 # 感情・木成長システム
@@ -51,28 +40,10 @@ class EmotionType(str, Enum):
     """感情タイプ"""
     JOY = "joy"             # 喜び
     RELIEF = "relief"       # 安堵
-    PRIDE = "pride"         # 誇り
+    ACCOMPLISHMENT = "accomplishment"  # 達成感
     GRATITUDE = "gratitude" # 感謝
-    HOPE = "hope"          # 希望
+    EXCITEMENT = "excitement" # 興奮・わくわく
     LOVE = "love"          # 愛情
-
-class TreeGrowthStage(int, Enum):
-    """木の成長段階（0-5の6段階）"""
-    SEED = 0         # 種
-    SPROUT = 1       # 芽
-    SAPLING = 2      # 若木
-    YOUNG_TREE = 3   # 青年樹
-    MATURE_TREE = 4  # 成熟樹
-    GREAT_TREE = 5   # 大樹
-
-class FruitType(str, Enum):
-    """実のタイプ"""
-    SMALL_BERRY = "small_berry"     # 小さな実（喜び）
-    GOLDEN_FRUIT = "golden_fruit"   # 金の実（安堵）  
-    CRYSTAL_FRUIT = "crystal_fruit" # 水晶の実（誇り）
-    HEART_FRUIT = "heart_fruit"     # ハートの実（感謝）
-    STAR_FRUIT = "star_fruit"       # 星の実（希望）
-    RAINBOW_FRUIT = "rainbow_fruit" # 虹の実（愛情）
 
 # =====================================
 # リクエスト・レスポンスモデル
@@ -80,27 +51,57 @@ class FruitType(str, Enum):
 
 class ChatRequest(BaseModel):
     """チャット送信リクエスト"""
-    user_message: str = Field(..., min_length=1, max_length=2000, description="ユーザーメッセージ")
+    message: str = Field(..., min_length=1, max_length=2000, description="ユーザーメッセージ")
     ai_character: AICharacterType = Field(default=AICharacterType.TAMA, description="AIキャラクター")
-    praise_level: PraiseLevel = Field(default=PraiseLevel.STANDARD, description="褒めレベル")
+    mood: MoodType = Field(default=MoodType.PRAISE, description="気分設定")
+
+class FruitInfo(BaseModel):
+    """実の情報"""
+    fruit_id: str = Field(default_factory=lambda: str(uuid.uuid4()), description="実ID")
+    user_id: str = Field(description="ユーザーID")
+    message: str = Field(description="実の元となったメッセージ")
+    emotion_trigger: EmotionType = Field(description="実生成のトリガーとなった感情")
+    emotion_score: float = Field(ge=0.0, le=1.0, description="感情スコア")
+    ai_character: AICharacterType = Field(description="対応AIキャラクター")
+    character_color: str = Field(description="キャラクターテーマカラー")
+    trigger_message_id: Optional[str] = Field(None, description="元メッセージID")
+    created_at: datetime = Field(default_factory=get_current_jst, description="作成時刻（JST）")
+    viewed_at: Optional[datetime] = Field(None, description="初回閲覧時刻")
+    view_count: int = Field(default=0, description="閲覧回数")
+
+    class Config:
+        json_encoders = {
+            datetime: to_jst_string
+        }
 
 class TreeGrowthInfo(BaseModel):
     """木の成長情報"""
-    current_stage: TreeGrowthStage = Field(description="現在の成長段階")
-    growth_points: int = Field(ge=0, description="成長ポイント")
-    points_to_next_stage: int = Field(ge=0, description="次段階まで必要ポイント")
-    total_fruits: int = Field(ge=0, description="総実数")
-    
-    # 今回生成された実
-    new_fruits: List[FruitType] = Field(default_factory=list, description="新しく生成された実")
+    previous_stage: int = Field(description="変更前の成長段階")
+    current_stage: int = Field(description="現在の成長段階")
+    previous_total: int = Field(description="変更前の累計文字数")
+    current_total: int = Field(description="現在の累計文字数")
+    added_characters: int = Field(description="今回追加された文字数")
+    stage_changed: bool = Field(description="段階が変化したかどうか")
+    characters_to_next: int = Field(description="次段階まで必要な文字数")
+    progress_percentage: float = Field(description="現段階内での進捗パーセンテージ")
+    growth_celebration: Optional[str] = Field(None, description="段階変化時のお祝いメッセージ")
 
 class AIResponse(BaseModel):
     """AI応答結果"""
-    praise_message: str = Field(description="褒めメッセージ")
-    detected_emotions: List[EmotionType] = Field(description="検出された感情")
+    message: str = Field(description="AI応答メッセージ")
+    character: AICharacterType = Field(description="使用されたAIキャラクター")
+    emotion_detected: Optional[EmotionType] = Field(None, description="検出された感情")
+    emotion_score: float = Field(default=0.0, description="感情スコア")
+    confidence: float = Field(default=1.0, description="応答の信頼度")
+
+class ChatResponse(BaseModel):
+    """チャット応答レスポンス"""
+    message_id: str = Field(description="メッセージID")
+    ai_response: AIResponse = Field(description="AI応答情報")
     tree_growth: TreeGrowthInfo = Field(description="木の成長情報")
-    character_used: AICharacterType = Field(description="使用されたAIキャラクター")
-    generated_at: datetime = Field(default_factory=get_current_jst, description="生成時刻（JST）")
+    fruit_generated: bool = Field(description="実が生成されたかどうか")
+    fruit_info: Optional[FruitInfo] = Field(None, description="生成された実の情報")
+    timestamp: datetime = Field(description="処理完了時刻")
 
     class Config:
         json_encoders = {
@@ -113,65 +114,23 @@ class AIResponse(BaseModel):
 
 class ChatMessage(BaseModel):
     """チャットメッセージ（DynamoDB直接保存版）"""
-    chat_id: str = Field(default_factory=lambda: str(uuid.uuid4()), description="チャットID")
     user_id: str = Field(description="ユーザーID")
-    
-    # メッセージ内容（DynamoDB直接保存）
-    user_message: str = Field(description="ユーザーメッセージ")
-    ai_response: str = Field(description="AI応答メッセージ")
-    
-    # メタデータ
+    message_id: str = Field(description="メッセージID")
+    user_message_s3_key: str = Field(description="ユーザーメッセージS3キー")
+    ai_response_s3_key: str = Field(description="AI応答S3キー")
     ai_character: AICharacterType = Field(description="使用AIキャラクター")
-    praise_level: PraiseLevel = Field(description="褒めレベル")
-    detected_emotions: List[EmotionType] = Field(default_factory=list, description="検出感情")
-    
-    # 木の成長関連
-    growth_points_gained: int = Field(ge=0, description="獲得成長ポイント")
-    new_fruits_generated: List[FruitType] = Field(default_factory=list, description="生成された実")
-    tree_stage_at_time: TreeGrowthStage = Field(description="投稿時点の木の段階")
-    
-    # タイムスタンプ（JST）
-    created_at: datetime = Field(default_factory=get_current_jst, description="作成時刻（JST）")
-    
-    # TTL設定（サブスクリプションプランに基づく）
-    ttl_timestamp: Optional[int] = Field(None, description="TTL（エポック秒）")
-
-    class Config:
-        json_encoders = {
-            datetime: to_jst_string
-        }
-
-    def to_langchain_format(self) -> Dict[str, str]:
-        """LangChain用フォーマットに変換（パフォーマンス最適化）"""
-        return {
-            "role": "user",
-            "content": self.user_message,
-            "ai_response": self.ai_response,
-            "timestamp": to_jst_string(self.created_at),
-            "emotions": [e.value for e in self.detected_emotions]
-        }
-
-# =====================================
-# ユーザー・木状態管理
-# =====================================
-
-class UserTreeState(BaseModel):
-    """ユーザーの木の状態"""
-    user_id: str = Field(description="ユーザーID")
-    current_stage: TreeGrowthStage = Field(default=TreeGrowthStage.SEED, description="現在段階")
-    total_growth_points: int = Field(default=0, ge=0, description="総成長ポイント")
-    
-    # 実の統計
-    fruit_counts: Dict[FruitType, int] = Field(default_factory=dict, description="実の種類別カウント")
-    total_fruits: int = Field(default=0, ge=0, description="総実数")
-    
-    # 統計情報
-    total_chats: int = Field(default=0, ge=0, description="総チャット数")
-    last_chat_at: Optional[datetime] = Field(None, description="最終チャット時刻（JST）")
-    
-    # メタデータ
-    created_at: datetime = Field(default_factory=get_current_jst, description="作成時刻（JST）")
-    updated_at: datetime = Field(default_factory=get_current_jst, description="更新時刻（JST）")
+    mood: MoodType = Field(description="気分設定")
+    emotion_detected: Optional[EmotionType] = Field(None, description="検出された感情")
+    emotion_score: float = Field(default=0.0, description="感情スコア")
+    character_count: int = Field(description="メッセージ文字数")
+    tree_stage_before: int = Field(description="変更前木段階")
+    tree_stage_after: int = Field(description="変更後木段階")
+    fruit_generated: bool = Field(default=False, description="実生成フラグ")
+    fruit_id: Optional[str] = Field(None, description="生成された実のID")
+    image_s3_key: Optional[str] = Field(None, description="画像S3キー")
+    created_at: datetime = Field(description="作成時刻")
+    ttl: Optional[int] = Field(None, description="TTL")
+    character_date: str = Field(description="キャラクター日付インデックス")
 
     class Config:
         json_encoders = {
@@ -179,361 +138,109 @@ class UserTreeState(BaseModel):
         }
 
 # =====================================
-# エラーハンドリング
+# その他のリクエスト・レスポンス
 # =====================================
 
-class ChatServiceError(Exception):
-    """チャットサービス基底例外"""
-    def __init__(self, message: str, error_code: str = "CHAT_ERROR"):
-        self.message = message
-        self.error_code = error_code
-        super().__init__(self.message)
+class ChatHistoryRequest(BaseModel):
+    """チャット履歴取得リクエスト"""
+    start_date: Optional[str] = Field(None, description="開始日")
+    end_date: Optional[str] = Field(None, description="終了日")
+    character_filter: Optional[AICharacterType] = Field(None, description="キャラクターフィルター")
+    limit: int = Field(default=20, description="取得件数")
+    next_token: Optional[str] = Field(None, description="ページネーショントークン")
 
-class AIGenerationError(ChatServiceError):
-    """AI生成エラー"""
-    def __init__(self, message: str):
-        super().__init__(message, "AI_GENERATION_ERROR")
+class ChatHistoryResponse(BaseModel):
+    """チャット履歴レスポンス"""
+    messages: List[Dict[str, Any]] = Field(description="メッセージ一覧")
+    next_token: Optional[str] = Field(None, description="次のページトークン")
+    has_more: bool = Field(description="さらにデータがあるか")
+    total_count: Optional[int] = Field(None, description="総件数")
 
-class TreeGrowthError(ChatServiceError):
-    """木成長処理エラー"""
-    def __init__(self, message: str):
-        super().__init__(message, "TREE_GROWTH_ERROR")
+class MoodUpdateRequest(BaseModel):
+    """気分更新リクエスト"""
+    mood: MoodType = Field(description="新しい気分設定")
 
-class DataPersistenceError(ChatServiceError):
-    """データ永続化エラー"""  
-    def __init__(self, message: str):
-        super().__init__(message, "DATA_PERSISTENCE_ERROR")
+class EmotionStampRequest(BaseModel):
+    """感情スタンプリクエスト"""
+    emotion: EmotionType = Field(description="感情タイプ")
+    intensity: float = Field(ge=0.0, le=1.0, description="感情強度")
 
 # =====================================
-# コンスタント定義
+# ヘルパー関数
 # =====================================
 
-# 成長ポイント計算用定数
-GROWTH_POINTS_PER_STAGE = {
-    TreeGrowthStage.SEED: 0,       # 種→芽: 10ポイント
-    TreeGrowthStage.SPROUT: 10,    # 芽→若木: 25ポイント  
-    TreeGrowthStage.SAPLING: 35,   # 若木→青年樹: 50ポイント
-    TreeGrowthStage.YOUNG_TREE: 85, # 青年樹→成熟樹: 100ポイント
-    TreeGrowthStage.MATURE_TREE: 185, # 成熟樹→大樹: 200ポイント
-    TreeGrowthStage.GREAT_TREE: 385,  # 大樹: 上限
-}
-
-# 感情-実タイプマッピング
-EMOTION_TO_FRUIT = {
-    EmotionType.JOY: FruitType.SMALL_BERRY,
-    EmotionType.RELIEF: FruitType.GOLDEN_FRUIT,
-    EmotionType.PRIDE: FruitType.CRYSTAL_FRUIT,
-    EmotionType.GRATITUDE: FruitType.HEART_FRUIT,
-    EmotionType.HOPE: FruitType.STAR_FRUIT,
-    EmotionType.LOVE: FruitType.RAINBOW_FRUIT,
-}
-
-# AIキャラクター設定
-AI_CHARACTER_CONFIGS = {
-    AICharacterType.TAMA: {
-        "name": "たまさん",
-        "personality": "優しく包容力がある",
-        "tone": "丁寧で温かい",
-        "specialty": "日常の小さな頑張りを見つけて褒める"
-    },
-    AICharacterType.MADOKA: {
-        "name": "まどか姉さん",
-        "personality": "頼りになるお姉さん的存在",
-        "tone": "親しみやすく励ます",
-        "specialty": "前向きなアドバイスと共感"
-    },
-    AICharacterType.HIDE: {
-        "name": "ヒデじい",
-        "personality": "人生経験豊富で温和",
-        "tone": "穏やかで包容力がある",
-        "specialty": "人生の知恵と深い理解"
-    }
-}
-
-# 褒めレベル設定
-PRAISE_LEVEL_CONFIGS = {
-    PraiseLevel.LIGHT: {
-        "target_length": "1文程度",
-        "style": "簡潔で優しい励まし",
-        "token_estimate": 30
-    },
-    PraiseLevel.STANDARD: {
-        "target_length": "2-3文程度", 
-        "style": "適度なサポートと承認",
-        "token_estimate": 60
-    },
-    PraiseLevel.DEEP: {
-        "target_length": "4-5文程度",
-        "style": "思慮深く詳細な肯定と共感", 
-        "token_estimate": 120
-    }
-}"""
-Chat Service Models for Homebiyori
-データモデル定義 - JST時刻対応、DynamoDB直接保存、画像機能削除版
-"""
-
-from typing import List, Optional, Dict, Any
-from enum import Enum
-from datetime import datetime
-from pydantic import BaseModel, Field, validator
-import pytz
-import uuid
-
-def get_current_jst() -> datetime:
-    """現在時刻をJST（日本標準時）で取得"""
-    jst = pytz.timezone('Asia/Tokyo')
-    return datetime.now(jst)
-
-def to_jst_string(dt: datetime) -> str:
-    """datetimeをJST文字列に変換"""
-    if dt.tzinfo is None:
-        # ナイーブなdatetimeの場合、JSTと仮定
-        jst = pytz.timezone('Asia/Tokyo')
-        dt = jst.localize(dt)
+def calculate_tree_stage(total_characters: int) -> int:
+    """文字数から木の成長段階を計算"""
+    if total_characters < 100:
+        return 0  # 種
+    elif total_characters < 300:
+        return 1  # 芽
+    elif total_characters < 600:
+        return 2  # 苗
+    elif total_characters < 1000:
+        return 3  # 若木
+    elif total_characters < 1500:
+        return 4  # 成木
     else:
-        # タイムゾーン付きdatetimeをJSTに変換
-        jst = pytz.timezone('Asia/Tokyo')
-        dt = dt.astimezone(jst)
-    return dt.isoformat()
+        return 5  # 大木
 
-# =====================================
-# AI キャラクター定義
-# =====================================
-
-class AICharacterType(str, Enum):
-    """AIキャラクタータイプ"""
-    TAMA = "tama"           # たまさん：優しい
-    MADOKA = "madoka"       # まどか姉さん：お姉さん的
-    HIDE = "hide"           # ヒデじい：おじいちゃん的
-
-class PraiseLevel(str, Enum):
-    """褒めレベル（2段階）"""
-    NORMAL = "normal"       # ノーマル：適度なサポートと承認（2-3文程度）
-    DEEP = "deep"          # ディープ：思慮深く詳細な肯定と共感（4-5文程度）          # ディープ：思慮深く詳細な肯定と共感（4-5文程度）
-
-# =====================================
-# 感情・木成長システム
-# =====================================
-
-class EmotionType(str, Enum):
-    """感情タイプ"""
-    JOY = "joy"             # 喜び
-    RELIEF = "relief"       # 安堵
-    PRIDE = "pride"         # 誇り
-    GRATITUDE = "gratitude" # 感謝
-    HOPE = "hope"          # 希望
-    LOVE = "love"          # 愛情
-
-class TreeGrowthStage(int, Enum):
-    """木の成長段階（0-5の6段階）"""
-    SEED = 0         # 種
-    SPROUT = 1       # 芽
-    SAPLING = 2      # 若木
-    YOUNG_TREE = 3   # 青年樹
-    MATURE_TREE = 4  # 成熟樹
-    GREAT_TREE = 5   # 大樹
-
-class FruitType(str, Enum):
-    """実のタイプ"""
-    SMALL_BERRY = "small_berry"     # 小さな実（喜び）
-    GOLDEN_FRUIT = "golden_fruit"   # 金の実（安堵）  
-    CRYSTAL_FRUIT = "crystal_fruit" # 水晶の実（誇り）
-    HEART_FRUIT = "heart_fruit"     # ハートの実（感謝）
-    STAR_FRUIT = "star_fruit"       # 星の実（希望）
-    RAINBOW_FRUIT = "rainbow_fruit" # 虹の実（愛情）
-
-# =====================================
-# リクエスト・レスポンスモデル
-# =====================================
-
-class ChatRequest(BaseModel):
-    """チャット送信リクエスト"""
-    user_message: str = Field(..., min_length=1, max_length=2000, description="ユーザーメッセージ")
-    ai_character: AICharacterType = Field(default=AICharacterType.TAMA, description="AIキャラクター")
-    praise_level: PraiseLevel = Field(default=PraiseLevel.STANDARD, description="褒めレベル")
-
-class TreeGrowthInfo(BaseModel):
-    """木の成長情報"""
-    current_stage: TreeGrowthStage = Field(description="現在の成長段階")
-    growth_points: int = Field(ge=0, description="成長ポイント")
-    points_to_next_stage: int = Field(ge=0, description="次段階まで必要ポイント")
-    total_fruits: int = Field(ge=0, description="総実数")
+def get_characters_to_next_stage(total_characters: int) -> int:
+    """次の段階まで必要な文字数を計算"""
+    current_stage = calculate_tree_stage(total_characters)
     
-    # 今回生成された実
-    new_fruits: List[FruitType] = Field(default_factory=list, description="新しく生成された実")
-
-class AIResponse(BaseModel):
-    """AI応答結果"""
-    praise_message: str = Field(description="褒めメッセージ")
-    detected_emotions: List[EmotionType] = Field(description="検出された感情")
-    tree_growth: TreeGrowthInfo = Field(description="木の成長情報")
-    character_used: AICharacterType = Field(description="使用されたAIキャラクター")
-    generated_at: datetime = Field(default_factory=get_current_jst, description="生成時刻（JST）")
-
-    class Config:
-        json_encoders = {
-            datetime: to_jst_string
-        }
-
-# =====================================
-# データ永続化モデル（DynamoDB直接保存）
-# =====================================
-
-class ChatMessage(BaseModel):
-    """チャットメッセージ（DynamoDB直接保存版・prod-homebiyori-chats）"""
-    chat_id: str = Field(default_factory=lambda: str(uuid.uuid4()), description="チャットID")
-    user_id: str = Field(description="ユーザーID")
+    stage_thresholds = [100, 300, 600, 1000, 1500]
     
-    # メッセージ内容（DynamoDB直接保存）
-    user_message: str = Field(description="ユーザーメッセージ")
-    ai_response: str = Field(description="AI応答メッセージ")
+    if current_stage >= 5:
+        return 0  # 最高段階
     
-    # メタデータ
-    ai_character: AICharacterType = Field(description="使用AIキャラクター")
-    praise_level: PraiseLevel = Field(description="褒めレベル")
-    detected_emotions: List[EmotionType] = Field(default_factory=list, description="検出感情")
+    return stage_thresholds[current_stage] - total_characters
+
+def calculate_progress_percentage(total_characters: int) -> float:
+    """現在の段階内での進捗パーセンテージを計算"""
+    current_stage = calculate_tree_stage(total_characters)
     
-    # 木の成長関連
-    growth_points_gained: int = Field(ge=0, description="獲得成長ポイント")
-    new_fruits_generated: List[FruitType] = Field(default_factory=list, description="生成された実")
-    tree_stage_at_time: TreeGrowthStage = Field(description="投稿時点の木の段階")
+    if current_stage == 0:
+        return min(100.0, (total_characters / 100) * 100)
+    elif current_stage == 1:
+        return min(100.0, ((total_characters - 100) / 200) * 100)
+    elif current_stage == 2:
+        return min(100.0, ((total_characters - 300) / 300) * 100)
+    elif current_stage == 3:
+        return min(100.0, ((total_characters - 600) / 400) * 100)
+    elif current_stage == 4:
+        return min(100.0, ((total_characters - 1000) / 500) * 100)
+    else:
+        return 100.0  # 最高段階
+
+def can_generate_fruit(last_fruit_date: Optional[datetime]) -> bool:
+    """1日1回制限チェック"""
+    if last_fruit_date is None:
+        return True
     
-    # タイムスタンプ（JST）
-    created_at: datetime = Field(default_factory=get_current_jst, description="作成時刻（JST）")
+    now = get_current_jst()
+    time_diff = now - last_fruit_date
     
-    # TTL設定（プラン別管理）
-    ttl_timestamp: Optional[int] = Field(None, description="TTL（エポック秒）")
-    subscription_plan: str = Field(description="TTL計算基準となるサブスクリプションプラン")
+    return time_diff.total_seconds() >= 24 * 60 * 60  # 24時間
 
-    class Config:
-        json_encoders = {
-            datetime: to_jst_string
-        }
-
-    def to_langchain_format(self) -> Dict[str, str]:
-        """LangChain用フォーマットに変換（パフォーマンス最適化）"""
-        return {
-            "role": "user",
-            "content": self.user_message,
-            "ai_response": self.ai_response,
-            "timestamp": to_jst_string(self.created_at),
-            "emotions": [e.value for e in self.detected_emotions]
-        }
-
-# =====================================
-# ユーザー・木状態管理
-# =====================================
-
-class UserTreeState(BaseModel):
-    """ユーザーの木の状態"""
-    user_id: str = Field(description="ユーザーID")
-    current_stage: TreeGrowthStage = Field(default=TreeGrowthStage.SEED, description="現在段階")
-    total_growth_points: int = Field(default=0, ge=0, description="総成長ポイント")
-    
-    # 実の統計
-    fruit_counts: Dict[FruitType, int] = Field(default_factory=dict, description="実の種類別カウント")
-    total_fruits: int = Field(default=0, ge=0, description="総実数")
-    
-    # 統計情報
-    total_chats: int = Field(default=0, ge=0, description="総チャット数")
-    last_chat_at: Optional[datetime] = Field(None, description="最終チャット時刻（JST）")
-    
-    # メタデータ
-    created_at: datetime = Field(default_factory=get_current_jst, description="作成時刻（JST）")
-    updated_at: datetime = Field(default_factory=get_current_jst, description="更新時刻（JST）")
-
-    class Config:
-        json_encoders = {
-            datetime: to_jst_string
-        }
-
-# =====================================
-# エラーハンドリング
-# =====================================
-
-class ChatServiceError(Exception):
-    """チャットサービス基底例外"""
-    def __init__(self, message: str, error_code: str = "CHAT_ERROR"):
-        self.message = message
-        self.error_code = error_code
-        super().__init__(self.message)
-
-class AIGenerationError(ChatServiceError):
-    """AI生成エラー"""
-    def __init__(self, message: str):
-        super().__init__(message, "AI_GENERATION_ERROR")
-
-class TreeGrowthError(ChatServiceError):
-    """木成長処理エラー"""
-    def __init__(self, message: str):
-        super().__init__(message, "TREE_GROWTH_ERROR")
-
-class DataPersistenceError(ChatServiceError):
-    """データ永続化エラー"""  
-    def __init__(self, message: str):
-        super().__init__(message, "DATA_PERSISTENCE_ERROR")
+def get_character_theme_color(character: AICharacterType) -> str:
+    """キャラクターのテーマカラーを取得"""
+    color_map = {
+        AICharacterType.TAMA: "warm_pink",
+        AICharacterType.MADOKA: "cool_blue", 
+        AICharacterType.HIDE: "warm_orange"
+    }
+    return color_map.get(character, "warm_pink")
 
 # =====================================
 # コンスタント定義
 # =====================================
 
-# 成長ポイント計算用定数
-GROWTH_POINTS_PER_STAGE = {
-    TreeGrowthStage.SEED: 0,       # 種→芽: 10ポイント
-    TreeGrowthStage.SPROUT: 10,    # 芽→若木: 25ポイント  
-    TreeGrowthStage.SAPLING: 35,   # 若木→青年樹: 50ポイント
-    TreeGrowthStage.YOUNG_TREE: 85, # 青年樹→成熟樹: 100ポイント
-    TreeGrowthStage.MATURE_TREE: 185, # 成熟樹→大樹: 200ポイント
-    TreeGrowthStage.GREAT_TREE: 385,  # 大樹: 上限
-}
-
-# 感情-実タイプマッピング
-EMOTION_TO_FRUIT = {
-    EmotionType.JOY: FruitType.SMALL_BERRY,
-    EmotionType.RELIEF: FruitType.GOLDEN_FRUIT,
-    EmotionType.PRIDE: FruitType.CRYSTAL_FRUIT,
-    EmotionType.GRATITUDE: FruitType.HEART_FRUIT,
-    EmotionType.HOPE: FruitType.STAR_FRUIT,
-    EmotionType.LOVE: FruitType.RAINBOW_FRUIT,
-}
-
-# AIキャラクター設定
-AI_CHARACTER_CONFIGS = {
-    AICharacterType.TAMA: {
-        "name": "たまさん",
-        "personality": "優しく包容力がある",
-        "tone": "丁寧で温かい",
-        "specialty": "日常の小さな頑張りを見つけて褒める"
-    },
-    AICharacterType.MADOKA: {
-        "name": "まどか姉さん",
-        "personality": "頼りになるお姉さん的存在",
-        "tone": "親しみやすく励ます",
-        "specialty": "前向きなアドバイスと共感"
-    },
-    AICharacterType.HIDE: {
-        "name": "ヒデじい",
-        "personality": "人生経験豊富で温和",
-        "tone": "穏やかで包容力がある",
-        "specialty": "人生の知恵と深い理解"
-    }
-}
-
-# 褒めレベル設定
-PRAISE_LEVEL_CONFIGS = {
-    PraiseLevel.LIGHT: {
-        "target_length": "1文程度",
-        "style": "簡潔で優しい励まし",
-        "token_estimate": 30
-    },
-    PraiseLevel.STANDARD: {
-        "target_length": "2-3文程度", 
-        "style": "適度なサポートと承認",
-        "token_estimate": 60
-    },
-    PraiseLevel.DEEP: {
-        "target_length": "4-5文程度",
-        "style": "思慮深く詳細な肯定と共感", 
-        "token_estimate": 120
-    }
+# 段階別の名前とメッセージ
+TREE_STAGE_CONFIG = {
+    0: {"name": "種", "description": "小さな種から始まりました"},
+    1: {"name": "芽", "description": "小さな芽が顔を出しました"},
+    2: {"name": "苗", "description": "青々とした若い苗に成長しました"},
+    3: {"name": "若木", "description": "立派な若木になりました"},
+    4: {"name": "成木", "description": "たくましい成木に育ちました"},
+    5: {"name": "大木", "description": "素晴らしい大木になりました"}
 }

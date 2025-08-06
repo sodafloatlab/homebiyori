@@ -1,17 +1,12 @@
-# S3 outputs
+# S3 outputs - referenced from datastore layer
 output "static_bucket_name" {
   description = "Name of the static assets bucket"
-  value       = module.s3.static_bucket_name
+  value       = data.terraform_remote_state.datastore.outputs.static_bucket_name
 }
 
 output "images_bucket_name" {
-  description = "Name of the images bucket"
-  value       = module.s3.images_bucket_name
-}
-
-output "posts_bucket_name" {
-  description = "Name of the posts bucket"
-  value       = module.s3.posts_bucket_name
+  description = "Name of the images bucket"  
+  value       = data.terraform_remote_state.datastore.outputs.images_bucket_name
 }
 
 # CloudFront outputs

@@ -70,3 +70,27 @@ variable "maintenance_allowed_ips" {
   type        = list(string)
   default     = []
 }
+
+variable "blocked_countries" {
+  description = "List of country codes to block"
+  type        = list(string)
+  default     = []
+}
+
+variable "allowed_ips" {
+  description = "List of IP addresses to allow (whitelist)"
+  type        = list(string)
+  default     = []
+}
+
+variable "enable_geo_blocking" {
+  description = "Enable geographic blocking"
+  type        = bool
+  default     = false
+}
+
+variable "log_retention_days" {
+  description = "CloudWatch log retention in days"
+  type        = number
+  default     = 14
+}

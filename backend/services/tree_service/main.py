@@ -42,7 +42,7 @@ from homebiyori_common.exceptions import (
     MaintenanceError,
     ExternalServiceError
 )
-from homebiyori_common.maintenance import check_maintenance_mode
+from homebiyori_common.maintenance import maintenance_required
 
 # ローカルモジュール
 from .models import (
@@ -102,25 +102,8 @@ async def get_user_id(request: Request) -> str:
         logger.error(f"ユーザーID取得エラー: {e}")
         raise HTTPException(status_code=401, detail="認証が必要です")
 
-@app.middleware("http")
-async def maintenance_check_middleware(request: Request, call_next):
-    """
-    メンテナンスモードチェック
-    """
-    try:
-        await check_maintenance_mode()
-    except MaintenanceError as e:
-        return JSONResponse(
-            status_code=503,
-            content={
-                "error": "maintenance",
-                "message": str(e),
-                "retry_after": 3600  # 1時間後に再試行
-            }
-        )
-    
-    response = await call_next(request)
-    return response
+# メンテナンスチェックは共通Layerのデコレーターで実装
+# handlerレベルで @maintenance_required() デコレーターを使用
 
 @app.middleware("http")
 async def error_handling_middleware(request: Request, call_next):

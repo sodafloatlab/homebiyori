@@ -28,6 +28,7 @@ homebiyori-common-layer:
 
 from typing import List, Optional, Dict, Any, Tuple
 import uuid
+import os
 from datetime import datetime, timezone, timedelta
 import json
 import pytz
@@ -36,6 +37,7 @@ import pytz
 from homebiyori_common.database import DynamoDBClient
 from homebiyori_common.logger import get_logger
 from homebiyori_common.exceptions import DatabaseError, NotFoundError, ValidationError
+from homebiyori_common.utils.datetime_utils import get_current_jst, to_jst_string
 
 # ローカルモジュール
 from .models import (
@@ -46,8 +48,6 @@ from .models import (
     AICharacterType,
     EmotionType,
     TreeTheme,
-    get_current_jst,
-    to_jst_string,
     calculate_tree_stage,
     get_characters_to_next_stage,
     calculate_progress_percentage,
@@ -140,7 +140,7 @@ class TreeDatabase:
                 "total_characters": 0,
                 "total_messages": 0,
                 "total_fruits": 0,
-                "theme_color": "rose",
+                "theme_color": "warm_pink",
                 "created_at": to_jst_string(now),
                 "updated_at": to_jst_string(now),
                 "last_message_date": None,
@@ -265,9 +265,9 @@ class TreeDatabase:
                 "fruit_id": fruit_info.fruit_id,
                 "user_id": fruit_info.user_id,
                 "message": fruit_info.message,
-                "emotion_trigger": fruit_info.emotion_trigger.value,
+                "emotion_trigger": fruit_info.emotion_trigger,
                 "emotion_score": fruit_info.emotion_score,
-                "ai_character": fruit_info.ai_character.value,
+                "ai_character": fruit_info.ai_character,
                 "character_color": fruit_info.character_color.value,
                 "trigger_message_id": fruit_info.trigger_message_id,
                 "created_at": to_jst_string(fruit_info.created_at),
@@ -275,7 +275,7 @@ class TreeDatabase:
                 "view_count": 0,
                 # GSI1用（実の検索・フィルタリング）
                 "GSI1PK": f"FRUIT#{fruit_info.user_id}",
-                "GSI1SK": f"{fruit_info.ai_character.value}#{fruit_info.emotion_trigger.value}#{timestamp_str}",
+                "GSI1SK": f"{fruit_info.ai_character}#{fruit_info.emotion_trigger}#{timestamp_str}",
                 # TTL設定なし（実は永続保存）
             }
             
@@ -303,13 +303,13 @@ class TreeDatabase:
             pk = f"USER#{user_id}"
             
             # Query with begins_with for SK
-            items = await self.db_client.query(
+            result = await self.db_client.query(
                 pk,
-                sk_condition=f"begins_with(SK, :sk_prefix)",
+                sk_condition="begins_with(SK, :sk_prefix)",
                 expression_values={":sk_prefix": "FRUIT#"},
-                filter_expression="fruit_id = :fruit_id",
-                filter_values={":fruit_id": fruit_id}
+                filter_expression="fruit_id = :fruit_id"
             )
+            items = result.get("items", [])
             
             if not items:
                 self.logger.warning(f"実が見つかりません: user_id={user_id}, fruit_id={fruit_id}")
@@ -372,34 +372,31 @@ class TreeDatabase:
             
             # フィルター条件追加
             filter_conditions = []
-            filter_values = {}
-            
             if filters:
                 if filters.get("character"):
                     filter_conditions.append("ai_character = :character")
-                    filter_values[":character"] = filters["character"]
+                    query_params["expression_values"][":character"] = filters["character"]
                 
                 if filters.get("emotion"):
                     filter_conditions.append("emotion_trigger = :emotion")
-                    filter_values[":emotion"] = filters["emotion"]
+                    query_params["expression_values"][":emotion"] = filters["emotion"]
                 
                 if filters.get("start_date"):
                     filter_conditions.append("created_at >= :start_date")
-                    filter_values[":start_date"] = f"{filters['start_date']}T00:00:00"
+                    query_params["expression_values"][":start_date"] = f"{filters['start_date']}T00:00:00"
                 
                 if filters.get("end_date"):
                     filter_conditions.append("created_at <= :end_date")
-                    filter_values[":end_date"] = f"{filters['end_date']}T23:59:59"
+                    query_params["expression_values"][":end_date"] = f"{filters['end_date']}T23:59:59"
             
             if filter_conditions:
                 query_params["filter_expression"] = " AND ".join(filter_conditions)
-                query_params["filter_values"] = filter_values
             
             if next_token:
-                query_params["next_token"] = next_token
+                query_params["exclusive_start_key"] = self.db_client._decode_pagination_token(next_token)
             
             # クエリ実行
-            result = await self.db_client.query_with_pagination(**query_params)
+            result = await self.db_client.query(**query_params)
             
             # FruitInfoオブジェクトに変換
             fruits = []
@@ -456,13 +453,13 @@ class TreeDatabase:
             
             # fruit_idから該当アイテムを検索
             pk = f"USER#{user_id}"
-            items = await self.db_client.query(
+            result = await self.db_client.query(
                 pk,
                 sk_condition="begins_with(SK, :sk_prefix)",
                 expression_values={":sk_prefix": "FRUIT#"},
-                filter_expression="fruit_id = :fruit_id",
-                filter_values={":fruit_id": fruit_id}
+                filter_expression="fruit_id = :fruit_id"
             )
+            items = result.get("items", [])
             
             if not items:
                 raise NotFoundError(f"実が見つかりません: fruit_id={fruit_id}")
@@ -587,12 +584,13 @@ class TreeDatabase:
         try:
             pk = f"USER#{user_id}"
             
-            items = await self.db_client.query(
+            result = await self.db_client.query(
                 pk,
                 sk_condition="begins_with(SK, :sk_prefix)",
                 expression_values={":sk_prefix": "GROWTH#"},
                 scan_index_forward=True  # 古い順
             )
+            items = result.get("items", [])
             
             history = []
             for item in items:

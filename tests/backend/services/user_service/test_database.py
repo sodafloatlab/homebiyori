@@ -36,7 +36,7 @@ backend/services/user_service/database.py の UserServiceDatabase クラス
 import pytest
 import pytest_asyncio
 from datetime import datetime, timezone, date
-from moto import mock_aws
+from moto import mock_dynamodb
 import boto3
 import os
 from unittest.mock import patch, AsyncMock
@@ -46,7 +46,7 @@ import uuid
 from backend.services.user_service.database import UserServiceDatabase, get_database
 from backend.services.user_service.models import (
     UserProfile, ChildInfo, ChildInfoCreate, ChildInfoUpdate,
-    AICharacter, PraiseLevel, get_current_utc
+    AICharacter, PraiseLevel, get_current_jst
 )
 
 # Lambda Layers機能のモック（テスト環境では実際のLayersは利用不可）
@@ -75,7 +75,7 @@ async def mock_dynamodb_table():
     moto ライブラリによる DynamoDB Local 環境をセットアップ。
     Single Table Design に対応したテーブル構造を作成。
     """
-    with mock_aws():
+    with mock_dynamodb():
         # 環境変数設定
         os.environ["DYNAMODB_TABLE"] = "homebiyori-test-table"
         os.environ["AWS_REGION"] = "us-east-1"
@@ -161,7 +161,7 @@ async def sample_user_profile():
         user_id="12345678-1234-5678-9012-123456789012",
         nickname="テストユーザー",
         ai_character=AICharacter.TAMA,
-        praise_level=PraiseLevel.STANDARD,
+        praise_level=PraiseLevel.NORMAL,
         onboarding_completed=True
     )
 
@@ -197,12 +197,12 @@ async def test_user_profile_create_and_get(database_client, sample_user_profile)
     assert saved_profile.user_id == user_id
     assert saved_profile.nickname == "テストユーザー"
     assert saved_profile.ai_character == AICharacter.TAMA
-    assert saved_profile.praise_level == PraiseLevel.STANDARD
+    assert saved_profile.praise_level == PraiseLevel.NORMAL
     assert saved_profile.onboarding_completed is True
     
-    # UTC時刻確認
-    assert saved_profile.created_at.tzinfo == timezone.utc
-    assert saved_profile.updated_at.tzinfo == timezone.utc
+    # JST時刻確認（共通Layer使用）
+    assert saved_profile.created_at.tzinfo.zone == 'Asia/Tokyo'
+    assert saved_profile.updated_at.tzinfo.zone == 'Asia/Tokyo'
     
     # データベースから取得
     retrieved_profile = await db.get_user_profile(user_id)
@@ -212,7 +212,7 @@ async def test_user_profile_create_and_get(database_client, sample_user_profile)
     assert retrieved_profile.user_id == user_id
     assert retrieved_profile.nickname == "テストユーザー"
     assert retrieved_profile.ai_character == AICharacter.TAMA
-    assert retrieved_profile.praise_level == PraiseLevel.STANDARD
+    assert retrieved_profile.praise_level == PraiseLevel.NORMAL
 
 
 @pytest.mark.asyncio
@@ -305,8 +305,8 @@ async def test_child_create_and_get(database_client, sample_child_data):
     assert len(created_child.child_id) == 36  # UUID形式
     
     # UTC時刻確認
-    assert created_child.created_at.tzinfo == timezone.utc
-    assert created_child.updated_at.tzinfo == timezone.utc
+    assert created_child.created_at.tzinfo.zone == 'Asia/Tokyo'
+    assert created_child.updated_at.tzinfo.zone == 'Asia/Tokyo'
     
     # 年齢計算確認
     assert created_child.age_years >= 3  # 2020年生まれなので3歳以上
@@ -515,19 +515,19 @@ async def test_utc_timezone_consistency():
     """
     UTC時刻管理の一貫性確認
     
-    全ての日時データがUTCで管理されることを確認。
+    全ての日時データがJSTで管理されることを確認。
     """
-    # get_current_utc() 関数のUTC確認
-    current_time = get_current_utc()
-    assert current_time.tzinfo == timezone.utc
+    # get_current_jst() 関数のUTC確認
+    current_time = get_current_jst()
+    assert current_time.tzinfo.zone == 'Asia/Tokyo'
     
     # UserProfile作成時のUTC確認
     profile = UserProfile(
         user_id="12345678-1234-5678-9012-123456789012",
         nickname="UTCテスト"
     )
-    assert profile.created_at.tzinfo == timezone.utc
-    assert profile.updated_at.tzinfo == timezone.utc
+    assert profile.created_at.tzinfo.zone == 'Asia/Tokyo'
+    assert profile.updated_at.tzinfo.zone == 'Asia/Tokyo'
     
     # ChildInfo作成時のUTC確認
     child = ChildInfo(
@@ -535,5 +535,5 @@ async def test_utc_timezone_consistency():
         name="UTCテスト子",
         birth_date=date(2020, 1, 1)
     )
-    assert child.created_at.tzinfo == timezone.utc
-    assert child.updated_at.tzinfo == timezone.utc
+    assert child.created_at.tzinfo.zone == 'Asia/Tokyo'
+    assert child.updated_at.tzinfo.zone == 'Asia/Tokyo'

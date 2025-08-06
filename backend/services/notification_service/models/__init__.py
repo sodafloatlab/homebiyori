@@ -1,0 +1,1 @@
+# Models for notification service

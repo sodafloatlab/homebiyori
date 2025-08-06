@@ -19,29 +19,16 @@ JST時刻統一、DynamoDB効率的保存を提供。
 - JST時刻: 日本のユーザーに最適化
 """
 
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import Dict, List, Literal, Optional, Union, Any
 from pydantic import BaseModel, Field, validator
 import uuid
-import pytz
+
+# 共通Layerから日時処理をインポート
+from homebiyori_common.utils.datetime_utils import get_current_jst, to_jst_string
 from enum import Enum
 
-def get_current_jst() -> datetime:
-    """現在時刻をJST（日本標準時）で取得"""
-    jst = pytz.timezone('Asia/Tokyo')
-    return datetime.now(jst)
-
-def to_jst_string(dt: datetime) -> str:
-    """datetimeをJST文字列に変換"""
-    if dt.tzinfo is None:
-        # ナイーブなdatetimeの場合、JSTと仮定
-        jst = pytz.timezone('Asia/Tokyo')
-        dt = jst.localize(dt)
-    else:
-        # タイムゾーン付きdatetimeをJSTに変換
-        jst = pytz.timezone('Asia/Tokyo')
-        dt = dt.astimezone(jst)
-    return dt.isoformat()
+# 共通Layerから使用するため削除（homebiyori_common.utils.datetime_utils を使用）
 
 # =====================================
 # サブスクリプション関連型定義

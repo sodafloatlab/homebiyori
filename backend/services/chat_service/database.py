@@ -42,17 +42,16 @@ import pytz
 from homebiyori_common.database import DynamoDBClient
 from homebiyori_common.logger import get_logger
 from homebiyori_common.exceptions import DatabaseError, NotFoundError, ValidationError
+from homebiyori_common.utils.datetime_utils import get_current_jst
 
 # ローカルモジュール
 from .models import (
     ChatMessage,
-    UserTreeState,
+    FruitInfo,
+    ChatHistoryRequest,
     AICharacterType,
     EmotionType,
-    TreeGrowthStage,
-    FruitType,
-    EmotionType,
-    get_current_utc
+    MoodType
 )
 
 # 構造化ログ設定
@@ -493,8 +492,8 @@ class ChatServiceDatabase:
                 "total_characters": new_total_characters,
                 "current_stage": new_stage,
                 "message_count": current_stats.get("message_count", 0) + 1,
-                "last_message_date": get_current_utc().isoformat(),
-                "updated_at": get_current_utc().isoformat()
+                "last_message_date": get_current_jst().isoformat(),
+                "updated_at": get_current_jst().isoformat()
             }
             
             # DynamoDB更新実行
@@ -781,8 +780,8 @@ class ChatServiceDatabase:
                 "PK": pk,
                 "SK": sk,
                 "current_mood": mood,
-                "mood_updated_at": get_current_utc().isoformat(),
-                "updated_at": get_current_utc().isoformat()
+                "mood_updated_at": get_current_jst().isoformat(),
+                "updated_at": get_current_jst().isoformat()
             }
             
             await self.db_client.put_item(settings_data)
@@ -900,8 +899,8 @@ class ChatServiceDatabase:
                 "SK": sk,
                 "character": character,
                 "usage_count": current_count + 1,
-                "last_used_at": get_current_utc().isoformat(),
-                "updated_at": get_current_utc().isoformat()
+                "last_used_at": get_current_jst().isoformat(),
+                "updated_at": get_current_jst().isoformat()
             }
             
             await self.db_client.put_item(updated_stats)
@@ -944,8 +943,8 @@ class ChatServiceDatabase:
                 "SK": sk,
                 "emotion": emotion,
                 "detection_count": current_count + 1,
-                "last_detected_at": get_current_utc().isoformat(),
-                "updated_at": get_current_utc().isoformat()
+                "last_detected_at": get_current_jst().isoformat(),
+                "updated_at": get_current_jst().isoformat()
             }
             
             await self.db_client.put_item(updated_stats)

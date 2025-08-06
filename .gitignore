@@ -111,3 +111,27 @@ crash.log
 crash.*.log
 terraform.tfplan
 terraform.tfplan.*
+
+# Terraform Variables (機密情報を含むため)
+terraform.tfvars
+terraform.tfvars.backup
+terraform.tfvars.*.backup
+*.auto.tfvars
+*.auto.tfvars.json
+
+# 環境別設定ファイル
+terraform.tfvars.prod
+terraform.tfvars.staging
+terraform.tfvars.dev
+terraform.tfvars.local
+
+# AWS秘密鍵ファイル
+*.pem
+*.key
+aws-credentials.json
+service-account.json
+
+# 機密設定ファイル
+secrets.json
+.secrets
+config.local.json

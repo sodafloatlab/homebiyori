@@ -1,1 +1,5 @@
-# This service uses the common-layer, so no specific requirements are needed here for now.
+# user-service Lambda dependencies
+# 基本的な依存関係は homebiyori-common-layer から提供
+
+# Lambda専用軽量依存関係
+mangum==0.17.0

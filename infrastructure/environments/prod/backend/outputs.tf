@@ -1,64 +1,119 @@
-# Lambda outputs
+# Lambda Function Outputs
+output "lambda_function_names" {
+  description = "Map of all Lambda function names"
+  value = {
+    for service_name, lambda_config in module.lambda_functions :
+    service_name => lambda_config.function_name
+  }
+}
+
+output "lambda_function_arns" {
+  description = "Map of all Lambda function ARNs"
+  value = {
+    for service_name, lambda_config in module.lambda_functions :
+    service_name => lambda_config.function_arn
+  }
+}
+
+output "lambda_invoke_arns" {
+  description = "Map of all Lambda invoke ARNs"
+  value = {
+    for service_name, lambda_config in module.lambda_functions :
+    service_name => lambda_config.invoke_arn
+  }
+}
+
+# Individual service outputs for backwards compatibility
 output "user_service_function_name" {
-  description = "Name of the User Service Lambda function"
-  value       = module.lambda.user_service_function_name
+  description = "Name of the user service Lambda function"
+  value       = module.lambda_functions["user-service"].function_name
 }
 
 output "chat_service_function_name" {
-  description = "Name of the Chat Service Lambda function"
-  value       = module.lambda.chat_service_function_name
+  description = "Name of the chat service Lambda function"
+  value       = module.lambda_functions["chat-service"].function_name
 }
 
 output "tree_service_function_name" {
-  description = "Name of the Tree Service Lambda function"
-  value       = module.lambda.tree_service_function_name
+  description = "Name of the tree service Lambda function"
+  value       = module.lambda_functions["tree-service"].function_name
 }
 
 output "health_check_function_name" {
-  description = "Name of the Health Check Lambda function"
-  value       = module.lambda.health_check_function_name
+  description = "Name of the health check Lambda function"
+  value       = module.lambda_functions["health-check-service"].function_name
 }
 
 output "admin_service_function_name" {
-  description = "Name of the Admin Service Lambda function"
-  value       = module.lambda.admin_service_function_name
+  description = "Name of the admin service Lambda function"
+  value       = module.lambda_functions["admin-service"].function_name
 }
 
-# API Gateway outputs
+# API Gateway Outputs
 output "user_api_gateway_url" {
   description = "URL of the User API Gateway"
-  value       = module.api_gateway.user_api_gateway_url
+  value       = module.user_api_gateway.invoke_url
 }
 
 output "admin_api_gateway_url" {
   description = "URL of the Admin API Gateway"
-  value       = module.api_gateway.admin_api_gateway_url
+  value       = module.admin_api_gateway.invoke_url
 }
 
 output "user_api_gateway_id" {
   description = "ID of the User API Gateway"
-  value       = module.api_gateway.user_api_gateway_id
+  value       = module.user_api_gateway.rest_api_id
 }
 
 output "admin_api_gateway_id" {
   description = "ID of the Admin API Gateway"
-  value       = module.api_gateway.admin_api_gateway_id
+  value       = module.admin_api_gateway.rest_api_id
 }
 
-# Cognito outputs
+output "user_api_execution_arn" {
+  description = "Execution ARN of the User API Gateway"
+  value       = module.user_api_gateway.execution_arn
+}
+
+output "admin_api_execution_arn" {
+  description = "Execution ARN of the Admin API Gateway"
+  value       = module.admin_api_gateway.execution_arn
+}
+
+# Cognito Outputs
 output "user_pool_id" {
-  description = "ID of the Cognito User Pool"
-  value       = module.cognito.user_pool_id
+  description = "ID of the User Pool"
+  value       = module.cognito.users_pool_id
+}
+
+output "user_pool_arn" {
+  description = "ARN of the User Pool"
+  value       = module.cognito.users_pool_arn
 }
 
 output "user_pool_client_id" {
-  description = "ID of the Cognito User Pool Client"
-  value       = module.cognito.user_pool_client_id
+  description = "ID of the User Pool Client"
+  value       = module.cognito.users_pool_client_id
 }
 
 output "user_pool_domain" {
-  description = "Domain of the Cognito User Pool"
-  value       = module.cognito.user_pool_domain
+  description = "Domain of the User Pool"
+  value       = module.cognito.users_pool_domain
+}
+
+output "admin_pool_id" {
+  description = "ID of the Admin Pool"
+  value       = module.cognito.admins_pool_id
+}
+
+output "admin_pool_arn" {
+  description = "ARN of the Admin Pool"
+  value       = module.cognito.admins_pool_arn
+}
+
+output "admin_pool_client_id" {
+  description = "ID of the Admin Pool Client"
+  value       = module.cognito.admins_pool_client_id
 }
 
 # Bedrock outputs
@@ -72,8 +127,38 @@ output "bedrock_dashboard_url" {
   value       = module.bedrock.dashboard_url
 }
 
-# IAM role output for use by other layers
-output "lambda_execution_role_arn" {
-  description = "ARN of the Lambda execution role"
-  value       = module.lambda.lambda_execution_role_arn
+# Lambda Layer Outputs
+output "lambda_layer_arns" {
+  description = "Map of all Lambda layer ARNs"
+  value = {
+    for layer_name, layer_config in module.lambda_layers :
+    layer_name => layer_config.layer_arn
+  }
+}
+
+output "lambda_layer_versions" {
+  description = "Map of all Lambda layer versions"
+  value = {
+    for layer_name, layer_config in module.lambda_layers :
+    layer_name => layer_config.layer_version
+  }
+}
+
+output "common_layer_arn" {
+  description = "ARN of the common Lambda layer"
+  value       = var.create_common_layer ? module.lambda_layers["common"].layer_arn : var.common_layer_arn
+}
+
+output "ai_layer_arn" {
+  description = "ARN of the AI Lambda layer"
+  value       = var.create_ai_layer ? module.lambda_layers["ai"].layer_arn : var.ai_layer_arn
+}
+
+# IAM Role ARN for Lambda execution
+output "lambda_execution_role_arns" {
+  description = "Map of Lambda execution role ARNs"
+  value = {
+    for service_name, lambda_config in module.lambda_functions :
+    service_name => lambda_config.iam_role_arn
+  }
 }

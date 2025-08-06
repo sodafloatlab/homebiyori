@@ -1,53 +1,57 @@
-# Data sources to get information from other layers
-data "terraform_remote_state" "backend" {
-  backend = "s3"
-  config = {
-    bucket = "homebiyori-terraform-state"
-    key    = "backend/terraform.tfstate"
-    region = var.aws_region
-  }
+# Local values for shared configurations
+locals {
+  project_name = var.project_name
+  environment  = var.environment
+  
+  # Common tags
+  common_tags = merge(var.common_tags, {
+    Environment = local.environment
+    Project     = local.project_name
+    ManagedBy   = "terraform"
+    Layer       = "frontend"
+  })
 }
 
-# S3 buckets for static assets and images
-module "s3" {
-  source = "../../../modules/s3"
-  
-  project_name                 = var.project_name
-  environment                  = var.environment
-  common_tags                  = var.common_tags
-  force_destroy                = var.force_destroy
-  lambda_role_arn              = data.terraform_remote_state.backend.outputs.lambda_execution_role_arn
-  cloudfront_distribution_arn  = module.cloudfront.distribution_arn
-}
 
 # WAF for security
 module "waf" {
   source = "../../../modules/waf"
   
-  project_name                 = var.project_name
-  environment                  = var.environment
-  common_tags                  = var.common_tags
-  rate_limit                   = var.rate_limit
-  maintenance_mode             = var.maintenance_mode
-  maintenance_allowed_ips      = var.maintenance_allowed_ips
-  cloudfront_distribution_arn  = module.cloudfront.distribution_arn
+  project_name                = local.project_name
+  environment                 = local.environment
+  common_tags                 = local.common_tags
+  rate_limit                  = var.rate_limit
+  maintenance_mode            = var.maintenance_mode
+  maintenance_allowed_ips     = var.maintenance_allowed_ips
+  blocked_countries           = var.blocked_countries
+  allowed_ips                 = var.allowed_ips
+  enable_geo_blocking         = var.enable_geo_blocking
+  log_retention_days          = var.log_retention_days
 }
 
 # CloudFront distribution
 module "cloudfront" {
   source = "../../../modules/cloudfront"
   
-  project_name                 = var.project_name
-  environment                  = var.environment
-  common_tags                  = var.common_tags
-  static_bucket_name           = module.s3.static_bucket_name
-  static_bucket_domain_name    = module.s3.static_bucket_domain_name
-  images_bucket_name           = module.s3.images_bucket_name
-  images_bucket_domain_name    = module.s3.images_bucket_domain_name
-  api_gateway_url              = data.terraform_remote_state.backend.outputs.api_gateway_url
-  api_gateway_stage_name       = data.terraform_remote_state.backend.outputs.api_gateway_stage_name
-  waf_web_acl_id              = module.waf.web_acl_id
-  custom_domain               = var.custom_domain
-  ssl_certificate_arn         = var.ssl_certificate_arn
-  price_class                 = var.price_class
+  project_name                = local.project_name
+  environment                 = local.environment
+  common_tags                 = local.common_tags
+  
+  # S3 bucket information from datastore layer
+  static_bucket_name          = data.terraform_remote_state.datastore.outputs.static_bucket_name
+  static_bucket_domain_name   = "${data.terraform_remote_state.datastore.outputs.static_bucket_name}.s3.${var.aws_region}.amazonaws.com"
+  images_bucket_name          = data.terraform_remote_state.datastore.outputs.images_bucket_name
+  images_bucket_domain_name   = "${data.terraform_remote_state.datastore.outputs.images_bucket_name}.s3.${var.aws_region}.amazonaws.com"
+  
+  # API Gateway information from backend layer  
+  api_gateway_url             = data.terraform_remote_state.backend.outputs.user_api_gateway_url
+  api_gateway_stage_name      = local.environment
+  
+  # WAF integration
+  waf_web_acl_id             = module.waf.web_acl_id
+  
+  # Custom domain configuration
+  custom_domain              = var.custom_domain
+  ssl_certificate_arn        = var.ssl_certificate_arn
+  price_class                = var.price_class
 }

@@ -11,8 +11,12 @@
 
 import pytest
 import os
+import sys
 import boto3
-from moto import mock_aws
+from moto import mock_dynamodb
+
+# Lambda Layers のパスを追加
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "backend", "layers", "common", "python"))
 
 # --- フィクスチャの定義 ---
 
@@ -32,7 +36,7 @@ def mock_dynamodb_resource(monkeypatch, aws_credentials):
     これにより、実際のAWSに接続せずにテストを実行できます。
     `yield`キーワードで、このフィクスチャを使うテストの間だけモックが有効になります。
     """
-    with mock_aws():
+    with mock_dynamodb():
         mock_resource = boto3.resource("dynamodb", region_name="ap-northeast-1")
         monkeypatch.setattr(boto3, "resource", lambda service_name, **kwargs: mock_resource if service_name == "dynamodb" else boto3.resource(service_name, **kwargs))
         yield mock_resource

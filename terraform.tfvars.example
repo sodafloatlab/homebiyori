@@ -1,0 +1,185 @@
+# =====================================
+# Homebiyori Terraform Variables Example
+# =====================================
+#
+# このファイルをコピーして terraform.tfvars として使用してください
+# 機密情報は適切に設定し、バージョン管理に含めないでください
+#
+
+# =====================================
+# 基本環境設定
+# =====================================
+
+# デプロイ環境（dev, staging, prod）
+environment = "prod"
+
+# AWSリージョン
+aws_region = "ap-northeast-1"
+
+# プロジェクト名
+project_name = "homebiyori"
+
+# =====================================
+# DynamoDB設定
+# =====================================
+
+# テーブル名プレフィックス（環境別）
+dynamodb_table_prefix = "prod-homebiyori"
+
+# 各テーブル名（個別設定可能）
+dynamodb_users_table         = "prod-homebiyori-users"
+dynamodb_chats_table         = "prod-homebiyori-chats"
+dynamodb_trees_table         = "prod-homebiyori-trees"
+dynamodb_fruits_table        = "prod-homebiyori-fruits"
+dynamodb_notifications_table = "prod-homebiyori-notifications"
+dynamodb_subscriptions_table = "prod-homebiyori-subscriptions"
+dynamodb_feedback_table      = "prod-homebiyori-feedback"
+
+# =====================================
+# Stripe決済連携設定
+# =====================================
+
+# Stripe設定はAWS Systems Manager Parameter Storeから自動取得されます
+# 手動でParameter Storeに以下のパラメーターを登録してください：
+# - /homebiyori/prod/stripe/api_key (SecureString)
+# - /homebiyori/prod/stripe/webhook_secret (SecureString)  
+# - /homebiyori/prod/stripe/webhook_endpoint_secret (SecureString)
+
+# Parameter Store参照のため、ここでの設定は不要
+# stripe_api_key = "自動取得されます"
+# stripe_webhook_secret = "自動取得されます"
+# stripe_webhook_endpoint_secret = "自動取得されます"
+
+# =====================================
+# SQS設定
+# =====================================
+
+# TTL更新用キュー名
+ttl_update_queue_name = "homebiyori-ttl-update-queue"
+
+# キューURL（自動構築される場合はnull）
+ttl_update_queue_url = null
+
+# =====================================
+# API・認証設定
+# =====================================
+
+# 内部API呼び出し用キー（Lambda間通信）
+internal_api_key = "internal_api_secret_key_change_me_in_production"
+
+# 管理者API用キー
+admin_api_key = "admin_api_secret_key_change_me_in_production"
+
+# 内部APIベースURL（自動構築される場合はnull）
+internal_api_base_url = null
+
+# =====================================
+# 機能フラグ
+# =====================================
+
+# デバッグログ有効化（本番環境では通常false）
+enable_debug_logging = false
+
+# API文書化有効化（本番環境では通常false）
+enable_docs = false
+
+# Webhook署名検証有効化（本番環境では必須true）
+enable_webhook_validation = true
+
+# 管理者通知機能有効化
+enable_admin_notifications = true
+
+# バッチ操作有効化
+enable_batch_operations = true
+
+# =====================================
+# 通知システム設定
+# =====================================
+
+# 通知のデフォルトTTL（日数）
+default_notification_ttl_days = 30
+
+# ユーザー当たり最大通知数
+max_notifications_per_user = 100
+
+# ページネーション設定
+default_page_size = 20
+max_page_size = 100
+
+# =====================================
+# ログ設定
+# =====================================
+
+# ログレベル（DEBUG, INFO, WARNING, ERROR, CRITICAL）
+log_level = "INFO"
+
+# =====================================
+# サービス名設定
+# =====================================
+
+service_names = {
+  health_check_service      = "health-check-service"
+  user_service              = "user-service"
+  chat_service              = "chat-service"
+  tree_service              = "tree-service"
+  webhook_service           = "webhook-service"
+  notification_service      = "notification-service"
+  ttl_updater_service       = "ttl-updater-service"
+}
+
+# =====================================
+# Lambda設定
+# =====================================
+
+# Lambda関数タイムアウト（秒）
+lambda_timeout = 30
+
+# Lambda関数メモリ（MB）
+lambda_memory = 512
+
+# Lambda関数ランタイム
+lambda_runtime = "python3.11"
+
+# Lambda予約同時実行数（コスト制御）
+reserved_concurrent_executions = 10
+
+# =====================================
+# セキュリティ設定
+# =====================================
+
+# CORS許可オリジン
+cors_allowed_origins = [
+  "https://homebiyori.com",
+  "https://www.homebiyori.com"
+]
+
+# CORS許可メソッド
+cors_allowed_methods = [
+  "GET",
+  "POST", 
+  "PUT",
+  "DELETE",
+  "OPTIONS"
+]
+
+# =====================================
+# 環境別設定例
+# =====================================
+
+# 開発環境用設定例:
+# environment = "dev"
+# dynamodb_table_prefix = "dev-homebiyori"
+# enable_debug_logging = true
+# enable_docs = true
+# log_level = "DEBUG"
+# lambda_timeout = 60
+# reserved_concurrent_executions = 2
+
+# ステージング環境用設定例:
+# environment = "staging"
+# dynamodb_table_prefix = "staging-homebiyori"
+# enable_debug_logging = false
+# enable_docs = true
+# log_level = "INFO"
+# lambda_timeout = 30
+# reserved_concurrent_executions = 5

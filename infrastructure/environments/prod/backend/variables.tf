@@ -26,7 +26,7 @@ variable "common_tags" {
   }
 }
 
-# Lambda configuration - 5 microservices
+# Lambda configuration - 9 microservices
 variable "user_service_zip_path" {
   description = "Path to the User Service Lambda deployment package"
   type        = string
@@ -45,10 +45,34 @@ variable "tree_service_zip_path" {
   default     = "tree_service.zip"
 }
 
-variable "health_check_zip_path" {
-  description = "Path to the Health Check Lambda deployment package"
+variable "health_check_service_zip_path" {
+  description = "Path to the Health Check Service Lambda deployment package"
   type        = string
-  default     = "health_check.zip"
+  default     = "health_check_service.zip"
+}
+
+variable "webhook_service_zip_path" {
+  description = "Path to the Webhook Service Lambda deployment package"
+  type        = string
+  default     = "webhook_service.zip"
+}
+
+variable "notification_service_zip_path" {
+  description = "Path to the Notification Service Lambda deployment package"
+  type        = string
+  default     = "notification_service.zip"
+}
+
+variable "ttl_updater_service_zip_path" {
+  description = "Path to the TTL Updater Service Lambda deployment package"
+  type        = string
+  default     = "ttl_updater_service.zip"
+}
+
+variable "billing_service_zip_path" {
+  description = "Path to the Billing Service Lambda deployment package"
+  type        = string
+  default     = "billing_service.zip"
 }
 
 variable "admin_service_zip_path" {
@@ -119,4 +143,51 @@ variable "google_client_secret" {
   type        = string
   default     = ""
   sensitive   = true
+}
+
+# Additional variables needed for the new architecture
+variable "bedrock_model_id" {
+  description = "Amazon Bedrock model ID for AI functionality"
+  type        = string
+  default     = "anthropic.claude-3-haiku-20240307-v1:0"
+}
+
+variable "lambda_zip_paths" {
+  description = "Map of Lambda service names to their zip file paths"
+  type        = map(string)
+  default = {
+    user-service           = "user_service.zip"
+    chat-service          = "chat_service.zip"
+    tree-service          = "tree_service.zip"
+    health-check-service  = "health_check_service.zip"
+    webhook-service       = "webhook_service.zip"
+    notification-service  = "notification_service.zip"
+    ttl-updater-service   = "ttl_updater_service.zip"
+    billing-service       = "billing_service.zip"
+    admin-service         = "admin_service.zip"
+  }
+}
+
+variable "lambda_source_code_hashes" {
+  description = "Map of Lambda service names to their source code hashes"
+  type        = map(string)
+  default     = {}
+}
+
+variable "lambda_layer_source_code_hashes" {
+  description = "Map of Lambda layer names to their source code hashes"
+  type        = map(string)
+  default     = {}
+}
+
+variable "common_layer_arn" {
+  description = "ARN of the common Lambda layer"
+  type        = string
+  default     = ""
+}
+
+variable "ai_layer_arn" {
+  description = "ARN of the AI Lambda layer"
+  type        = string
+  default     = ""
 }

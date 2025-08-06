@@ -3,17 +3,59 @@
 # Ensures proper access control and security isolation
 
 terraform {
+  required_version = ">= 1.0"
   required_providers {
     aws = {
       source  = "hashicorp/aws"
-      version = "~> 5.0"
+      version = ">= 5.0"
     }
+  }
+}
+
+# Local values for computed configurations
+locals {
+  # Pool naming
+  users_pool_name = "${var.project_name}-${var.environment}-users"
+  admins_pool_name = "${var.project_name}-${var.environment}-admins"
+  
+  # Domain naming
+  users_domain = "${var.project_name}-${var.environment}-auth"
+  admins_domain = "${var.project_name}-${var.environment}-admin-auth"
+  
+  # Client naming
+  users_client_name = "${var.project_name}-${var.environment}-users-web-client"
+  admins_client_name = "${var.project_name}-${var.environment}-admins-web-client"
+  
+  # Default tags
+  default_tags = {
+    Environment = var.environment
+    Project     = var.project_name
+    ManagedBy   = "terraform"
+    Module      = "cognito"
+  }
+  
+  # Merged tags
+  tags = merge(local.default_tags, var.common_tags)
+  
+  # Common schema attributes
+  email_schema = {
+    name                = "email"
+    attribute_data_type = "String"
+    required            = true
+    mutable            = true
+  }
+  
+  email_verified_schema = {
+    name                = "email_verified"
+    attribute_data_type = "Boolean"
+    required            = false
+    mutable            = true
   }
 }
 
 # User Pool for End Users (Google OAuth)
 resource "aws_cognito_user_pool" "users" {
-  name = "${var.project_name}-${var.environment}-users"
+  name = local.users_pool_name
 
   # Password policy (less strict for social login)
   password_policy {
@@ -76,8 +118,8 @@ resource "aws_cognito_user_pool" "users" {
     mutable            = true
   }
 
-  tags = merge(var.common_tags, {
-    Name = "${var.project_name}-${var.environment}-users-pool"
+  tags = merge(local.tags, {
+    Name = local.users_pool_name
     Type = "EndUser"
     AuthMethod = "GoogleOAuth"
   })
@@ -122,7 +164,6 @@ resource "aws_cognito_user_pool" "admins" {
   # Admin pool policies - more restrictive
   admin_create_user_config {
     allow_admin_create_user_only = true
-    temporary_password_validity_days = 1
   }
 
   # MFA configuration - recommended for admins

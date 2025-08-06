@@ -19,10 +19,9 @@ AIチャット機能を提供。
 
 ■環境変数■
 - DYNAMODB_TABLE: メインテーブル名
-- CHAT_CONTENT_BUCKET: コンテンツ保存S3バケット
-- CLOUDFRONT_DOMAIN: CDN配信ドメイン
 - BEDROCK_MODEL_ID: 使用するBedrockモデル
 - ENVIRONMENT: 実行環境（prod/dev）
+- AWS_REGION: AWSリージョン
 """
 
 import json
@@ -113,7 +112,6 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         # ===============================
         required_env_vars = [
             "DYNAMODB_TABLE",
-            "CHAT_CONTENT_BUCKET", 
             "AWS_REGION"
         ]
         
@@ -453,7 +451,6 @@ def health_check_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             },
             "configuration": {
                 "dynamodb_table": bool(os.getenv("DYNAMODB_TABLE")),
-                "s3_bucket": bool(os.getenv("CHAT_CONTENT_BUCKET")),
                 "aws_region": bool(os.getenv("AWS_REGION")),
                 "bedrock_model": bool(os.getenv("BEDROCK_MODEL_ID"))
             }

@@ -1,34 +1,155 @@
+# DynamoDB Table Outputs
 output "users_table_name" {
   description = "Name of the users table"
-  value       = module.dynamodb.users_table_name
+  value       = module.dynamodb_tables["users"].table_name
 }
 
-output "chat_table_name" {
-  description = "Name of the chat table"
-  value       = module.dynamodb.chat_table_name
+output "users_table_arn" {
+  description = "ARN of the users table"
+  value       = module.dynamodb_tables["users"].table_arn
 }
 
-output "tree_table_name" {
-  description = "Name of the tree table"
-  value       = module.dynamodb.tree_table_name
+output "chats_table_name" {
+  description = "Name of the chats table"
+  value       = module.dynamodb_tables["chats"].table_name
+}
+
+output "chats_table_arn" {
+  description = "ARN of the chats table"
+  value       = module.dynamodb_tables["chats"].table_arn
+}
+
+output "trees_table_name" {
+  description = "Name of the trees table"
+  value       = module.dynamodb_tables["trees"].table_name
+}
+
+output "trees_table_arn" {
+  description = "ARN of the trees table"
+  value       = module.dynamodb_tables["trees"].table_arn
 }
 
 output "fruits_table_name" {
   description = "Name of the fruits table"
-  value       = module.dynamodb.fruits_table_name
+  value       = module.dynamodb_tables["fruits"].table_name
 }
 
+output "fruits_table_arn" {
+  description = "ARN of the fruits table"
+  value       = module.dynamodb_tables["fruits"].table_arn
+}
+
+output "subscriptions_table_name" {
+  description = "Name of the subscriptions table"
+  value       = module.dynamodb_tables["subscriptions"].table_name
+}
+
+output "subscriptions_table_arn" {
+  description = "ARN of the subscriptions table"
+  value       = module.dynamodb_tables["subscriptions"].table_arn
+}
+
+output "notifications_table_name" {
+  description = "Name of the notifications table"
+  value       = module.dynamodb_tables["notifications"].table_name
+}
+
+output "notifications_table_arn" {
+  description = "ARN of the notifications table"
+  value       = module.dynamodb_tables["notifications"].table_arn
+}
+
+output "feedback_table_name" {
+  description = "Name of the feedback table"
+  value       = module.dynamodb_tables["feedback"].table_name
+}
+
+output "feedback_table_arn" {
+  description = "ARN of the feedback table"
+  value       = module.dynamodb_tables["feedback"].table_arn
+}
+
+# S3 Bucket Outputs
 output "chat_content_bucket_name" {
   description = "Name of the chat content S3 bucket"
-  value       = module.s3.chat_content_bucket_name
+  value       = module.chat_content_bucket.bucket_id
 }
 
-output "children_table_name" {
-  description = "Name of the children table"
-  value       = module.dynamodb.children_table_name
+output "chat_content_bucket_arn" {
+  description = "ARN of the chat content S3 bucket"
+  value       = module.chat_content_bucket.bucket_arn
 }
 
-output "table_names" {
-  description = "List of all table names"
-  value       = module.dynamodb.table_names
+output "images_bucket_name" {
+  description = "Name of the images S3 bucket"
+  value       = module.images_bucket.bucket_id
+}
+
+output "images_bucket_arn" {
+  description = "ARN of the images S3 bucket"
+  value       = module.images_bucket.bucket_arn
+}
+
+output "static_bucket_name" {
+  description = "Name of the static S3 bucket"
+  value       = module.static_bucket.bucket_id
+}
+
+output "static_bucket_arn" {
+  description = "ARN of the static S3 bucket"
+  value       = module.static_bucket.bucket_arn
+}
+
+# Combined outputs for convenience
+output "dynamodb_table_names" {
+  description = "Map of all DynamoDB table names"
+  value = {
+    for table_key, table_config in local.dynamodb_tables : table_key => module.dynamodb_tables[table_key].table_name
+  }
+}
+
+output "dynamodb_table_arns" {
+  description = "Map of all DynamoDB table ARNs"
+  value = {
+    for table_key, table_config in local.dynamodb_tables : table_key => module.dynamodb_tables[table_key].table_arn
+  }
+}
+
+output "s3_bucket_names" {
+  description = "Map of all S3 bucket names"
+  value = {
+    chat-content = module.chat_content_bucket.bucket_id
+    images       = module.images_bucket.bucket_id
+    static       = module.static_bucket.bucket_id
+  }
+}
+
+output "s3_bucket_arns" {
+  description = "Map of all S3 bucket ARNs"
+  value = {
+    chat-content = module.chat_content_bucket.bucket_arn
+    images       = module.images_bucket.bucket_arn
+    static       = module.static_bucket.bucket_arn
+  }
+}
+
+# SQS Queue Outputs
+output "ttl_updates_queue_url" {
+  description = "URL of the TTL updates SQS queue"
+  value       = module.sqs.ttl_updates_queue_url
+}
+
+output "ttl_updates_queue_arn" {
+  description = "ARN of the TTL updates SQS queue"
+  value       = module.sqs.ttl_updates_queue_arn
+}
+
+output "webhook_events_queue_url" {
+  description = "URL of the webhook events SQS queue"
+  value       = module.sqs.webhook_events_queue_url
+}
+
+output "webhook_events_queue_arn" {
+  description = "ARN of the webhook events SQS queue"
+  value       = module.sqs.webhook_events_queue_arn
 }

@@ -28,34 +28,16 @@ Homebiyori（ほめびより）木の成長システムのデータモデル。
 """
 
 from datetime import datetime, timezone
-from typing import Dict, List, Literal, Optional, Union
+from typing import Any, Dict, List, Literal, Optional, Union
 from pydantic import BaseModel, Field, validator
 import uuid
 import pytz
 from enum import Enum
 
+# 共通Layerから日時処理をインポート
+from homebiyori_common.utils.datetime_utils import get_current_jst, to_jst_string
 
-def get_current_jst() -> datetime:
-    """
-    現在のJST時刻を取得
-    
-    システム全体でJST統一により、日本のユーザーに最適化。
-    """
-    jst = pytz.timezone('Asia/Tokyo')
-    return datetime.now(jst)
-
-
-def to_jst_string(dt: datetime) -> str:
-    """datetimeをJST文字列に変換"""
-    if dt.tzinfo is None:
-        # ナイーブなdatetimeの場合、JSTと仮定
-        jst = pytz.timezone('Asia/Tokyo')
-        dt = jst.localize(dt)
-    else:
-        # タイムゾーン付きdatetimeをJSTに変換
-        jst = pytz.timezone('Asia/Tokyo')
-        dt = dt.astimezone(jst)
-    return dt.isoformat()
+# JST時刻関数は共通Layerから使用（homebiyori_common.utils.datetime_utils）
 
 
 # =====================================
@@ -139,7 +121,7 @@ class TreeStatus(BaseModel):
     )
     
     theme_color: TreeTheme = Field(
-        default=TreeTheme.ROSE,
+        default=TreeTheme.WARM_PINK,
         description="選択中のテーマカラー"
     )
     
@@ -580,11 +562,11 @@ def get_character_theme_color(character: AICharacterType) -> TreeTheme:
         TreeTheme: テーマカラー
     """
     character_theme_map = {
-        "tama": TreeTheme.ROSE,
-        "madoka": TreeTheme.SKY,
-        "hide": TreeTheme.AMBER
+        "tama": TreeTheme.WARM_PINK,
+        "madoka": TreeTheme.COOL_BLUE,
+        "hide": TreeTheme.WARM_ORANGE
     }
-    return character_theme_map.get(character, TreeTheme.ROSE)
+    return character_theme_map.get(character, TreeTheme.WARM_PINK)
 
 
 def can_generate_fruit(last_fruit_date: Optional[datetime]) -> bool:
@@ -653,7 +635,7 @@ def generate_growth_celebration_message(
 def create_tree_status_from_stats(
     user_id: str,
     stats: Dict[str, Any],
-    theme_color: TreeTheme = TreeTheme.ROSE
+    theme_color: TreeTheme = TreeTheme.WARM_PINK
 ) -> TreeStatus:
     """
     統計データからTreeStatusオブジェクトを作成
