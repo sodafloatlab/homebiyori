@@ -32,6 +32,7 @@ from typing import Dict, List, Optional, Any, Union
 from datetime import datetime, timedelta
 import pytz
 import json
+import boto3
 
 # Lambda Layers からの共通機能インポート  
 from homebiyori_common.logger import get_logger
@@ -52,6 +53,27 @@ from .models import (
 # 構造化ログ設定
 logger = get_logger(__name__)
 
+def get_parameter_store_value(parameter_name: str) -> str:
+    """
+    Parameter Store から値を取得
+    
+    Args:
+        parameter_name: パラメータ名
+        
+    Returns:
+        パラメータ値
+        
+    Raises:
+        ValueError: パラメータが見つからない場合
+    """
+    try:
+        ssm_client = boto3.client('ssm')
+        response = ssm_client.get_parameter(Name=parameter_name, WithDecryption=True)
+        return response['Parameter']['Value']
+    except Exception as e:
+        logger.error(f"Parameter Store値取得失敗: parameter={parameter_name}, error={str(e)}")
+        raise ValueError(f"Failed to retrieve parameter {parameter_name}: {str(e)}")
+
 class StripeClient:
     """
     Stripe API クライアント
@@ -69,15 +91,37 @@ class StripeClient:
         Stripeクライアント初期化
         
         Args:
-            api_key: Stripe APIキー（環境変数から取得）
+            api_key: Stripe APIキー（Parameter Storeから取得）
             webhook_secret: Webhook署名検証用シークレット
         """
-        # Stripe APIキー設定
-        stripe.api_key = api_key or os.getenv("STRIPE_SECRET_KEY")
-        self.webhook_secret = webhook_secret or os.getenv("STRIPE_WEBHOOK_SECRET")
+        # Parameter Store からStripe APIキー取得
+        stripe_api_key_param = os.getenv("STRIPE_API_KEY_PARAMETER")
+        if not api_key and stripe_api_key_param:
+            try:
+                stripe.api_key = get_parameter_store_value(stripe_api_key_param)
+            except Exception as e:
+                logger.error(f"Stripe APIキーのParameter Store取得失敗: {str(e)}")
+                raise ValueError(f"Failed to retrieve Stripe API key from Parameter Store: {str(e)}")
+        else:
+            # フォールバック: 環境変数から取得
+            stripe.api_key = api_key or os.getenv("STRIPE_SECRET_KEY")
+        
+        # Webhook secretの設定（必要に応じて）
+        if not webhook_secret:
+            webhook_secret_param = os.getenv("STRIPE_WEBHOOK_SECRET_PARAMETER")
+            if webhook_secret_param:
+                try:
+                    self.webhook_secret = get_parameter_store_value(webhook_secret_param)
+                except Exception as e:
+                    logger.warning(f"Stripe Webhook SecretのParameter Store取得失敗: {str(e)}")
+                    self.webhook_secret = os.getenv("STRIPE_WEBHOOK_SECRET")
+            else:
+                self.webhook_secret = os.getenv("STRIPE_WEBHOOK_SECRET")
+        else:
+            self.webhook_secret = webhook_secret
         
         if not stripe.api_key:
-            raise ValueError("STRIPE_SECRET_KEY environment variable is required")
+            raise ValueError("Stripe API key is required (from Parameter Store or environment variable)")
         
         # API バージョン設定
         stripe.api_version = "2023-10-16"

@@ -316,6 +316,7 @@ locals {
       environment_variables = {
         SUBSCRIPTIONS_TABLE_NAME = data.terraform_remote_state.datastore.outputs.subscriptions_table_name
         USERS_TABLE_NAME         = data.terraform_remote_state.datastore.outputs.users_table_name
+        STRIPE_API_KEY_PARAMETER = data.aws_ssm_parameter.stripe_api_key.name
       }
       iam_policy_document = jsonencode({
         Version = "2012-10-17"
