@@ -40,17 +40,22 @@
    - 感情検出システム
    - 木の成長システム
 
-7. **[design_security.md](./design_security.md)** - セキュリティ設計
+7. **[design_prompt.md](./design_prompt.md)** - AIプロンプト設計
+   - プロンプトアーキテクチャ詳細
+   - キャッシュ最適化戦略
+   - 動的応答制御システム
+
+8. **[design_security.md](./design_security.md)** - セキュリティ設計
    - 認証・認可システム
    - データ保護
    - プライバシー保護
 
-8. **[design_operations.md](./design_operations.md)** - 運用・監視設計
+9. **[design_operations.md](./design_operations.md)** - 運用・監視設計
    - パフォーマンス最適化
    - 監視・アラート
    - コスト最適化
 
-9. **[design_payment.md](./design_payment.md)** - 決済システム設計
+10. **[design_payment.md](./design_payment.md)** - 決済システム設計
    - Stripe連携仕様
    - サブスクリプション管理
    - 課金フロー
