@@ -120,26 +120,28 @@ async def database_client(mock_dynamodb_table):
         test_data = {}
         
         async def mock_get_item(pk, sk):
-            key = f"{pk}#{sk}"
+            key = f"{pk}|{sk}"  # Use | instead of # to avoid confusion
             return test_data.get(key)
         
         async def mock_put_item(item_data):
             pk = item_data["PK"]
             sk = item_data["SK"]
-            key = f"{pk}#{sk}"
+            key = f"{pk}|{sk}"  # Use | instead of # to avoid confusion
             test_data[key] = item_data
             return item_data
         
         async def mock_query_by_prefix(pk, sk_prefix):
             results = []
             for key, data in test_data.items():
-                stored_pk, stored_sk = key.split("#", 1)
+                if "|" not in key:
+                    continue
+                stored_pk, stored_sk = key.split("|", 1)
                 if stored_pk == pk and stored_sk.startswith(sk_prefix):
                     results.append(data)
             return results
         
         async def mock_delete_item(pk, sk):
-            key = f"{pk}#{sk}"
+            key = f"{pk}|{sk}"  # Use | instead of # to avoid confusion
             if key in test_data:
                 del test_data[key]
                 return True

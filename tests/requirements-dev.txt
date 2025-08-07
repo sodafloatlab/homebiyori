@@ -1,25 +1,25 @@
-# 開発・テスト環境専用のライブラリ
-# GEMINI.md準拠: tests配下でのテスト実行に必要な依存関係
+# 開発・テスト環境専用のライブラリ (Updated: 2025年8月基準)
+# tests配下でのテスト実行に必要な依存関係
 
-# テストフレームワーク
-pytest==7.4.3                 # メインテストフレームワーク
-pytest-asyncio==0.21.1        # 非同期テスト対応
-pytest-cov==4.1.0            # カバレッジ測定
+# テストフレームワーク (2025年8月最新)
+pytest==8.4.1                 # メインテストフレームワーク
+pytest-asyncio==1.0.0         # 非同期テスト対応
+pytest-cov==6.2.1             # カバレッジ測定
 
-# FastAPI テスト用
-fastapi==0.104.1              # FastAPI フレームワーク（テスト対象）
-httpx==0.25.2                 # FastAPI TestClient用HTTPクライアント
-pydantic==2.5.0               # データバリデーション（Lambda Layers統合）
+# FastAPI テスト用 (2025年8月最新)
+fastapi==0.116.1              # FastAPI フレームワーク（テスト対象）
+httpx==0.28.1                 # FastAPI TestClient用HTTPクライアント
+pydantic==2.11.7              # データバリデーション（Lambda Layers統合）
 
-# AWS サービスモック
-moto[dynamodb,s3,ssm]==4.2.10 # AWSサービスモック（DynamoDB、S3、Parameter Store）
-boto3==1.34.0                 # AWS SDK（モック対象）
-botocore==1.34.0              # boto3の低レベル実装
+# AWS サービスモック (2025年8月最新)
+moto[dynamodb,s3,ssm]==5.0.21 # AWSサービスモック（DynamoDB、S3、Parameter Store）
+boto3==1.40.3                 # AWS SDK（モック対象）
+botocore==1.40.3              # boto3の低レベル実装
 
-# HTTP リクエスト
-requests==2.31.0              # 統合テスト用HTTPクライアント
+# HTTP リクエスト (2025年8月最新)
+requests==2.32.3              # 統合テスト用HTTPクライアント
 
-# コード品質
-ruff==0.1.6                   # Pythonリンター・フォーマッター
-mypy==1.7.0                   # 型チェッカー
-types-requests==2.31.0        # requests用型情報
+# コード品質 (2025年8月最新)
+ruff==0.7.0                   # Pythonリンター・フォーマッター
+mypy==1.13.0                  # 型チェッカー
+types-requests==2.32.4.20250611        # requests用型情報

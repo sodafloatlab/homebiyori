@@ -248,7 +248,8 @@ class TestAdminNotificationService:
     @pytest.mark.asyncio
     async def test_maintenance_notification_template(self, admin_service):
         """メンテナンス通知テンプレートテスト"""
-        start_time = datetime.now() + timedelta(hours=24)
+        from homebiyori_common.utils.datetime_utils import get_current_jst
+        start_time = get_current_jst() + timedelta(hours=25)  # 25時間後に設定して余裕を持たせる
         end_time = start_time + timedelta(hours=2)
         
         template = MaintenanceNotificationTemplate(

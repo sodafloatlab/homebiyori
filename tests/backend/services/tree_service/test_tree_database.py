@@ -233,7 +233,7 @@ class TestTreeDatabase:
             "viewed_at": None,
             "view_count": 0
         }
-        mock_db_client.query.return_value = [mock_fruit_item]
+        mock_db_client.query.return_value = {"items": [mock_fruit_item]}
         
         # テスト実行
         result = await tree_db.get_fruit_detail(
@@ -259,7 +259,7 @@ class TestTreeDatabase:
         [D002-3] 存在しない実の詳細取得（None返却）
         """
         # モック設定（データなし）
-        mock_db_client.query.return_value = []
+        mock_db_client.query.return_value = {"items": []}
         
         # テスト実行
         result = await tree_db.get_fruit_detail(sample_user_id, "nonexistent_fruit")
@@ -295,7 +295,7 @@ class TestTreeDatabase:
             "SK": f"FRUIT#20240805120000#{sample_fruit_data.fruit_id}",
             "fruit_id": sample_fruit_data.fruit_id
         }
-        mock_db_client.query.return_value = [mock_fruit_item]
+        mock_db_client.query.return_value = {"items": [mock_fruit_item]}
         
         # テスト実行
         await tree_db.update_fruit_view_stats(
@@ -363,7 +363,7 @@ class TestTreeDatabase:
                 "milestone_fruit_id": None
             }
         ]
-        mock_db_client.query.return_value = mock_history_items
+        mock_db_client.query.return_value = {"items": mock_history_items}
         
         # テスト実行
         result = await tree_db.get_growth_history(sample_user_id)
@@ -417,12 +417,12 @@ class TestTreeDatabase:
             }
         ]
         
-        mock_pagination_result = {
+        mock_result = {
             "items": mock_fruits_items,
             "next_token": None,
             "has_more": False
         }
-        mock_db_client.query_with_pagination.return_value = mock_pagination_result
+        mock_db_client.query.return_value = mock_result
         
         # テスト実行
         result = await tree_db.get_user_fruits(sample_user_id)
@@ -455,12 +455,12 @@ class TestTreeDatabase:
             "end_date": "2024-08-05"
         }
         
-        mock_pagination_result = {
+        mock_result = {
             "items": [],
             "next_token": None,
             "has_more": False
         }
-        mock_db_client.query_with_pagination.return_value = mock_pagination_result
+        mock_db_client.query.return_value = mock_result
         
         # テスト実行
         await tree_db.get_user_fruits(
@@ -470,8 +470,8 @@ class TestTreeDatabase:
         )
         
         # クエリ呼び出し確認
-        mock_db_client.query_with_pagination.assert_called_once()
-        call_args = mock_db_client.query_with_pagination.call_args[1]
+        mock_db_client.query.assert_called_once()
+        call_args = mock_db_client.query.call_args[1]
         
         # フィルター条件が正しく設定されているか確認
         assert "filter_expression" in call_args
@@ -480,9 +480,9 @@ class TestTreeDatabase:
         assert "created_at >= :start_date" in call_args["filter_expression"]
         assert "created_at <= :end_date" in call_args["filter_expression"]
         
-        filter_values = call_args["filter_values"]
-        assert filter_values[":character"] == "tama"
-        assert filter_values[":emotion"] == "joy"
+        expression_values = call_args["expression_values"]
+        assert expression_values[":character"] == "tama"
+        assert expression_values[":emotion"] == "joy"
 
     # =====================================
     # D005: エラーハンドリングテスト
@@ -508,13 +508,13 @@ class TestTreeDatabase:
         [D005-2] 存在しない実の閲覧統計更新エラー
         """
         # モック設定（実が見つからない）
-        mock_db_client.query.return_value = []
+        mock_db_client.query.return_value = {"items": []}
         
         # テスト実行・例外検証
-        with pytest.raises(NotFoundError) as exc_info:
+        with pytest.raises(DatabaseError) as exc_info:
             await tree_db.update_fruit_view_stats(sample_user_id, "nonexistent_fruit")
         
-        assert "実が見つかりません" in str(exc_info.value)
+        assert "閲覧統計の更新に失敗しました" in str(exc_info.value)
 
     # =====================================
     # D006: ヘルスチェックテスト

@@ -1,11 +1,11 @@
-# billing-service Lambda dependencies
+# billing-service Lambda dependencies (Updated: 2025年8月基準)
 # 基本的な依存関係は homebiyori-common-layer から提供
 
-# Lambda専用軽量依存関係
-mangum==0.17.0
+# Lambda専用軽量依存関係 (2025年8月最新)
+mangum==0.19.0
 
-# Stripe決済処理
-stripe==7.8.0
+# Stripe決済処理 (2025年8月最新)
+stripe==12.4.0
 
-# JSONエンコーディング最適化
-orjson==3.9.9
+# JSONエンコーディング最適化 (2025年8月最新)
+orjson==3.11.1
