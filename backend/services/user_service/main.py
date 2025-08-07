@@ -84,10 +84,7 @@ from homebiyori_common.maintenance import check_maintenance_mode
 from .models import (
     UserProfile,
     AIPreferences,
-    ChildInfo,
     UserProfileUpdate,
-    ChildInfoCreate,
-    ChildInfoUpdate,
 )
 from .database import get_database
 
@@ -417,218 +414,131 @@ async def update_ai_preferences(ai_preferences: AIPreferences, request: Request)
 
 
 # =====================================
-# 子供情報管理エンドポイント
+# オンボーディング管理エンドポイント
 # =====================================
 
 
-@app.get("/users/children", response_model=List[ChildInfo])
-async def get_children(request: Request):
+@app.get("/users/onboarding-status")
+async def get_onboarding_status(request: Request):
     """
-    現在認証されているユーザーの子供一覧取得
+    オンボーディング状態確認
 
     ■機能概要■
-    - ユーザーに紐づく子供情報の一覧を返却
-    - 生年月日から年齢を自動計算して返却
-    - プライバシー保護: 他のユーザーの子供情報は取得不可
-
-    ■データベース設計■
-    DynamoDB アクセスパターン:
-    - PK: USER#{user_id}
-    - SK: CHILD#{child_id}
-    - Query: PK="USER#{user_id}" AND SK begins_with "CHILD#"
+    - 現在認証されているユーザーのオンボーディング状態を確認
+    - ニックネーム設定状況とオンボーディング完了フラグを返却
+    - フロントエンド側でのルーティング制御に使用
 
     ■レスポンス■
-    - 200: 子供情報配列（空配列も含む）
+    - 200: オンボーディング状態情報
     - 401: 認証エラー
     """
     user_id = get_authenticated_user_id(request)
 
     try:
-        logger.info("Fetching children list", extra={"user_id": user_id[:8] + "****"})
+        logger.info("Checking onboarding status", extra={"user_id": user_id[:8] + "****"})
 
-        children = await db.get_user_children(user_id)
+        profile = await db.get_user_profile(user_id)
+        
+        if not profile:
+            # プロフィール未作成 = オンボーディング未完了
+            return {
+                "onboarding_completed": False,
+                "has_nickname": False,
+                "nickname": None
+            }
 
-        logger.info(
-            "Children list retrieved",
-            extra={"user_id": user_id[:8] + "****", "children_count": len(children)},
-        )
-        return children
+        return {
+            "onboarding_completed": profile.onboarding_completed,
+            "has_nickname": profile.nickname is not None,
+            "nickname": profile.nickname
+        }
 
     except DatabaseError as e:
         logger.error(
-            "Database error in get_children",
+            "Database error in get_onboarding_status",
             extra={"error": str(e), "user_id": user_id[:8] + "****"},
         )
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
-@app.post("/users/children", response_model=ChildInfo)
-async def create_child(child_data: ChildInfoCreate, request: Request):
+@app.post("/users/complete-onboarding")
+async def complete_onboarding(
+    onboarding_data: dict, request: Request
+):
     """
-    子供情報新規追加
+    ニックネーム登録・オンボーディング完了
 
     ■機能概要■
-    - 新しい子供情報をユーザーに紐づけて作成
-    - child_id は自動生成（UUID）
-    - 生年月日バリデーション（未来日不可等）
+    - 初回ユーザーのニックネーム設定とオンボーディング完了処理
+    - プロフィール未作成の場合は新規作成
+    - 既存プロフィールの場合は更新
 
     ■バリデーション■
-    - 名前: 1-50文字、基本文字のみ
-    - 生年月日: 過去の日付のみ許可
-    - 同一ユーザーの子供数上限: 10人
+    - ニックネーム: 1-20文字、基本文字のみ必須
+    - オンボーディング完了フラグ自動設定
 
     ■レスポンス■
-    - 201: 作成された子供情報
+    - 200: 更新後のプロフィール
     - 400: バリデーションエラー
     - 401: 認証エラー
     """
     user_id = get_authenticated_user_id(request)
 
     try:
-        logger.info(
-            "Creating new child",
-            extra={"user_id": user_id[:8] + "****", "child_name": child_data.name},
-        )
-
-        # 子供数上限チェック
-        existing_children = await db.get_user_children(user_id)
-        if len(existing_children) >= 10:
-            raise ValidationError("子供の登録数が上限（10人）に達しています")
-
-        # 新しい子供情報作成
-        child_info = await db.create_child(user_id, child_data)
+        nickname = onboarding_data.get("nickname")
+        if not nickname or not isinstance(nickname, str):
+            raise HTTPException(status_code=400, detail="ニックネームは必須です")
 
         logger.info(
-            "Child created successfully",
-            extra={"user_id": user_id[:8] + "****", "child_id": child_info.child_id},
+            "Completing onboarding",
+            extra={"user_id": user_id[:8] + "****", "nickname": nickname},
         )
-        return child_info
+
+        # 既存プロフィール取得
+        existing_profile = await db.get_user_profile(user_id)
+        
+        if existing_profile:
+            # 既存プロフィール更新
+            existing_profile.nickname = nickname
+            existing_profile.onboarding_completed = True
+            updated_profile = existing_profile
+        else:
+            # 新規プロフィール作成
+            updated_profile = UserProfile(
+                user_id=user_id,
+                nickname=nickname,
+                onboarding_completed=True
+            )
+
+        # データベース保存
+        saved_profile = await db.save_user_profile(updated_profile)
+
+        logger.info(
+            "Onboarding completed successfully",
+            extra={"user_id": user_id[:8] + "****"}
+        )
+        
+        return {
+            "success": True,
+            "user": {
+                "user_id": saved_profile.user_id,
+                "nickname": saved_profile.nickname,
+                "onboarding_completed": saved_profile.onboarding_completed
+            }
+        }
 
     except ValidationError as e:
         logger.warning(
-            "Validation error in create_child",
+            "Validation error in complete_onboarding",
             extra={"error": str(e), "user_id": user_id[:8] + "****"},
         )
         raise HTTPException(status_code=400, detail=str(e))
     except DatabaseError as e:
         logger.error(
-            "Database error in create_child",
+            "Database error in complete_onboarding",
             extra={"error": str(e), "user_id": user_id[:8] + "****"},
         )
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
-@app.put("/users/children/{child_id}", response_model=ChildInfo)
-async def update_child(child_id: str, child_update: ChildInfoUpdate, request: Request):
-    """
-    子供情報更新
 
-    ■機能概要■
-    - 既存の子供情報を更新
-    - 他のユーザーの子供は更新不可（認可チェック）
-    - 部分更新対応
-
-    ■認可チェック■
-    1. child_id が認証ユーザーに属するかチェック
-    2. 属さない場合は404返却（存在隠蔽のため）
-
-    ■レスポンス■
-    - 200: 更新後の子供情報
-    - 400: バリデーションエラー
-    - 404: 子供が見つからない or アクセス権なし
-    """
-    user_id = get_authenticated_user_id(request)
-
-    try:
-        logger.info(
-            "Updating child",
-            extra={"user_id": user_id[:8] + "****", "child_id": child_id},
-        )
-
-        # 既存の子供情報取得＆認可チェック
-        existing_child = await db.get_child(user_id, child_id)
-        if not existing_child:
-            raise HTTPException(status_code=404, detail="Child not found")
-
-        # 子供情報更新
-        updated_child = await db.update_child(user_id, child_id, child_update)
-
-        logger.info(
-            "Child updated successfully",
-            extra={"user_id": user_id[:8] + "****", "child_id": child_id},
-        )
-        return updated_child
-
-    except HTTPException:
-        raise
-    except ValidationError as e:
-        logger.warning(
-            "Validation error in update_child",
-            extra={
-                "error": str(e),
-                "user_id": user_id[:8] + "****",
-                "child_id": child_id,
-            },
-        )
-        raise HTTPException(status_code=400, detail=str(e))
-    except DatabaseError as e:
-        logger.error(
-            "Database error in update_child",
-            extra={
-                "error": str(e),
-                "user_id": user_id[:8] + "****",
-                "child_id": child_id,
-            },
-        )
-        raise HTTPException(status_code=500, detail="Internal server error")
-
-
-@app.delete("/users/children/{child_id}")
-async def delete_child(child_id: str, request: Request):
-    """
-    子供情報削除
-
-    ■機能概要■
-    - 指定された子供情報を削除
-    - 他のユーザーの子供は削除不可
-    - ソフトデリート（物理削除）
-
-    ■注意事項■
-    削除された子供に関連するチャット履歴等は残存する。
-    chat-service側で子供情報を参照する際は、削除チェックが必要。
-
-    ■レスポンス■
-    - 204: 削除成功
-    - 404: 子供が見つからない or アクセス権なし
-    """
-    user_id = get_authenticated_user_id(request)
-
-    try:
-        logger.info(
-            "Deleting child",
-            extra={"user_id": user_id[:8] + "****", "child_id": child_id},
-        )
-
-        # 認可チェック＆削除実行
-        success = await db.delete_child(user_id, child_id)
-        if not success:
-            raise HTTPException(status_code=404, detail="Child not found")
-
-        logger.info(
-            "Child deleted successfully",
-            extra={"user_id": user_id[:8] + "****", "child_id": child_id},
-        )
-        return {"status": "deleted"}
-
-    except HTTPException:
-        raise
-    except DatabaseError as e:
-        logger.error(
-            "Database error in delete_child",
-            extra={
-                "error": str(e),
-                "user_id": user_id[:8] + "****",
-                "child_id": child_id,
-            },
-        )
-        raise HTTPException(status_code=500, detail="Internal server error")

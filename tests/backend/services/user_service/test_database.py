@@ -45,7 +45,7 @@ import uuid
 # テスト対象モジュール
 from backend.services.user_service.database import UserServiceDatabase, get_database
 from backend.services.user_service.models import (
-    UserProfile, ChildInfo, ChildInfoCreate, ChildInfoUpdate,
+    UserProfile,
     AICharacter, PraiseLevel, get_current_jst
 )
 
@@ -168,15 +168,6 @@ async def sample_user_profile():
     )
 
 
-@pytest_asyncio.fixture 
-async def sample_child_data():
-    """サンプル子供データ"""
-    return ChildInfoCreate(
-        name="テスト太郎",
-        birth_date=date(2020, 4, 15)
-    )
-
-
 # =====================================
 # ユーザープロフィール管理テスト
 # =====================================
@@ -268,195 +259,22 @@ async def test_user_profile_update(database_client, sample_user_profile):
 # 子供情報管理テスト
 # =====================================
 
-@pytest.mark.asyncio
-async def test_children_get_empty_list(database_client):
-    """
-    [USER-DB-004] 子供情報一覧取得（空リスト）
-    
-    子供が未登録のユーザーで空リストが返されることを確認。
-    """
-    db, test_data = database_client
-    user_id = "12345678-1234-5678-9012-123456789012"
-    
-    # 子供一覧取得
-    children = await db.get_user_children(user_id)
-    
-    # 空リスト確認
-    assert isinstance(children, list)
-    assert len(children) == 0
 
 
-@pytest.mark.asyncio
-async def test_child_create_and_get(database_client, sample_child_data):
-    """
-    [USER-DB-005] 子供情報新規作成・取得
-    
-    新規子供情報の作成と取得が正常に動作することを確認。
-    年齢計算機能も検証。
-    """
-    db, test_data = database_client
-    user_id = "12345678-1234-5678-9012-123456789012"
-    
-    # 子供作成
-    created_child = await db.create_child(user_id, sample_child_data)
-    
-    # 作成確認
-    assert created_child.name == "テスト太郎"
-    assert created_child.birth_date == date(2020, 4, 15)
-    assert created_child.child_id is not None
-    assert len(created_child.child_id) == 36  # UUID形式
-    
-    # UTC時刻確認
-    assert created_child.created_at.tzinfo.zone == 'Asia/Tokyo'
-    assert created_child.updated_at.tzinfo.zone == 'Asia/Tokyo'
-    
-    # 年齢計算確認
-    assert created_child.age_years >= 3  # 2020年生まれなので3歳以上
-    assert created_child.age_months >= 36  # 36ヶ月以上
-    
-    # 個別取得確認
-    retrieved_child = await db.get_child(user_id, created_child.child_id)
-    assert retrieved_child is not None
-    assert retrieved_child.name == "テスト太郎"
-    
-    # 一覧取得確認
-    children = await db.get_user_children(user_id)
-    assert len(children) == 1
-    assert children[0].name == "テスト太郎"
 
 
-@pytest.mark.asyncio
-async def test_child_update(database_client, sample_child_data):
-    """
-    [USER-DB-006] 子供情報更新
-    
-    既存子供情報の部分更新が正常に動作することを確認。
-    """
-    db, test_data = database_client
-    user_id = "12345678-1234-5678-9012-123456789012"
-    
-    # 子供作成
-    created_child = await db.create_child(user_id, sample_child_data)
-    child_id = created_child.child_id
-    original_updated_at = created_child.updated_at
-    
-    # 更新データ準備
-    update_data = ChildInfoUpdate(
-        name="更新太郎",
-        birth_date=date(2020, 6, 1)
-    )
-    
-    # 子供情報更新
-    updated_child = await db.update_child(user_id, child_id, update_data)
-    
-    # 更新確認
-    assert updated_child.name == "更新太郎"
-    assert updated_child.birth_date == date(2020, 6, 1)
-    assert updated_child.child_id == child_id  # IDは変更されない
-    assert updated_child.updated_at > original_updated_at
-    
-    # 部分更新確認（名前のみ更新）
-    partial_update = ChildInfoUpdate(name="部分更新太郎")
-    partially_updated = await db.update_child(user_id, child_id, partial_update)
-    
-    assert partially_updated.name == "部分更新太郎"
-    assert partially_updated.birth_date == date(2020, 6, 1)  # 前の値が保持
 
 
-@pytest.mark.asyncio
-async def test_child_delete(database_client, sample_child_data):
-    """
-    [USER-DB-007] 子供情報削除
-    
-    子供情報の削除が正常に動作することを確認。
-    """
-    db, test_data = database_client
-    user_id = "12345678-1234-5678-9012-123456789012"
-    
-    # 子供作成
-    created_child = await db.create_child(user_id, sample_child_data)
-    child_id = created_child.child_id
-    
-    # 削除前確認
-    child_before_delete = await db.get_child(user_id, child_id)
-    assert child_before_delete is not None
-    
-    # 削除実行
-    delete_success = await db.delete_child(user_id, child_id)
-    assert delete_success is True
-    
-    # 削除後確認
-    child_after_delete = await db.get_child(user_id, child_id)
-    assert child_after_delete is None
-    
-    # 存在しない子供の削除
-    non_existent_delete = await db.delete_child(user_id, "00000000-0000-0000-0000-000000000000")
-    assert non_existent_delete is False
+  # 前の値が保持
 
 
-@pytest.mark.asyncio
-async def test_multiple_children_management(database_client):
-    """
-    [USER-DB-008] 複数子供の管理（並び順確認）
-    
-    複数の子供情報の管理と生年月日順でのソートを確認。
-    """
-    db, test_data = database_client
-    user_id = "12345678-1234-5678-9012-123456789012"
-    
-    # 複数の子供を作成（異なる生年月日）
-    child1_data = ChildInfoCreate(name="長男", birth_date=date(2018, 3, 1))
-    child2_data = ChildInfoCreate(name="次男", birth_date=date(2020, 8, 15))
-    child3_data = ChildInfoCreate(name="三男", birth_date=date(2022, 12, 10))
-    
-    # 順不同で作成
-    child2 = await db.create_child(user_id, child2_data)
-    child1 = await db.create_child(user_id, child1_data)
-    child3 = await db.create_child(user_id, child3_data)
-    
-    # 一覧取得
-    children = await db.get_user_children(user_id)
-    
-    # 件数確認
-    assert len(children) == 3
-    
-    # 生年月日順ソート確認（古い順）
-    assert children[0].name == "長男"  # 2018年生まれ
-    assert children[1].name == "次男"  # 2020年生まれ
-    assert children[2].name == "三男"  # 2022年生まれ
-    
-    assert children[0].birth_date == date(2018, 3, 1)
-    assert children[1].birth_date == date(2020, 8, 15)
-    assert children[2].birth_date == date(2022, 12, 10)
 
 
-@pytest.mark.asyncio
-async def test_child_access_authorization(database_client, sample_child_data):
-    """
-    [USER-DB-009] 認可チェック（他ユーザーの子供へのアクセス不可）
-    
-    ユーザーは自分の子供情報のみアクセス可能であることを確認。
-    """
-    db, test_data = database_client
-    user1_id = "11111111-1111-1111-1111-111111111111"
-    user2_id = "22222222-2222-2222-2222-222222222222"
-    
-    # ユーザー1が子供を作成
-    child = await db.create_child(user1_id, sample_child_data)
-    child_id = child.child_id
-    
-    # ユーザー1は自分の子供にアクセス可能
-    user1_child = await db.get_child(user1_id, child_id)
-    assert user1_child is not None
-    assert user1_child.name == "テスト太郎"
-    
-    # ユーザー2は他人の子供にアクセス不可
-    user2_child = await db.get_child(user2_id, child_id)
-    assert user2_child is None
-    
-    # ユーザー2の子供一覧には含まれない
-    user2_children = await db.get_user_children(user2_id)
-    assert len(user2_children) == 0
+
+
+
+
+
 
 
 # =====================================
@@ -480,13 +298,7 @@ async def test_database_error_handling(database_client):
         )
         await db.save_user_profile(invalid_profile)
     
-    # 存在しない子供の更新
-    user_id = "12345678-1234-5678-9012-123456789012"
-    non_existent_child_id = "00000000-0000-0000-0000-000000000000"
-    update_data = ChildInfoUpdate(name="更新テスト")
-    
-    with pytest.raises(NotFoundError):
-        await db.update_child(user_id, non_existent_child_id, update_data)
+
 
 
 # =====================================
@@ -531,11 +343,3 @@ async def test_utc_timezone_consistency():
     assert profile.created_at.tzinfo.zone == 'Asia/Tokyo'
     assert profile.updated_at.tzinfo.zone == 'Asia/Tokyo'
     
-    # ChildInfo作成時のUTC確認
-    child = ChildInfo(
-        child_id="87654321-4321-8765-2109-876543210987",
-        name="UTCテスト子",
-        birth_date=date(2020, 1, 1)
-    )
-    assert child.created_at.tzinfo.zone == 'Asia/Tokyo'
-    assert child.updated_at.tzinfo.zone == 'Asia/Tokyo'

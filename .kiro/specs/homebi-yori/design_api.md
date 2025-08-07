@@ -10,52 +10,75 @@
 ## エンドポイント詳細
 
 ### チャット機能
-- `POST /api/chat/messages` - メッセージ送信
-- `GET /api/chat/history` - チャット履歴取得
-- `PUT /api/chat/mood` - 気分変更
-- `POST /api/chat/emotions` - 感情スタンプ送信
+- `POST /api/chat/messages` - メッセージ送信・AI応答生成 🔐認証必須
+- `GET /api/chat/history` - チャット履歴取得 🔐認証必須
+- `PUT /api/chat/mood` - 気分変更 🔐認証必須
+- `POST /api/chat/emotions` - 感情スタンプ送信 🔐認証必須
 
 ### 木の成長管理
-- `GET /api/tree/status` - 木の現在状態取得
-- `GET /api/tree/fruits` - 実の一覧取得
-- `POST /api/tree/fruits/{fruit_id}/view` - 実の詳細表示
+- `GET /api/tree/status` - 木の現在状態取得 🔐認証必須
+- `POST /api/tree/update-growth` - 木の成長更新 🔒内部API認証のみ
+- `PUT /api/tree/theme` - 木のテーマカラー更新 🔐認証必須
+- `POST /api/tree/generate-fruit` - 実の生成 🔒内部API認証のみ
+- `GET /api/tree/fruits` - 実の一覧取得 🔐認証必須
+- `GET /api/tree/fruits/{fruit_id}` - 実の詳細取得 🔐認証必須
+- `GET /api/tree/history` - 成長履歴取得 🔐認証必須
 
 ### ユーザー管理
-- `GET /api/users/profile` - プロフィール取得
-- `PUT /api/users/profile` - プロフィール更新
-- `DELETE /api/users/account` - アカウント削除
+- `GET /users/profile` - ユーザープロフィール取得 🔐認証必須
+- `PUT /users/profile` - ユーザープロフィール更新 🔐認証必須
+- `PUT /users/ai-preferences` - AI設定（キャラクター・褒めレベル）更新 🔐認証必須
 
 ### 課金・サブスクリプション管理（billing-service）
-- `POST /api/billing/checkout` - Stripe Checkout セッション作成 🔐認証必須
-- `GET /api/billing/subscription` - サブスクリプション状態取得 🔐認証必須
-- `POST /api/billing/cancel` - サブスクリプション解約（期間末解約） 🔐認証必須
-- `POST /api/billing/reactivate` - サブスクリプション再開 🔐認証必須
-- `GET /api/billing/portal` - Customer Portal URL取得 🔐認証必須
+- `GET /api/billing/subscription` - ユーザーサブスクリプション状態取得 🔐認証必須
+- `POST /api/billing/subscription` - サブスクリプション作成（Stripe Checkout） 🔐認証必須
+- `POST /api/billing/subscription/cancel` - サブスクリプション解約（期間末） 🔐認証必須
+- `PUT /api/billing/payment-method` - 支払方法更新 🔐認証必須
+- `GET /api/billing/history` - 支払履歴取得 🔐認証必須
+- `POST /api/billing/portal` - Customer Portal セッション作成 🔐認証必須
 
 ### Webhook処理（webhook-service）
 - `POST /api/webhook/stripe` - Stripe Webhook処理 🔒Stripe署名検証のみ
 - `GET /api/webhook/health` - Webhook エンドポイント死活確認 ⚡認証不要
 
 ### 通知管理（notification-service）
-- `GET /api/notifications` - 未読通知一覧取得 🔐認証必須
-- `PUT /api/notifications/{id}/read` - 通知既読化 🔐認証必須
-- `GET /api/notifications/unread-count` - 未読通知数取得 🔐認証必須
-- `POST /api/notifications/create` - 通知作成 🔒Lambda間呼び出しのみ
+#### ユーザー向け通知API
+- `GET /api/notifications` - ユーザー通知一覧取得 🔐認証必須
+- `GET /api/notifications/stats` - ユーザー通知統計取得 🔐認証必須
+- `GET /api/notifications/{notification_id}` - 通知詳細取得 🔐認証必須
+- `PUT /api/notifications/{notification_id}/read` - 通知既読化 🔐認証必須
 
-### システム
-- `GET /api/health` - ヘルスチェック
+#### 内部API（Lambda間連携）
+- `POST /internal/notifications` - 通知作成 🔒内部API認証のみ
+- `POST /internal/notifications/bulk` - 一括通知作成 🔒内部API認証のみ
+- `DELETE /internal/notifications/{user_id}/{notification_id}` - 通知削除 🔒内部API認証のみ
+
+#### 管理者通知機能
+- `POST /admin/notifications` - 管理者通知作成 🔐管理者認証必須
+- `POST /admin/notifications/maintenance` - メンテナンス通知作成 🔐管理者認証必須
+- `GET /admin/notifications` - 管理者通知一覧取得 🔐管理者認証必須
+- `POST /admin/notifications/{notification_id}/send` - 管理者通知配信実行 🔐管理者認証必須
+- `DELETE /admin/notifications/{notification_id}` - 管理者通知削除 🔐管理者認証必須
+- `GET /admin/notifications/stats` - 管理者通知統計取得 🔐管理者認証必須
+
+### システム・ヘルスチェック
+- `GET /api/health` - 基本ヘルスチェック（health_check_service） ⚡認証不要
+- `GET /health` - 各サービス個別ヘルスチェック ⚡認証不要
+  - admin_service
+  - billing_service  
+  - tree_service
+  - user_service
+  - webhook_service
 
 ### ユーザーオンボーディング
-- `GET /api/users/onboarding-status` - オンボーディング状態確認
-- `POST /api/users/complete-onboarding` - ニックネーム登録・オンボーディング完了
-- `PUT /api/users/nickname` - ニックネーム変更
+- `GET /users/onboarding-status` - オンボーディング状態確認 🔐認証必須
+- `POST /users/complete-onboarding` - ニックネーム登録・オンボーディング完了 🔐認証必須
 
 ### 管理者機能 (admin-api.homebiyori.com)
-- `GET /api/admin/dashboard` - 管理者ダッシュボード統計
-- `GET /api/admin/users` - ユーザー一覧・詳細統計 (ニックネームのみ表示)
-- `GET /api/admin/metrics` - システムメトリクス
-- `POST /api/admin/maintenance` - メンテナンス制御
-- `GET /api/admin/maintenance` - メンテナンス状態取得
+- `GET /api/admin/dashboard/metrics` - システムメトリクス取得 🔐管理者認証必須
+- `GET /api/admin/users/statistics` - ユーザー統計情報取得 🔐管理者認証必須
+- `GET /api/admin/maintenance/status` - メンテナンス状態取得 🔐管理者認証必須
+- `POST /api/admin/maintenance/control` - メンテナンス制御 🔐管理者認証必須
 
 ## リクエスト/レスポンス例
 
