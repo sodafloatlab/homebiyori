@@ -8,9 +8,9 @@ Notification Service で使用する通知データのPydanticモデル定義。
 - 内部API連携
 """
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict, Any, Optional, List
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator
 from enum import Enum
 import uuid
 
@@ -74,11 +74,12 @@ class BaseNotification(BaseModel):
     created_at: datetime = Field(default_factory=get_current_jst, description="作成日時（JST）")
     expires_at: Optional[datetime] = Field(None, description="有効期限（JST）")
     
-    @validator('expires_at', pre=True, always=True)
-    def set_default_expiry(cls, v, values):
+    @field_validator('expires_at', mode='before')
+    @classmethod
+    def set_default_expiry(cls, v):
         """デフォルト有効期限設定（30日後）"""
         if v is None:
-            created_at = values.get('created_at', get_current_jst())
+            created_at = get_current_jst()
             return created_at + timedelta(days=30)
         return v
     
@@ -167,10 +168,11 @@ class AdminNotificationCreateRequest(BaseModel):
     expires_at: Optional[datetime] = Field(None, description="有効期限（JST）")
     scheduled_at: Optional[datetime] = Field(None, description="配信予定日時（JST）")
     
-    @validator('target_plan')
-    def validate_target_plan(cls, v, values):
+    @field_validator('target_plan')
+    @classmethod
+    def validate_target_plan(cls, v, info):
         """target_plan の検証"""
-        scope = values.get('scope')
+        scope = info.data.get('scope')
         if scope == NotificationScope.PLAN_USERS and not v:
             raise ValueError("scope=plan の場合、target_plan は必須です")
         if scope != NotificationScope.PLAN_USERS and v:
@@ -202,7 +204,7 @@ class BulkNotificationRequest(BaseModel):
     """一括通知作成リクエスト"""
     notifications: List[NotificationCreateRequest] = Field(..., min_items=1, max_items=100, description="通知リスト")
     
-    @validator('notifications')
+    @field_validator('notifications')
     def validate_notifications(cls, v):
         """通知リストの検証"""
         if len(v) > 100:
@@ -247,5 +249,5 @@ class MaintenanceNotificationTemplate(BaseModel):
                 "end_time": to_jst_string(self.end_time),
                 "affected_services": self.affected_services
             },
-            scheduled_at=notification_time if notification_time > get_current_jst() else None
+            scheduled_at=notification_time if notification_time.replace(tzinfo=timezone(timedelta(hours=9))) > get_current_jst() else None
         )

@@ -489,7 +489,7 @@ class UserServiceDatabase:
             update_data = child_update.model_dump(exclude_unset=True)
             update_data["updated_at"] = get_current_utc()
 
-            updated_child = existing_child.copy(update=update_data)
+            updated_child = existing_child.model_copy(update=update_data)
 
             # DynamoDB保存用データ準備
             item_data = updated_child.model_dump()

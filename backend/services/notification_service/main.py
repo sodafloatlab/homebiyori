@@ -58,7 +58,7 @@ app.include_router(
 )
 
 app.include_router(
-    admin_notification_router,
+    admin_router,
     prefix="/admin/notifications",
     tags=["admin-notifications"]
 )

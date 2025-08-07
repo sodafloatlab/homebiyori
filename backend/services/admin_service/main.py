@@ -27,12 +27,12 @@ from pydantic import BaseModel, Field
 from homebiyori_common.utils.datetime_utils import get_current_jst
 import logging
 from homebiyori_common.utils.response_utils import success_response, error_response
-from homebiyori_common.database.dynamodb_client import DynamoDBClient
+from homebiyori_common.database import DynamoDBClient
 from homebiyori_common.exceptions.custom_exceptions import (
     ValidationError,
     DatabaseError,
     AuthenticationError,
-    ServiceError
+    ExternalServiceError
 )
 
 # 環境変数取得
@@ -145,11 +145,12 @@ async def health_check():
             "version": "1.0.0"
         }
         
-        return success_response(health_status)
+        return {"success": True, "data": health_status}
         
     except Exception as e:
         logger.error(f"Health check failed: {str(e)}")
-        return error_response("Health check failed", 500, {"error": str(e)})
+        from fastapi import HTTPException
+        raise HTTPException(status_code=500, detail="Health check failed")
 
 @app.get("/api/admin/dashboard/metrics", response_model=SystemMetrics)
 async def get_system_metrics(admin_id: str = Depends(verify_admin_token)):
@@ -182,7 +183,7 @@ async def get_system_metrics(admin_id: str = Depends(verify_admin_token)):
             error_rates=lambda_metrics['error_rates']
         )
         
-        return success_response(system_metrics.dict())
+        return system_metrics
         
     except Exception as e:
         logger.error(f"Failed to get system metrics: {str(e)}")
@@ -217,7 +218,7 @@ async def get_user_statistics(admin_id: str = Depends(verify_admin_token)):
             retention_rate_30d=retention_metrics['retention_30d']
         )
         
-        return success_response(user_statistics.dict())
+        return user_statistics
         
     except Exception as e:
         logger.error(f"Failed to get user statistics: {str(e)}")
@@ -237,7 +238,7 @@ async def get_maintenance_status(admin_id: str = Depends(verify_admin_token)):
             maintenance_end_time=maintenance_params.get('end_time')
         )
         
-        return success_response(maintenance_status.dict())
+        return maintenance_status
         
     except Exception as e:
         logger.error(f"Failed to get maintenance status: {str(e)}")
@@ -640,7 +641,7 @@ async def set_maintenance_parameters(enabled: bool, message: str, start_time: Op
         
     except Exception as e:
         logger.error(f"Failed to set maintenance parameters: {str(e)}")
-        raise ServiceError(f"Failed to update maintenance settings: {str(e)}")
+        raise ExternalServiceError(f"Failed to update maintenance settings: {str(e)}")
 
 # Lambda handler
 handler = Mangum(app)

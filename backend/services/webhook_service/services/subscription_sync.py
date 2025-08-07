@@ -25,10 +25,8 @@ class SubscriptionSyncService:
     """サブスクリプション同期サービス"""
     
     def __init__(self):
-        table_name = os.getenv("DYNAMODB_TABLE")
-        if not table_name:
-            raise ValueError("DYNAMODB_TABLE environment variable is required")
-        self.db_client = DynamoDBClient(table_name)
+        # DynamoDBClientが内部で環境変数からテーブル名を取得する
+        self.db_client = DynamoDBClient()
     
     async def create_subscription(
         self,

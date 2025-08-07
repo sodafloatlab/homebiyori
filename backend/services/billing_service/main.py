@@ -45,7 +45,7 @@ from homebiyori_common.exceptions import (
     MaintenanceError,
     ExternalServiceError
 )
-from homebiyori_common.maintenance import check_maintenance_mode
+from homebiyori_common.maintenance import is_maintenance_mode
 
 # ローカルモジュール
 from .models import (
@@ -115,7 +115,8 @@ async def get_user_id(request: Request) -> str:
 async def maintenance_check_middleware(request: Request, call_next):
     """メンテナンスモードチェック"""
     try:
-        await check_maintenance_mode()
+        if await is_maintenance_mode():
+            raise HTTPException(status_code=503, detail="Service is under maintenance")
     except MaintenanceError as e:
         return JSONResponse(
             status_code=503,

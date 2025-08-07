@@ -307,7 +307,7 @@ async def update_user_profile(profile_update: UserProfileUpdate, request: Reques
         existing_profile = await db.get_user_profile(user_id)
         if existing_profile:
             # 既存プロフィール更新
-            updated_profile = existing_profile.copy(
+            updated_profile = existing_profile.model_copy(
                 update=profile_update.model_dump(exclude_unset=True)
             )
         else:

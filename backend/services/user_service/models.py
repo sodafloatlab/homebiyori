@@ -38,7 +38,7 @@ Homebiyori（ほめびより）のユーザー管理サービスにおける
 - アクセス制御: ユーザー自身のデータのみアクセス可能
 """
 
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator, ConfigDict
 from typing import Optional
 from datetime import datetime, timezone, date
 from enum import Enum
@@ -204,7 +204,8 @@ class UserProfile(BaseModel):
         default_factory=get_current_jst, description="更新日時（UTC）"
     )
 
-    @validator("nickname")
+    @field_validator("nickname")
+    @classmethod
     def validate_nickname_field(cls, v):
         """ニックネームのバリデーション"""
         if v is not None:
@@ -214,11 +215,9 @@ class UserProfile(BaseModel):
                 raise ValueError(str(e))
         return v
 
-    class Config:
-        """Pydantic設定"""
-
-        json_encoders = {datetime: lambda v: v.isoformat()}
-        schema_extra = {
+    model_config = ConfigDict(
+        json_encoders={datetime: lambda v: v.isoformat()},
+        json_schema_extra={
             "example": {
                 "user_id": "12345678-1234-5678-9012-123456789012",
                 "nickname": "ほめママ",
@@ -227,6 +226,7 @@ class UserProfile(BaseModel):
                 "onboarding_completed": True,
             }
         }
+    )
 
 
 class UserProfileUpdate(BaseModel):
@@ -247,7 +247,8 @@ class UserProfileUpdate(BaseModel):
         None, description="オンボーディング完了フラグ"
     )
 
-    @validator("nickname")
+    @field_validator("nickname")
+    @classmethod
     def validate_nickname_field(cls, v):
         """ニックネームのバリデーション"""
         if v is not None:
@@ -275,10 +276,9 @@ class AIPreferences(BaseModel):
 
     praise_level: PraiseLevel = Field(..., description="AI褒めレベル設定")
 
-    class Config:
-        """Pydantic設定"""
-
-        schema_extra = {"example": {"ai_character": "madoka", "praise_level": "deep"}}
+    model_config = ConfigDict(
+        json_schema_extra={"example": {"ai_character": "madoka", "praise_level": "deep"}}
+    )
 
 
 class ChildInfo(BaseModel):
@@ -321,12 +321,14 @@ class ChildInfo(BaseModel):
         default_factory=get_current_jst, description="更新日時（UTC）"
     )
 
-    @validator("name")
+    @field_validator("name")
+    @classmethod
     def validate_name_field(cls, v):
         """子供の名前バリデーション"""
         return validate_child_name(v)
 
-    @validator("birth_date")
+    @field_validator("birth_date")
+    @classmethod
     def validate_birth_date_field(cls, v):
         """生年月日バリデーション"""
         return validate_birth_date(v)
@@ -355,20 +357,19 @@ class ChildInfo(BaseModel):
             months -= 1
         return max(0, months)
 
-    class Config:
-        """Pydantic設定"""
-
-        json_encoders = {
+    model_config = ConfigDict(
+        json_encoders={
             datetime: lambda v: v.isoformat(),
             date: lambda v: v.isoformat(),
-        }
-        schema_extra = {
+        },
+        json_schema_extra={
             "example": {
                 "child_id": "87654321-4321-8765-2109-876543210987",
                 "name": "たろうくん",
                 "birth_date": "2020-04-15",
             }
         }
+    )
 
 
 class ChildInfoCreate(BaseModel):
@@ -384,12 +385,14 @@ class ChildInfoCreate(BaseModel):
 
     birth_date: date = Field(..., description="生年月日")
 
-    @validator("name")
+    @field_validator("name")
+    @classmethod
     def validate_name_field(cls, v):
         """子供の名前バリデーション"""
         return validate_child_name(v)
 
-    @validator("birth_date")
+    @field_validator("birth_date")
+    @classmethod
     def validate_birth_date_field(cls, v):
         """生年月日バリデーション"""
         return validate_birth_date(v)
@@ -411,14 +414,16 @@ class ChildInfoUpdate(BaseModel):
 
     birth_date: Optional[date] = Field(None, description="生年月日")
 
-    @validator("name")
+    @field_validator("name")
+    @classmethod
     def validate_name_field(cls, v):
         """子供の名前バリデーション"""
         if v is not None:
             return validate_child_name(v)
         return v
 
-    @validator("birth_date")
+    @field_validator("birth_date")
+    @classmethod
     def validate_birth_date_field(cls, v):
         """生年月日バリデーション"""
         if v is not None:

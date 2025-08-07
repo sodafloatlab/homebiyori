@@ -29,7 +29,7 @@ Homebiyori（ほめびより）木の成長システムのデータモデル。
 
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Literal, Optional, Union
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator
 import uuid
 import pytz
 from enum import Enum
@@ -45,8 +45,20 @@ from homebiyori_common.utils.datetime_utils import get_current_jst, to_jst_strin
 # =====================================
 
 TreeStage = Literal[0, 1, 2, 3, 4, 5]
-AICharacterType = Literal["tama", "madoka", "hide"]
-EmotionType = Literal["joy", "gratitude", "accomplishment", "relief", "excitement", "calm", "neutral"]
+class AICharacterType(str, Enum):
+    """AIキャラクタータイプ"""
+    TAMA = "tama"      # たまさん
+    MADOKA = "madoka"  # まどか姉さん
+    HIDE = "hide"      # ヒデじい
+class EmotionType(str, Enum):
+    """感情タイプ"""
+    JOY = "joy"             # 喜び
+    GRATITUDE = "gratitude" # 感謝
+    ACCOMPLISHMENT = "accomplishment"  # 達成感
+    RELIEF = "relief"       # 安堵
+    EXCITEMENT = "excitement" # 興奮・わくわく
+    CALM = "calm"          # 落ち着き
+    NEUTRAL = "neutral"    # 中立
 
 class TreeTheme(str, Enum):
     """木のテーマカラー（AIキャラクター連動）"""

@@ -1,14 +1,15 @@
-# AI プロンプト設計書
+# AI プロンプト設計書（LangChain統合版）
 
 ## 概要
 
-この文書は、HomebiYori（ほめびより）のAIキャラクター応答システムのプロンプト設計と実装詳細を定義します。Amazon Bedrock Claude Haikuを使用した高品質なAI応答システムの技術仕様です。
+この文書は、HomebiYori（ほめびより）のLangChain統合AIキャラクター応答システムのプロンプト設計と実装詳細を定義します。LangChain + Amazon Bedrock Claude Haikuを使用した高品質なAI応答システムの技術仕様です。
 
-### 設計原則
-- **プロンプトキャッシュ最適化**: コスト効率とレスポンス時間の両立
-- **キャラクター一貫性**: 3つのAIペルソナの口調・個性の維持
-- **プラン差別化**: 無料版とプレミアム版の適切な機能差別化
-- **品質保証**: 応答品質の自動検証とフォールバック機能
+### LangChain統合設計原則
+- **ConversationChain活用**: LangChain標準の会話チェーンでプロンプト管理
+- **Memory統合最適化**: ConversationSummaryBufferMemoryで長期コンテキスト管理
+- **プラン別Memory容量**: 無料版2,000トークン、プレミアム版8,000トークン
+- **DynamoDB統合**: Custom ChatMessageHistoryで会話永続化
+- **自動要約機能**: Claude 3 Haikuによる過去会話の自動要約
 
 ## AIキャラクター プロンプト仕様
 
@@ -20,9 +21,9 @@
 - **2つの応答レベル**: 通常（無料版）/ 詳細（プレミアム版）
 - **合計**: 3キャラ × 2気分 × 2レベル = **12プロンプトパターン**
 
-## プロンプトアーキテクチャ
+## LangChain統合プロンプトアーキテクチャ
 
-### 基本構造設計
+### 基本構造設計（LangChain + プロンプトキャッシュ最適化）
 
 ```
 [固定部分 - プロンプトキャッシュ対象]
@@ -30,30 +31,174 @@
 ├── キャラクター設定・人格
 ├── 口調テンプレート
 ├── 応答構成パターン
-└── 制約事項・安全ガイドライン
+├── プラン別制約事項
+└── 安全ガイドライン
 
 [変動部分 - 毎回更新]
-├── 会話履歴（構造化XML）
+├── {history} - LangChain Memory履歴（自動要約済み）
+├── {input} - 現在のユーザー入力
 ├── ユーザー状況・コンテキスト
-├── 現在の入力内容
-└── 応答指示
+└── 動的応答指示
 ```
 
-### プロンプトキャッシュ最適化
+### LangChain統合プロンプトキャッシュ最適化
 
-#### キャッシュ対象（固定部分）
+#### Amazon Bedrock プロンプトキャッシュ戦略
+
+**LangChain PromptTemplateでのキャッシュ最適化設計:**
+
+```python
+def build_cache_optimized_template(character: str, mood: str, user_tier: str) -> PromptTemplate:
+    """
+    プロンプトキャッシュ最適化されたLangChainテンプレート構築
+    
+    固定部分（キャッシュ対象）を前半に配置し、
+    変動部分（{history}, {input}）を後半に配置
+    """
+    
+    # 固定部分（約2,500トークン）- プロンプトキャッシュ対象
+    fixed_prompt_section = f"""
+=== システム指示 ===
+あなたは「{character}」として、育児中の親を優しく褒める会話AIです。
+ユーザーの気分は「{mood}」モードです。
+
+=== キャラクター設定 ===
+{get_character_personality(character)}
+
+=== 口調テンプレート ===
+{get_character_speech_patterns(character)}
+
+=== 応答構成パターン ===
+{get_response_structure_guide(character, mood)}
+
+=== プラン別制約 ===
+{get_tier_constraints(user_tier, character)}
+
+=== 安全ガイドライン ===
+- 育児支援に特化した内容のみ
+- 医学的アドバイス禁止
+- プライバシー保護遵守
+- 炎上リスク回避
+"""
+
+    # 変動部分（約500-1,000トークン）- 毎回更新
+    dynamic_section = """
+=== 会話履歴 ===
+{history}
+
+=== 現在の入力 ===
+ユーザー: {input}
+
+=== 応答指示 ===
+上記の会話履歴を踏まえ、継続性のある温かい応答をしてください。
+"""
+    
+    # キャッシュ最適化：固定部分 + 変動部分の順序
+    full_template = fixed_prompt_section + dynamic_section
+    
+    return PromptTemplate(
+        input_variables=["history", "input"],
+        template=full_template
+    )
+```
+
+#### キャッシュ効率化指標
+
+**キャッシュ対象（固定部分）:**
 - **サイズ**: 約2,500トークン
-- **更新頻度**: 月1回程度
+- **更新頻度**: 月1回程度（キャラクター設定変更時のみ）
 - **キャッシュ条件**: 1024トークン以上の前半部分が完全一致
+- **キャッシュ有効期間**: Amazon Bedrock標準（5-10分）
 
-#### 変動部分
+**変動部分:**
 - **サイズ**: 約500-1,000トークン
-- **内容**: 会話履歴、ユーザー入力、動的指示
+- **内容**: LangChain Memory履歴（自動要約済み）、現在入力、動的指示
+- **Memory最適化**: ConversationSummaryBufferMemoryによる自動圧縮
 
-#### パフォーマンス目標
-- **キャッシュヒット率**: 95%以上
+#### パフォーマンス目標（LangChain統合版）
+
+**レスポンス性能:**
+- **キャッシュヒット率**: 95%以上（固定プロンプト部分）
 - **応答時間**: キャッシュ利用時0.8秒、ミス時2-3秒
-- **コスト削減**: 固定部分の70%削減効果
+- **Memory処理時間**: ConversationSummaryBufferMemory 100-200ms
+
+**コスト最適化:**
+- **固定部分コスト削減**: 70%削減効果（キャッシュ利用時）
+- **Memory処理コスト**: 要約処理による長期履歴圧縮効果
+- **トークン使用量**: プラン別制御（無料版2K、プレミアム版8Kトークン）
+
+#### キャッシュ運用戦略
+
+```python
+class CacheOptimizedLangChainService:
+    """プロンプトキャッシュ最適化LangChainサービス"""
+    
+    def __init__(self):
+        self.template_cache = {}  # テンプレートキャッシュ
+        self.last_cache_update = {}  # キャッシュ更新時刻追跡
+    
+    def get_cached_template(self, character: str, mood: str, user_tier: str) -> PromptTemplate:
+        """キャッシュ最適化テンプレート取得"""
+        
+        cache_key = f"{character}_{mood}_{user_tier}"
+        
+        # 月次キャッシュ更新チェック
+        if self._should_update_cache(cache_key):
+            self.template_cache[cache_key] = build_cache_optimized_template(
+                character, mood, user_tier
+            )
+            self.last_cache_update[cache_key] = datetime.now()
+        
+        return self.template_cache[cache_key]
+    
+    def _should_update_cache(self, cache_key: str) -> bool:
+        """キャッシュ更新要否判定"""
+        if cache_key not in self.last_cache_update:
+            return True
+        
+        # 月1回更新
+        last_update = self.last_cache_update[cache_key]
+        return (datetime.now() - last_update).days >= 30
+
+# 実際の使用例
+async def generate_optimized_response(
+    user_message: str,
+    user_id: str,
+    character: str = "tama",
+    mood: str = "praise"
+) -> str:
+    """キャッシュ最適化AI応答生成"""
+    
+    cache_service = CacheOptimizedLangChainService()
+    user_tier = await get_user_tier_from_db(user_id)
+    
+    # キャッシュ最適化テンプレート取得
+    template = cache_service.get_cached_template(character, mood, user_tier)
+    
+    # ChatBedrock + ConversationChain実行
+    # 固定部分はBedrockでキャッシュされ、変動部分のみ処理
+    llm = ChatBedrock(
+        model_id="anthropic.claude-3-haiku-20240307-v1:0",
+        region_name="us-east-1",
+        model_kwargs={
+            "max_tokens": 200 if user_tier == "free" else 400,
+            "temperature": 0.7,
+            "anthropic_version": "bedrock-2023-05-31"
+        }
+    )
+    
+    memory = create_conversation_memory(user_id, user_tier, character)
+    
+    conversation_chain = ConversationChain(
+        llm=llm,
+        memory=memory.memory,
+        prompt=template,  # キャッシュ最適化済み
+        verbose=False
+    )
+    
+    result = await conversation_chain.ainvoke({"input": user_message})
+    return result["response"]
+```
 
 ### 口調一貫性の確保
 
@@ -138,57 +283,159 @@ PREMIUM_GUIDANCE = {
 }
 ```
 
-## 会話管理システム
+## LangChain統合会話管理システム
 
-### 会話履歴の構造化
+### ConversationSummaryBufferMemoryによる長期会話管理
 
-```xml
-<conversation_history>
-<turn timestamp="2025-08-03T10:30:00">
-<user>今日は子どもが熱を出して看病で一日終わった</user>
-<assistant character="たまさん" length="long" mood="empathetic">
-あらあら〜、お疲れさまやわ〜...
-</assistant>
-</turn>
-<turn timestamp="2025-08-03T11:45:00">
-<user>ありがとう、少し元気出た</user>
-<assistant character="たまさん" length="short" mood="gentle">
-そうそう、それでええのよ〜
-</assistant>
-</turn>
-</conversation_history>
-```
-
-### コンテキスト管理
-
-```xml
-<user_context>
-<current_mood>褒めて欲しい気分</current_mood>
-<response_preference>長い返答</response_preference>
-<last_interaction_time>2025-08-03T11:45:00</last_interaction_time>
-<conversation_flow>継続中</conversation_flow>
-<topic_context>育児・看病</topic_context>
-<user_tier>premium</user_tier>
-</user_context>
-```
-
-### 履歴効率管理
+**LangChain統合実装**: DynamoDB Custom ChatMessageHistoryとConversationSummaryBufferMemoryを組み合わせた高度な会話管理システム。
 
 ```python
-class ConversationManager:
-    def __init__(self, max_turns=10, max_tokens=800):
-        self.max_turns = max_turns
-        self.max_tokens = max_tokens
+# DynamoDB Custom ChatMessageHistory実装
+from langchain_core.chat_history import BaseChatMessageHistory
+from langchain_core.messages import BaseMessage, HumanMessage, AIMessage
+
+class DynamoDBChatMessageHistory(BaseChatMessageHistory):
+    def __init__(self, user_id: str, character: str):
+        self.user_id = user_id
+        self.character = character
+        self.table_name = os.getenv("DYNAMODB_CHATS_TABLE_NAME")
+        self.dynamodb = boto3.resource('dynamodb')
+        self.table = self.dynamodb.Table(self.table_name)
+
+    @property
+    def messages(self) -> List[BaseMessage]:
+        """DynamoDBから会話履歴を取得してLangChain形式に変換"""
+        try:
+            response = self.table.query(
+                KeyConditionExpression=Key('PK').eq(f"USER#{self.user_id}") & 
+                                     Key('SK').begins_with('CHAT#'),
+                ScanIndexForward=True,  # 古い順
+                Limit=50  # 最大50件
+            )
+            
+            langchain_messages = []
+            for item in response['Items']:
+                # ユーザーメッセージ追加
+                langchain_messages.append(
+                    HumanMessage(content=item['user_message'])
+                )
+                # AI応答追加
+                langchain_messages.append(
+                    AIMessage(content=item['ai_response'])
+                )
+            
+            return langchain_messages
+            
+        except Exception as e:
+            logger.error(f"Failed to load chat history: {e}")
+            return []
+
+    def add_message(self, message: BaseMessage) -> None:
+        """メッセージ追加（実際の保存はmain.pyで実行）"""
+        # LangChain Memory統合のためのインターフェース実装
+        # 実際の保存処理はchat_serviceのmain.pyで実行される
+        pass
+
+    def clear(self) -> None:
+        """会話履歴クリア（管理用）"""
+        # 必要に応じて実装
+        pass
+```
+
+### プラン別Memory容量制御
+
+```python
+from langchain.memory import ConversationSummaryBufferMemory
+
+class HomebiyoriConversationMemory:
+    def __init__(self, user_id: str, user_tier: str = "free", character: str = "tama"):
+        self.user_id = user_id
+        self.character = character
+        self.config = self._get_plan_config(user_tier)
+        
+        # DynamoDB Custom History
+        self.chat_history = DynamoDBChatMessageHistory(user_id, character)
+        
+        # Claude 3 Haiku設定（要約用）
+        self.llm = ChatBedrock(
+            model_id="anthropic.claude-3-haiku-20240307-v1:0",
+            region_name="us-east-1",
+            model_kwargs={
+                "max_tokens": 150,  # 要約用のため短め
+                "temperature": 0.3,  # 要約精度重視
+                "anthropic_version": "bedrock-2023-05-31"
+            }
+        )
+        
+        # ConversationSummaryBufferMemory初期化
+        self.memory = ConversationSummaryBufferMemory(
+            llm=self.llm,
+            chat_memory=self.chat_history,
+            max_token_limit=self.config["max_tokens"],
+            return_messages=True,
+            summary_message_cls=AIMessage
+        )
+
+    def _get_plan_config(self, user_tier: str) -> Dict[str, int]:
+        """プラン別Memory設定"""
+        if user_tier == "premium":
+            return {
+                "max_tokens": 8000,  # プレミアム: 4倍の容量
+                "buffer_size": 20    # 直近20ターン保持
+            }
+        else:
+            return {
+                "max_tokens": 2000,  # 無料版: 基本容量
+                "buffer_size": 8     # 直近8ターン保持
+            }
+
+# Memory作成ヘルパー関数
+def create_conversation_memory(user_id: str, user_tier: str, character: str) -> HomebiyoriConversationMemory:
+    return HomebiyoriConversationMemory(user_id, user_tier, character)
+```
+
+### 自動会話要約システム
+
+```python
+# ConversationSummaryBufferMemoryによる自動要約
+class ConversationSummarizer:
+    """会話の自動要約システム（LangChain統合）"""
     
-    def get_optimized_history(self, conversation_history):
-        # 1. 直近の重要な会話を抽出
-        recent_important = self._extract_recent_important(conversation_history)
+    def __init__(self, memory: ConversationSummaryBufferMemory):
+        self.memory = memory
+    
+    def get_conversation_context(self) -> str:
+        """現在の会話コンテキスト取得"""
+        # ConversationSummaryBufferMemoryが自動で以下を管理:
+        # 1. 直近の会話: 詳細保持
+        # 2. 古い会話: Claude 3 Haikuによる要約保存
+        # 3. トークン制限: プラン別容量内に自動調整
         
-        # 2. 古い会話は要約して含める
-        summarized_old = self._summarize_older_conversations(conversation_history)
+        buffer = self.memory.chat_memory.messages
+        summary = self.memory.moving_summary_buffer
         
-        # 3. トークン数制限内に収める
-        return self._fit_within_token_limit(recent_important + summarized_old)
+        if summary:
+            context = f"過去の会話要約: {summary}
+
+直近の会話:
+"
+        else:
+            context = "会話履歴:
+"
+            
+        # 直近メッセージを整形
+        recent_messages = []
+        for i in range(0, len(buffer), 2):  # ユーザー+AI のペア
+            if i + 1 < len(buffer):
+                user_msg = buffer[i].content
+                ai_msg = buffer[i + 1].content
+                recent_messages.append(f"ユーザー: {user_msg}
+AI: {ai_msg}
+---")
+        
+        context += "
+".join(recent_messages)
+        return context
 ```
 
 ## 動的応答制御
@@ -269,103 +516,206 @@ function updateCharacterCount(inputElement) {
 }
 ```
 
-## Lambda実装アーキテクチャ
+## LangChain統合Lambda実装アーキテクチャ
 
-### メイン処理フロー
+### メイン処理フロー（LangChain ConversationChain）
 
 ```python
-class ChatHandler:
-    def __init__(self):
-        self.anthropic = Anthropic()
-        self.prompt_cache = PromptCacheManager()
-        self.conversation_manager = ConversationManager()
+from langchain_aws import ChatBedrock
+from langchain.chains import ConversationChain
+from langchain.prompts import PromptTemplate
+
+class LangChainChatHandler:
+    """LangChain ConversationChainベースのメイン処理"""
     
-    def lambda_handler(self, event, context):
+    def __init__(self):
+        # LangChain AI処理モジュール
+        self.ai_chain = HomebiyoriAIChain()
+        self.memory_manager = ConversationMemoryManager()
+        
+    async def lambda_handler(self, event, context):
         try:
-            # 1. リクエスト解析
+            # 1. リクエスト解析・認証
             request_data = self._parse_request(event)
+            user_info = await self._get_user_info(request_data['user_id'])
             
-            # 2. ユーザー認証・プラン確認
-            user_info = self._validate_user(request_data['user_id'])
-            
-            # 3. 入力検証
-            validated_input = self._validate_input(
-                request_data['message'], 
-                user_info['tier']
+            # 2. LangChain Memory初期化（プラン別設定）
+            memory = create_conversation_memory(
+                user_id=request_data['user_id'],
+                user_tier=user_info['tier'],
+                character=request_data['character']
             )
             
-            # 4. 会話履歴取得・最適化
-            conversation_history = self._get_optimized_history(
-                request_data['conversation_id']
-            )
-            
-            # 5. プロンプト構築
-            final_prompt = self._build_prompt(
+            # 3. LangChain ConversationChain構築
+            conversation_chain = await self._build_conversation_chain(
                 character=request_data['character'],
                 mood=request_data['mood'],
                 user_tier=user_info['tier'],
-                user_input=validated_input,
-                conversation_history=conversation_history
+                memory=memory.memory  # ConversationSummaryBufferMemory
             )
             
-            # 6. Claude API呼び出し
-            response = self._call_claude_api(final_prompt, user_info['tier'])
+            # 4. AI応答生成（Memory自動適用）
+            response = await conversation_chain.ainvoke({
+                "input": request_data['message']
+            })
             
-            # 7. 応答品質検証
-            validated_response = self._validate_response(
-                response, user_info['tier']
+            # 5. 会話履歴自動保存（LangChain Memory統合）
+            await self._save_conversation_to_dynamodb(
+                user_id=request_data['user_id'],
+                user_message=request_data['message'],
+                ai_response=response["response"],
+                character=request_data['character'],
+                mood=request_data['mood']
             )
             
-            # 8. 会話履歴保存
-            self._save_conversation_turn(
-                request_data['conversation_id'],
-                validated_input,
-                validated_response
-            )
-            
-            return self._format_success_response(validated_response)
+            return self._format_success_response(response["response"])
             
         except Exception as e:
             return self._handle_error(e)
+
+    async def _build_conversation_chain(
+        self, character: str, mood: str, user_tier: str, memory
+    ) -> ConversationChain:
+        """LangChain ConversationChain構築"""
+        
+        # ChatBedrock LLM初期化（プラン別設定）
+        llm = ChatBedrock(
+            model_id="anthropic.claude-3-haiku-20240307-v1:0",
+            region_name="us-east-1",
+            model_kwargs={
+                "max_tokens": 200 if user_tier == "free" else 400,
+                "temperature": 0.7,
+                "anthropic_version": "bedrock-2023-05-31"
+            }
+        )
+        
+        # プロンプトテンプレート取得
+        prompt_template = self._get_prompt_template(character, mood, user_tier)
+        
+        # ConversationChain構築
+        return ConversationChain(
+            llm=llm,
+            memory=memory,
+            prompt=prompt_template,
+            verbose=False
+        )
+
+    def _get_prompt_template(self, character: str, mood: str, user_tier: str) -> PromptTemplate:
+        """LangChain PromptTemplate作成"""
+        
+        # プロンプトファイル読み込み
+        prompt_path = f".kiro/specs/homebi-yori/prompt/{character}_{mood}_{user_tier}.txt"
+        with open(prompt_path, 'r', encoding='utf-8') as f:
+            template_content = f.read()
+        
+        return PromptTemplate(
+            input_variables=["history", "input"],
+            template=template_content
+        )
 ```
 
-### プロンプト構築システム
+### LangChain統合プロンプトシステム
 
 ```python
-class PromptBuilder:
-    def __init__(self):
-        self.cached_prompts = self._load_cached_prompts()
+class HomebiyoriAIChain:
+    """Homebiyori専用AI応答チェーン"""
     
-    def build_final_prompt(self, character, mood, user_tier, user_input, history):
-        # 1. 基本プロンプト選択
-        response_type = "normal" if user_tier == "free" else "flexible"
-        base_prompt = self.cached_prompts[character][mood][response_type]
+    def __init__(self):
+        self.prompt_loader = PromptLoader()
+    
+    async def generate_response_with_memory(
+        self,
+        user_message: str,
+        user_id: str,
+        character: str = "tama",
+        mood: str = "praise"
+    ) -> str:
+        """
+        ConversationSummaryBufferMemoryを活用したAI応答生成
         
-        # 2. 動的部分構築
-        dynamic_section = f"""
+        特徴:
+        - 自動会話履歴管理（DynamoDB Custom History）
+        - プラン別Memory容量制御
+        - 自動要約による長期コンテキスト保持
+        """
         
-<conversation_history>
-{self._format_conversation_history(history)}
-</conversation_history>
+        # ユーザープラン取得
+        user_tier = await get_user_tier_from_db(user_id)
+        
+        # Memory初期化（既存会話履歴も自動ロード）
+        memory = create_conversation_memory(user_id, user_tier, character)
+        
+        # LLM初期化
+        llm = ChatBedrock(
+            model_id="anthropic.claude-3-haiku-20240307-v1:0",
+            region_name="us-east-1",
+            model_kwargs={
+                "max_tokens": 200 if user_tier == "free" else 400,
+                "temperature": 0.7,
+                "anthropic_version": "bedrock-2023-05-31"
+            }
+        )
+        
+        # プロンプトテンプレート構築
+        template_content = self._build_template_content(character, mood, user_tier)
+        prompt_template = PromptTemplate(
+            input_variables=["history", "input"],
+            template=template_content
+        )
+        
+        # ConversationChain実行
+        conversation_chain = ConversationChain(
+            llm=llm,
+            memory=memory.memory,  # ConversationSummaryBufferMemory
+            prompt=prompt_template,
+            verbose=False
+        )
+        
+        # AI応答生成（過去会話自動考慮）
+        result = await conversation_chain.ainvoke({"input": user_message})
+        
+        return result["response"]
 
-<user_context>
-<current_mood>{mood}</current_mood>
-<user_tier>{user_tier}</user_tier>
-<timestamp>{datetime.now().isoformat()}</timestamp>
-</user_context>
-
-<current_input>
-<message>{user_input}</message>
-<length>{len(user_input)}</length>
-<estimated_urgency>{self._assess_urgency(user_input)}</estimated_urgency>
-</current_input>
-
-<response_instructions>
-上記の情報を踏まえ、{character}として適切に応答してください。
-</response_instructions>
+    def _build_template_content(self, character: str, mood: str, user_tier: str) -> str:
+        """プロンプトテンプレート内容構築"""
+        
+        # キャラクター別基本プロンプト読み込み
+        base_prompt = self.prompt_loader.load_character_prompt(character, mood)
+        
+        # プラン別応答制御追加
+        if user_tier == "free":
+            constraint = """
+【重要】返答制限（無料版）
+- 必ず50-150文字以内で応答すること
+- 200文字を超える返答は絶対に禁止
+- より詳しい相談は「もっとゆっくりお話しできればいいのに」と誘導
+"""
+        else:
+            constraint = """
+【重要】プレミアム版の特徴
+- 基本は200-400文字の丁寧で詳しい返答
+- 状況に応じて50-150文字の簡潔な返答も可能
+- 深い共感と具体的な体験談を提供
 """
         
-        return base_prompt + dynamic_section
+        # LangChain Memory変数統合
+        template = f"""
+{base_prompt}
+
+{constraint}
+
+【会話履歴】
+{{history}}
+
+【現在の入力】
+ユーザー: {{input}}
+
+【応答指示】
+上記の会話履歴と現在の入力を踏まえ、{character}として適切に応答してください。
+過去の会話内容も考慮して、継続性のある温かい応答をしてください。
+"""
+        
+        return template
 ```
 
 ## エラーハンドリング

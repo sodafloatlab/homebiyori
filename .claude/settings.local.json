@@ -48,7 +48,13 @@
       "Bash(terraform validate:*)",
       "Bash(terraform:*)",
       "Bash(true)",
-      "mcp__serena__think_about_task_adherence"
+      "mcp__serena__think_about_task_adherence",
+      "Bash(set DYNAMODB_TABLE=test-homebiyori)",
+      "Bash(set PYTHONPATH=%CD%backendlayerscommonpython)",
+      "Bash(%PYTHONPATH%)",
+      "Bash(set AWS_DEFAULT_REGION=ap-northeast-1)",
+      "Bash(DYNAMODB_TABLE=test-homebiyori AWS_DEFAULT_REGION=ap-northeast-1 python -m pytest tests/backend/services/webhook_service/ -v --tb=short -x)",
+      "Bash(%CD%backendlayersaipython)"
     ],
     "deny": []
   },

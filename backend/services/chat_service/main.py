@@ -42,6 +42,8 @@ import os
 import asyncio
 from datetime import datetime, timedelta
 import uuid
+import json
+import boto3
 
 # Lambda Layers からの共通機能インポート
 from homebiyori_common.auth import get_user_id_from_event
@@ -53,7 +55,7 @@ from homebiyori_common.exceptions import (
     MaintenanceError,
     ExternalServiceError
 )
-from homebiyori_common.maintenance import check_maintenance_mode
+from homebiyori_common.maintenance import is_maintenance_mode
 
 # ローカルモジュール
 from .models import (
@@ -79,6 +81,14 @@ from .models import (
     TREE_STAGE_CONFIG
 )
 from .database import get_chat_database
+from .langchain_ai import (
+    generate_ai_response_langchain,
+    detect_emotion_simple
+)
+from .langchain_memory import (
+    create_conversation_memory,
+    get_user_tier_from_db
+)
 
 # 構造化ログ設定
 logger = get_logger(__name__)
@@ -109,7 +119,8 @@ async def maintenance_check_middleware(request: Request, call_next):
     メンテナンス中の場合は503エラーを返却する。
     """
     try:
-        check_maintenance_mode()
+        if await is_maintenance_mode():
+            raise HTTPException(status_code=503, detail="Service is under maintenance")
         response = await call_next(request)
         return response
     except MaintenanceError as e:
@@ -174,98 +185,6 @@ def get_authenticated_user_id(request: Request) -> str:
 
 
 # =====================================
-# AI応答生成関数
-# =====================================
-
-async def generate_ai_response(
-    user_message: str,
-    character: AICharacterType,
-    mood: MoodType,
-    recent_context: List[Dict[str, Any]] = None
-) -> tuple[str, Optional[EmotionType], float]:
-    """
-    AI応答生成（簡素化版）
-    
-    ■機能概要■
-    実際の実装では Amazon Bedrock Claude 3 Haiku を使用します。
-    現在は開発用のモック実装です。
-    
-    Args:
-        user_message: ユーザーメッセージ
-        character: AIキャラクター
-        mood: 気分設定
-        recent_context: 最近の文脈情報
-        
-    Returns:
-        tuple: (AI応答, 検出された感情, 感情スコア)
-    """
-    try:
-        logger.info(
-            "AI response generation started",
-            extra={
-                "character": character,
-                "mood": mood,
-                "message_length": len(user_message)
-            }
-        )
-        
-        # 簡素な感情検出（キーワードベース）
-        emotion_detected = None
-        emotion_score = 0.0
-        
-        if any(word in user_message for word in ["嬉しい", "楽しい", "良かった"]):
-            emotion_detected = EmotionType.JOY
-            emotion_score = 0.8
-        elif any(word in user_message for word in ["ありがとう", "感謝"]):
-            emotion_detected = EmotionType.GRATITUDE
-            emotion_score = 0.9
-        elif any(word in user_message for word in ["達成", "できた", "成功"]):
-            emotion_detected = EmotionType.ACCOMPLISHMENT
-            emotion_score = 0.85
-        elif any(word in user_message for word in ["ほっとした", "安心"]):
-            emotion_detected = EmotionType.RELIEF
-            emotion_score = 0.75
-        elif any(word in user_message for word in ["愛してる", "大好き"]):
-            emotion_detected = EmotionType.LOVE
-            emotion_score = 0.9
-        elif any(word in user_message for word in ["わくわく", "楽しみ"]):
-            emotion_detected = EmotionType.EXCITEMENT
-            emotion_score = 0.8
-        
-        # キャラクター別応答生成
-        if character == AICharacterType.TAMA:
-            base_response = "そうですね。とても素敵ですね。あなたの頑張りが伝わってきます。"
-        elif character == AICharacterType.MADOKA:
-            base_response = "それは良かったですね！いつも頑張っているあなただからこそですよ。"
-        else:  # HIDE
-            base_response = "ほほう、それは素晴らしいことじゃ。人生にはそういう瞬間が大切なんじゃよ。"
-        
-        # 気分に応じて調整
-        if mood == MoodType.LISTEN:
-            ai_response = f"お話を聞かせてくれてありがとうございます。{base_response}"
-        else:  # PRAISE
-            ai_response = f"{base_response}本当に素晴らしいと思います。"
-        
-        await asyncio.sleep(0.1)  # AI API呼び出しの模擬
-        
-        logger.info(
-            "AI response generated successfully",
-            extra={
-                "character": character,
-                "emotion_detected": emotion_detected,
-                "emotion_score": emotion_score
-            }
-        )
-        
-        return ai_response, emotion_detected, emotion_score
-        
-    except Exception as e:
-        logger.error(f"AI response generation failed: {e}")
-        # フォールバック応答
-        return "お話を聞かせてくれてありがとうございます。", None, 0.0
-
-
-# =====================================
 # チャット機能エンドポイント
 # =====================================
 
@@ -316,18 +235,18 @@ async def send_message(
         previous_stage = calculate_tree_stage(previous_total)
         
         # ===============================
-        # 2. AI応答生成
+        # 2. AI応答生成（LangChainベース）
         # ===============================
-        # 最近の文脈取得
-        recent_context = await chat_db.get_recent_chat_context(user_id, limit=5)
-        
-        # AI応答生成
-        ai_response_text, detected_emotion, emotion_score = await generate_ai_response(
+        # LangChainベースでAI応答生成（Memory統合済み）
+        ai_response_text = await generate_ai_response_langchain(
             user_message=chat_request.message,
+            user_id=user_id,
             character=chat_request.ai_character,
-            mood=chat_request.mood,
-            recent_context=recent_context
+            mood=chat_request.mood
         )
+        
+        # 感情検出（簡易版）
+        detected_emotion, emotion_score = detect_emotion_simple(chat_request.message)
         
         # ===============================
         # 3. 木の成長計算

@@ -9,7 +9,7 @@
 """
 
 from typing import List, Optional, Dict, Any
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from homebiyori_common import get_logger
 from homebiyori_common.database import DynamoDBClient
@@ -166,6 +166,9 @@ class NotificationService:
                 # 期限切れチェック
                 if item.get("expires_at"):
                     expires_at = datetime.fromisoformat(item["expires_at"])
+                    # タイムゾーンが設定されていない場合はJSTとして解釈
+                    if expires_at.tzinfo is None:
+                        expires_at = expires_at.replace(tzinfo=timezone(timedelta(hours=9)))
                     if get_current_jst() > expires_at:
                         continue
                 
@@ -249,6 +252,9 @@ class NotificationService:
             # 期限切れチェック
             if item.get("expires_at"):
                 expires_at = datetime.fromisoformat(item["expires_at"])
+                # タイムゾーンが設定されていない場合はJSTとして解釈
+                if expires_at.tzinfo is None:
+                    expires_at = expires_at.replace(tzinfo=timezone(timedelta(hours=9)))
                 if get_current_jst() > expires_at:
                     return None
             
@@ -547,6 +553,9 @@ class NotificationService:
             for item in items:
                 if item.get("expires_at"):
                     expires_at = datetime.fromisoformat(item["expires_at"])
+                    # タイムゾーンが設定されていない場合はJSTとして解釈
+                    if expires_at.tzinfo is None:
+                        expires_at = expires_at.replace(tzinfo=timezone(timedelta(hours=9)))
                     if current_time > expires_at:
                         continue
                 valid_items.append(item)

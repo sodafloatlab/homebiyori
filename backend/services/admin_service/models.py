@@ -6,7 +6,7 @@ admin_service データモデル定義
 
 from datetime import datetime
 from typing import Dict, List, Optional, Any
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator
 from enum import Enum
 
 class MaintenanceLevel(str, Enum):
@@ -36,7 +36,8 @@ class MaintenanceControlRequest(BaseModel):
     maintenance_end_time: Optional[str] = Field(None, description="メンテナンス終了予定時刻（ISO形式）")
     affected_services: Optional[List[str]] = Field(default=[], description="影響を受けるサービス一覧")
 
-    @validator('maintenance_end_time')
+    @field_validator('maintenance_end_time')
+    @classmethod
     def validate_end_time(cls, v):
         if v:
             try:
