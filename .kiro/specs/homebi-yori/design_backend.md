@@ -12,6 +12,7 @@
 ├── /api/chat/*     → chat-service Lambda (1024MB, 60s) [要認証]
 ├── /api/tree/*     → tree-service Lambda (512MB, 30s) [要認証]
 ├── /api/users/*    → user-service Lambda (256MB, 15s) [要認証]
+├── /api/contact/*  → contact-service Lambda (256MB, 30s) [認証任意]
 └── /api/health     → health-check Lambda (128MB, 5s) [認証不要]
 
 🔧 管理者向け API Gateway (prod-admin-api)
@@ -39,6 +40,7 @@ Parameter Store (/homebiyori/maintenance/*) ← 全Lambda参照
 | **ttl-updater** | TTL一括更新 | 256MB | 300秒 | 10 | DynamoDB, SQS |
 | **health-check** | 死活監視 | 128MB | 5秒 | 1000 | Parameter Store |
 | **admin-service** | システム管理 | 512MB | 30秒 | 10 | CloudWatch, DynamoDB, Parameter Store |
+| **contact-service** | 問い合わせ・通知 | 256MB | 30秒 | 50 | SNS, DynamoDB, Parameter Store |
 
 ## Lambda Layers アーキテクチャ
 
@@ -442,4 +444,236 @@ ttl-updater:
 ├── SQS経由TTL一括更新
 ├── チャット履歴TTL調整
 └── 内部API経由更新完了通知
+
+contact-service:
+├── 問い合わせ受付・バリデーション
+├── スパム検出・自動分類
+├── SNS経由運営者通知
+└── 問い合わせ統計管理
 ```
+
+## Contact Service 詳細設計
+
+### 概要
+
+Contact Serviceは、ユーザーからの問い合わせを受け付け、運営者に自動通知するマイクロサービスです。AWS SNSを活用したメール通知システムとスマートな問い合わせ分類機能を提供します。
+
+### アーキテクチャ図
+
+```
+フロントエンド問い合わせフォーム
+    ↓ POST /api/contact/submit
+API Gateway (prod-user-api)
+    ↓ 認証任意（認証済みの場合user_id自動設定）
+contact-service Lambda
+    ├── バリデーション・スパム検出
+    ├── 自動カテゴリ分類・優先度判定
+    ├── SNSメッセージ生成・送信
+    └── レスポンス返却
+    ↓
+AWS SNS Topic (prod-homebiyori-contact-notifications)
+    ├── Email購読 → support@homebiyori.com
+    ├── Email購読 → admin@homebiyori.com  
+    └── Dead Letter Queue (失敗時)
+    ↓
+運営者メール受信
+```
+
+### 機能仕様
+
+#### 1. 問い合わせ受付機能
+
+**エンドポイント:** `POST /api/contact/submit`
+
+**リクエスト:**
+```json
+{
+  "name": "お問い合わせ者名",
+  "email": "返信用メールアドレス", 
+  "subject": "件名",
+  "message": "お問い合わせ内容",
+  "category": "general|bug_report|feature_request|account_issue|payment|privacy|other",
+  "priority": "low|medium|high",
+  "user_id": "認証済みユーザーの場合自動設定",
+  "user_agent": "ブラウザ情報（自動設定）"
+}
+```
+
+**レスポンス:**
+```json
+{
+  "status": "success",
+  "data": {
+    "inquiry_id": "UUID形式の問い合わせID",
+    "submitted_at": "送信日時（UTC）",
+    "category": "分類されたカテゴリ",
+    "priority": "判定された優先度",
+    "notification_sent": true,
+    "estimated_response_time": "1営業日以内にご返信いたします"
+  },
+  "message": "お問い合わせを受け付けました。ご返信をお待ちください。"
+}
+```
+
+#### 2. カテゴリ取得機能
+
+**エンドポイント:** `GET /api/contact/categories`
+
+**レスポンス:**
+```json
+{
+  "status": "success",
+  "data": {
+    "categories": [
+      {
+        "value": "general",
+        "label": "一般的なお問い合わせ",
+        "description": "使い方や機能についてのご質問",
+        "icon": "❓"
+      },
+      {
+        "value": "bug_report", 
+        "label": "バグ報告・不具合",
+        "description": "アプリの動作不良や表示異常",
+        "icon": "🐛"
+      }
+      // ... 他のカテゴリ
+    ]
+  }
+}
+```
+
+#### 3. 管理者機能（開発環境のみ）
+
+**テスト通知:** `POST /api/contact/test-notification`
+- SNS設定の動作確認用
+- 本番環境では無効化
+
+### バリデーション仕様
+
+#### セキュリティ検証
+- **XSS対策:** `<script>`, `javascript:`, `onload=`, `onerror=` を検出
+- **インジェクション対策:** SQL/NoSQLインジェクション防止
+- **文字制限:** 名前50文字、メール100文字、件名100文字、本文5000文字
+
+#### スパム検出（簡易版）
+- **疑わしいキーワード:** 「クリック」「今すぐ」「無料」「副業」等の検出
+- **URL数チェック:** 3個以上のURLで高スパムスコア
+- **文字多様性:** 同じ文字の繰り返しパターン検出
+- **スパムスコア:** 0.0-1.0で評価、0.8以上で低優先度に自動調整
+
+#### 自動分類機能
+- **カテゴリ分類:** キーワードベースの自動振り分け
+- **優先度判定:** 緊急キーワード（「至急」「使えない」等）の検出
+- **学習機能:** 将来的には機械学習による精度向上を検討
+
+### SNS通知システム
+
+#### メール通知内容
+
+**件名パターン:**
+```
+[Homebiyori] 🟢 新しい一般的なお問い合わせ          # 低優先度
+[Homebiyori] 🟡 新しいバグ報告・不具合               # 中優先度  
+【緊急】[Homebiyori] 🔴 新しいアカウント関連         # 高優先度
+```
+
+**メール本文構成:**
+```
+■ 基本情報
+お問い合わせID: 12345678-1234-5678-9012-123456789012
+受信日時: 2024年8月8日 15:30:45 JST
+カテゴリ: アカウント関連
+緊急度: 🔴 高 (緊急対応)
+目標返信時間: 4時間以内
+
+■ お客様情報  
+お名前: 山田太郎
+メールアドレス: yamada@example.com
+ユーザー種別: 認証済みユーザー (user-id-12345)
+
+■ お問い合わせ内容
+件名: ログインできません
+内容: [お問い合わせ本文]
+
+■ 対応情報
+🔴 【緊急対応】
+- 4時間以内の返信をお願いします
+- 必要に応じて電話対応も検討してください
+- エスカレーション先: 技術責任者・カスタマーサクセス責任者
+
+■ カテゴリ別対応指示
+- Cognito管理画面で状況確認をお願いします
+- 必要に応じてアカウント復旧作業を行ってください
+
+■ 技術情報
+User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64)...
+```
+
+#### 監視・アラート機能
+
+**CloudWatch統合:**
+- SNS配信成功・失敗メトリクス
+- 問い合わせ数の異常検知（急激な増加）
+- Dead Letter Queueメッセージ監視
+
+**CloudWatch Alarm:**
+- SNS配信失敗時の即座アラート
+- 1時間に10件以上の問い合わせ（DDoS検知）
+- Dead Letter Queueに3件以上の蓄積
+
+### レート制限・セキュリティ
+
+#### レート制限仕様
+- **時間制限:** 1時間に10件まで（IPベース）
+- **日次制限:** 1日に50件まで（IPベース）
+- **制限超過:** HTTP 429 + 適切なメッセージ
+
+#### セキュリティ機能
+- **CORS設定:** フロントエンドドメインのみ許可
+- **入力サニタイズ:** 全フィールドの安全性確認
+- **ログ記録:** 不正アクセス試行の詳細記録
+
+### AWS リソース構成
+
+#### SNS Topic
+- **名前:** `prod-homebiyori-contact-notifications`
+- **暗号化:** AWS KMS (alias/aws/sns)
+- **購読:** Email形式（手動確認必要）
+
+#### Dead Letter Queue  
+- **名前:** `prod-homebiyori-contact-notifications-dlq`
+- **保持期間:** 14日
+- **アラート:** 3件以上で通知
+
+#### CloudWatch Logs
+- **ログ保持:** 14日
+- **ログレベル:** INFO (本番), DEBUG (開発)
+
+### 運用・監視
+
+#### メトリクス
+- 問い合わせ総数・成功率
+- カテゴリ別・優先度別分布
+- SNS配信成功率
+- 平均応答時間
+
+#### アラート対象
+- SNS配信失敗（即座）
+- 異常な問い合わせ増加（1時間）
+- スパム検出率急増（1日）
+- Dead Letter Queue蓄積（即座）
+
+### 今後の拡張計画
+
+#### Phase 2 拡張機能
+- **問い合わせ履歴:** DynamoDB保存・検索機能
+- **自動応答:** FAQ連携・即座回答
+- **Slack連携:** 運営者チャット通知
+- **機械学習:** 分類精度向上・感情分析
+
+#### Phase 3 高度化
+- **チャットボット:** 初回対応自動化
+- **多言語対応:** 国際化準備
+- **音声対応:** 電話・音声メッセージ受付
+- **CRM統合:** 顧客管理システム連携

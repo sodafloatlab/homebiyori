@@ -54,7 +54,10 @@
       "Bash(%PYTHONPATH%)",
       "Bash(set AWS_DEFAULT_REGION=ap-northeast-1)",
       "Bash(DYNAMODB_TABLE=test-homebiyori AWS_DEFAULT_REGION=ap-northeast-1 python -m pytest tests/backend/services/webhook_service/ -v --tb=short -x)",
-      "Bash(%CD%backendlayersaipython)"
+      "Bash(%CD%backendlayersaipython)",
+      "Bash(mkdir:*)",
+      "mcp__terraform-mcp-server__resolveProviderDocID",
+      "mcp__terraform-mcp-server__getProviderDocs"
     ],
     "deny": []
   },

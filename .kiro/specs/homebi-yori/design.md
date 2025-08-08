@@ -60,6 +60,16 @@
    - サブスクリプション管理
    - 課金フロー
 
+11. **問い合わせ・運営者通知システム** - （design_backend.md内で詳細記載）
+   - Contact Service設計
+   - AWS SNS通知システム
+   - 運営者メール自動配信
+
+12. **[design_parameters.md](./design_parameters.md)** - 外部パラメータ設計
+   - Parameter Store設定管理
+   - セキュリティ・認証パラメータ
+   - メンテナンス制御・システム設定
+
 ## 主要な設計決定事項
 
 ### アーキテクチャの特徴
