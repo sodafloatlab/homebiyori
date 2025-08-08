@@ -81,6 +81,12 @@ variable "admin_service_zip_path" {
   default     = "admin_service.zip"
 }
 
+variable "contact_service_zip_path" {
+  description = "Path to the Contact Service Lambda deployment package"
+  type        = string
+  default     = "contact_service.zip"
+}
+
 # Lambda Layers configuration
 variable "common_layer_zip_path" {
   description = "Path to the Common Layer deployment package"
@@ -165,6 +171,7 @@ variable "lambda_zip_paths" {
     ttl-updater-service   = "ttl_updater_service.zip"
     billing-service       = "billing_service.zip"
     admin-service         = "admin_service.zip"
+    contact-service       = "contact_service.zip"
   }
 }
 
@@ -190,4 +197,41 @@ variable "ai_layer_arn" {
   description = "ARN of the AI Lambda layer"
   type        = string
   default     = ""
+}
+
+# Contact Service configuration
+variable "contact_notification_emails" {
+  description = "List of email addresses to receive contact inquiry notifications"
+  type        = list(string)
+  default     = [
+    "support@homebiyori.com",
+    "admin@homebiyori.com"
+  ]
+
+  validation {
+    condition = alltrue([
+      for email in var.contact_notification_emails : can(regex("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$", email))
+    ])
+    error_message = "All contact notification emails must be valid email addresses."
+  }
+}
+
+variable "enable_contact_monitoring" {
+  description = "Enable CloudWatch monitoring for contact notifications"
+  type        = bool
+  default     = true
+}
+
+# CloudWatch Logs retention configuration
+variable "log_retention_days" {
+  description = "CloudWatch Logs retention period in days for Lambda functions and API Gateway"
+  type        = number
+  default     = 7
+
+  validation {
+    condition = contains([
+      1, 3, 5, 7, 14, 30, 60, 90, 120, 150, 180, 365, 400, 545, 731, 1827, 3653
+    ], var.log_retention_days)
+    error_message = "Log retention days must be a valid CloudWatch value."
+  }
 }

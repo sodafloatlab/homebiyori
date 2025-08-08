@@ -27,6 +27,9 @@ enable_google_oauth = true
 # export TF_VAR_google_client_id="your_client_id"
 # export TF_VAR_google_client_secret="your_client_secret"
 
+# CloudWatch Logs retention - 1 week
+log_retention_days = 7
+
 common_tags = {
   Project     = "homebiyori"
   Environment = "prod"

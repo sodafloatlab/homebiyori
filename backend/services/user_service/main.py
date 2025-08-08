@@ -3,7 +3,7 @@ user-service Lambda FastAPIアプリケーション
 
 ■システム概要■
 Homebiyori（ほめびより）のユーザー管理マイクロサービス。
-ユーザープロフィール、AI設定、子供情報の管理を行う。
+ユーザープロフィール、AI設定を行う。
 
 ■アーキテクチャ■
 - AWS Lambda (Python 3.11)
@@ -22,10 +22,6 @@ Homebiyori（ほめびより）のユーザー管理マイクロサービス。
 - GET /users/profile - ユーザープロフィール取得
 - PUT /users/profile - ユーザープロフィール更新
 - PUT /users/ai-preferences - AI設定更新
-- GET /users/children - 子供一覧取得
-- POST /users/children - 子供追加
-- PUT /users/children/{child_id} - 子供情報更新
-- DELETE /users/children/{child_id} - 子供削除
 
 ■データモデル■
 ユーザープロフィール:
@@ -34,12 +30,6 @@ Homebiyori（ほめびより）のユーザー管理マイクロサービス。
 - ai_character: 選択AIキャラクター
 - praise_level: 褒めレベル設定
 - onboarding_completed: 初期設定完了フラグ
-
-子供情報:
-- child_id: 子供一意ID
-- name: 子供の名前
-- birth_date: 生年月日
-- parent_user_id: 親ユーザーID (外部キー)
 
 ■セキュリティ■
 - 認証: API Gateway + Cognito Authorizer (JWT)
@@ -100,7 +90,7 @@ db = get_database()
 # プロダクション環境でのパフォーマンス最適化設定
 app = FastAPI(
     title="Homebiyori User Service",
-    description="ユーザー管理マイクロサービス - プロフィール、AI設定、子供情報管理",
+    description="ユーザー管理マイクロサービス - プロフィール、AI設定",
     version="1.0.0",
     docs_url=None if os.getenv("ENVIRONMENT") == "prod" else "/docs",  # 本番では無効化
     redoc_url=None if os.getenv("ENVIRONMENT") == "prod" else "/redoc",

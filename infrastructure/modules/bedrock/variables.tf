@@ -8,8 +8,8 @@ variable "environment" {
   type        = string
 }
 
-variable "common_tags" {
-  description = "Common tags to apply to all resources"
+variable "additional_tags" {
+  description = "Additional tags to apply to resources (default_tags handle basic tags)"
   type        = map(string)
   default     = {}
 }

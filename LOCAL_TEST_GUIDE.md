@@ -1,7 +1,7 @@
 # Homebiyori ローカルテスト実行手順書
 
-**更新日:** 2025年8月7日  
-**対象:** Homebiyori全Lambdaサービス（9種類）  
+**更新日:** 2025年8月8日  
+**対象:** Homebiyori全Lambdaサービス（10種類）  
 **Python要件:** Python 3.13+、pytest 8.4.1+  
 
 ## 📋 概要
@@ -20,6 +20,9 @@ pip install langchain==0.3.27 langchain-aws==0.2.30 langchain-community==0.3.27
 
 # 追加依存関係
 pip install moto[dynamodb]==4.2.14
+
+# Contact Service用追加パッケージ
+pip install email-validator==2.2.0
 ```
 
 ### 環境変数テンプレート
@@ -35,6 +38,9 @@ set DYNAMODB_TABLE=test-homebiyori
 # その他（サービス固有）
 set STRIPE_WEBHOOK_SECRET=whsec_test_secret
 set COGNITO_USER_POOL_ID=test_pool_id
+
+# Contact Service用（統合テストで必要）
+set SNS_TOPIC_ARN=arn:aws:sns:ap-northeast-1:123456789012:test-contact-notifications
 ```
 
 ---
@@ -316,6 +322,58 @@ python -m pytest tests/backend/services/webhook_service/ -v --tb=short -x
 
 ---
 
+### 10. contact_service
+
+**説明:** 問い合わせ管理・運営者通知サービス
+
+**実行手順:**
+```bash
+# 環境変数設定
+set PYTHONPATH=%CD%\backend\layers\common\python
+
+# 基本テスト実行（SNS依存なし）
+python -m pytest tests/backend/services/contact_service/test_contact_service.py -v --tb=short
+```
+
+**統合テスト実行（AWS環境必要）:**
+```bash
+# AWS統合テスト用環境変数（実環境のみ）
+set SNS_TOPIC_ARN=arn:aws:sns:ap-northeast-1:123456789012:prod-homebiyori-contact-notifications
+set AWS_DEFAULT_REGION=ap-northeast-1
+set ENVIRONMENT=test
+
+# 統合テスト実行（AWS認証情報必要）
+python -m pytest tests/backend/services/contact_service/test_integration.py -v -m integration
+```
+
+**制約・注意事項:**
+- ✅ 問い合わせフォームバリデーション完全テスト可能
+- ✅ スパム検出・自動分類ロジック検証済み
+- ✅ メッセージ生成機能確認済み
+- ❌ **AWS SNS実連携は統合テストのみ**
+- ❌ 実際のメール送信はテスト対象外
+- ⚠️ **統合テストは実際のSNSトピックにメール送信する可能性**
+- ⏱️ 実行時間: ~2秒（基本）/ ~5-10秒（統合）
+
+**期待結果:** 
+- 基本テスト: 15/15テスト通過
+- 統合テスト: 4/4テスト通過（AWS環境のみ）
+
+**検証困難な部分:**
+- AWS SNS実メール配信
+- 運営者メールアドレスへの実際の通知
+- レート制限の実動作
+- 大量問い合わせでのパフォーマンス
+- Dead Letter Queue動作
+
+**Contact Serviceの特徴:**
+- **メール通知システム:** AWS SNS + Email購読による運営者通知
+- **スマート分類:** 問い合わせ内容からカテゴリ・優先度を自動判定
+- **セキュリティ:** XSS対策、スパム検出、レート制限機能
+- **監視:** CloudWatch連携、失敗アラーム、ダッシュボード
+
+---
+
 ## 🚀 全サービス一括テスト実行
 
 ### クイック全体テスト
@@ -325,8 +383,8 @@ set PYTHONPATH=%CD%\backend\layers\common\python
 set DYNAMODB_TABLE=test-homebiyori
 set AWS_DEFAULT_REGION=ap-northeast-1
 
-# シンプルサービス（5個）を一括実行
-python -m pytest tests/backend/services/health_check_service/ tests/backend/services/user_service/ tests/backend/services/notification_service/ tests/backend/services/billing_service/ tests/backend/services/admin_service/ -v
+# シンプルサービス（6個）を一括実行
+python -m pytest tests/backend/services/health_check_service/ tests/backend/services/user_service/ tests/backend/services/notification_service/ tests/backend/services/billing_service/ tests/backend/services/admin_service/ tests/backend/services/contact_service/test_contact_service.py -v
 ```
 
 ### 詳細全体テスト（個別実行推奨）
@@ -371,6 +429,10 @@ echo "=== Testing webhook_service ==="
 set DYNAMODB_TABLE=test-homebiyori
 set STRIPE_WEBHOOK_SECRET=whsec_test_secret
 python -m pytest tests/backend/services/webhook_service/ -v --tb=short -x
+
+# 10. contact_service（基本テストのみ）
+echo "=== Testing contact_service ==="
+python -m pytest tests/backend/services/contact_service/test_contact_service.py -v --tb=short
 ```
 
 ---
@@ -388,8 +450,11 @@ python -m pytest tests/backend/services/webhook_service/ -v --tb=short -x
 | tree_service | 18/18 | ⚠️ 軽微制約 | ~3秒 |
 | chat_service | 6/6 | ❌ 高制約 | ~3-5秒 |
 | webhook_service | 9/9 | ⚠️ 環境変数必須 | ~3秒 |
+| contact_service | 15/15 | ⚠️ 軽微制約※ | ~2秒 |
 
-**総計:** 100%ローカル検証成功率達成
+**※contact_serviceの制約:** 基本機能は完全テスト可能。AWS SNS統合は別途統合テストで対応。
+
+**総計:** 100%ローカル検証成功率達成（10サービス）
 
 ---
 
@@ -452,6 +517,7 @@ pip install pytest==8.4.1 pytest-asyncio==0.21.1
 - [ ] tree_service (18/18)
 - [ ] chat_service (6/6)
 - [ ] webhook_service (9/9)
+- [ ] contact_service (15/15)
 
 ### 問題・注意事項
 - [問題があれば記載]
@@ -464,11 +530,12 @@ pip install pytest==8.4.1 pytest-asyncio==0.21.1
 
 ## 🎯 まとめ
 
-**Homebiyoriプロジェクトは9種類のLambdaサービスを持ち、各サービスで異なるテスト制約があります。**
+**Homebiyoriプロジェクトは10種類のLambdaサービスを持ち、各サービスで異なるテスト制約があります。**
 
 **推奨テストフロー:**
-1. **シンプルサービス** (health_check, user, notification, billing, admin) → 完全ローカルテスト
+1. **シンプルサービス** (health_check, user, notification, billing, admin, contact) → 完全ローカルテスト
 2. **中程度サービス** (ttl_updater, tree) → 高精度ローカルテスト
 3. **複雑サービス** (chat, webhook) → 基本機能確認 + ドキュメント化された制約理解
+4. **統合テスト** (contact AWS SNS) → 実環境でのメール通知確認
 
 この手順書に従うことで、**ローカル環境で可能な最大限のテスト検証**を実施できます。

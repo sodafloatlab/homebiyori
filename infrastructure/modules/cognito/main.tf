@@ -26,16 +26,10 @@ locals {
   users_client_name = "${var.project_name}-${var.environment}-users-web-client"
   admins_client_name = "${var.project_name}-${var.environment}-admins-web-client"
   
-  # Default tags
-  default_tags = {
-    Environment = var.environment
-    Project     = var.project_name
-    ManagedBy   = "terraform"
-    Module      = "cognito"
-  }
-  
-  # Merged tags
-  tags = merge(local.default_tags, var.common_tags)
+  # Additional tags (default_tags via provider handle basic tags)
+  module_tags = merge(var.additional_tags, {
+    Module = "cognito"
+  })
   
   # Common schema attributes
   email_schema = {
@@ -118,7 +112,7 @@ resource "aws_cognito_user_pool" "users" {
     mutable            = true
   }
 
-  tags = merge(local.tags, {
+  tags = merge(local.module_tags, {
     Name = local.users_pool_name
     Type = "EndUser"
     AuthMethod = "GoogleOAuth"
@@ -184,7 +178,7 @@ resource "aws_cognito_user_pool" "admins" {
     mutable            = true
   }
 
-  tags = merge(var.common_tags, {
+  tags = merge(local.module_tags, {
     Name = "${var.project_name}-${var.environment}-admins-pool"
     Type = "Administrator"
     AuthMethod = "EmailPassword"
@@ -347,5 +341,5 @@ resource "aws_cognito_identity_pool" "main" {
     server_side_token_check = false
   }
 
-  tags = var.common_tags
+  tags = local.module_tags
 }

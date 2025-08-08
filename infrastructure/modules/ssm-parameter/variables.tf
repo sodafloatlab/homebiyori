@@ -1,8 +1,5 @@
-variable "tags" {
-  description = "Tags to apply to all Parameter Store parameters"
-  type        = map(string)
-  default     = {}
-}
+# Tags are automatically applied via provider default_tags
+# No need for explicit tags variable
 
 variable "project_name" {
   description = "Name of the project"

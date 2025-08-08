@@ -1,24 +1,6 @@
 # Homebiyori Backend Infrastructure - Production Environment
 # Uses reusable modules following Terraform best practices
 
-terraform {
-  required_version = ">= 1.0"
-  required_providers {
-    aws = {
-      source  = "hashicorp/aws"
-      version = "~> 5.0"
-    }
-  }
-
-  backend "s3" {
-    bucket         = "prod-homebiyori-terraform-state"
-    key            = "backend/terraform.tfstate"
-    region         = "ap-northeast-1"
-    dynamodb_table = "prod-homebiyori-terraform-locks"
-    encrypt        = true
-  }
-}
-
 # Local values for shared configurations
 locals {
   # Project configuration
@@ -398,15 +380,59 @@ locals {
         ]
       })
     }
+
+    contact-service = {
+      memory_size = 256
+      timeout     = 30
+      layers      = ["common"]
+      environment_variables = {
+        SNS_TOPIC_ARN = module.contact_notifications.topic_arn
+      }
+      iam_policy_document = jsonencode({
+        Version = "2012-10-17"
+        Statement = [
+          {
+            Effect = "Allow"
+            Action = [
+              "sns:Publish",
+              "sns:GetTopicAttributes"
+            ]
+            Resource = [module.contact_notifications.topic_arn]
+          },
+          {
+            Effect = "Allow"
+            Action = [
+              "sqs:SendMessage"
+            ]
+            Resource = [module.contact_notifications.dlq_arn]
+          },
+          {
+            Effect = "Allow"
+            Action = [
+              "logs:CreateLogGroup",
+              "logs:CreateLogStream", 
+              "logs:PutLogEvents"
+            ]
+            Resource = [
+              "arn:aws:logs:${local.region}:${local.account_id}:log-group:/aws/lambda/${local.project_name}-${local.environment}-contact-service*"
+            ]
+          },
+          {
+            Effect = "Allow"
+            Action = ["ssm:GetParameter"]
+            Resource = [
+              "arn:aws:ssm:${local.region}:${local.account_id}:parameter/${local.project_name}/${local.environment}/*"
+            ]
+          }
+        ]
+      })
+    }
   }
 
-  # Common tags for all resources
-  common_tags = merge(var.common_tags, {
-    Environment = local.environment
-    Project     = local.project_name
-    ManagedBy   = "terraform"
-    Layer       = "backend"
-  })
+  # Additional tags specific to backend layer (default_tags handle basic tags)
+  layer_tags = {
+    Layer = "backend"
+  }
 
   # Lambda Layer ARNs
   layer_arns = {
@@ -467,7 +493,7 @@ module "lambda_layers" {
   compatible_architectures = ["x86_64"]
   license_info            = each.value.license_info
 
-  tags = merge(local.common_tags, each.value.tags)
+  tags = merge(local.layer_tags, each.value.tags)
 }
 
 # Lambda Functions using reusable modules
@@ -486,6 +512,9 @@ module "lambda_functions" {
   memory_size = each.value.memory_size
   timeout     = each.value.timeout
 
+  # CloudWatch Logs retention
+  log_retention_days = var.log_retention_days
+
   # Lambda Layers
   layers = compact([
     for layer in each.value.layers : lookup(local.layer_arns, layer, null)
@@ -503,7 +532,7 @@ module "lambda_functions" {
   # API Gateway permissions (will be handled by API Gateway module)
   lambda_permissions = {}
 
-  tags = merge(local.common_tags, {
+  tags = merge(local.layer_tags, {
     Service = each.key
   })
 }
@@ -514,7 +543,7 @@ module "cognito" {
   
   project_name         = local.project_name
   environment          = local.environment
-  common_tags          = local.common_tags
+  additional_tags      = local.layer_tags
   user_callback_urls   = var.callback_urls
   user_logout_urls     = var.logout_urls
   admin_callback_urls  = var.callback_urls
@@ -526,13 +555,14 @@ module "cognito" {
 
 # User API Gateway - Public and authenticated user endpoints
 module "user_api_gateway" {
-  source = "../../../modules/api-gateway-service"
+  source = "../../../modules/apigateway"
   
   project_name = local.project_name
   environment  = local.environment
   api_type     = "user"
   
   cognito_user_pool_arn = module.cognito.users_pool_arn
+  log_retention_days    = var.log_retention_days
   
   lambda_services = {
     health = {
@@ -598,26 +628,35 @@ module "user_api_gateway" {
       use_proxy           = true
       enable_cors         = true
     }
+    contact = {
+      path_part             = "contact"
+      lambda_function_name  = module.lambda_functions["contact-service"].function_name
+      lambda_invoke_arn     = module.lambda_functions["contact-service"].invoke_arn
+      http_method          = "ANY"
+      require_auth         = false
+      use_proxy           = true
+      enable_cors         = true
+    }
   }
   
   cors_allow_origin       = "'*'"
   enable_detailed_logging = true
-  log_retention_days      = 14
   
-  tags = merge(local.common_tags, {
+  tags = merge(local.layer_tags, {
     APIType = "user"
   })
 }
 
 # Admin API Gateway - Administrative endpoints
 module "admin_api_gateway" {
-  source = "../../../modules/api-gateway-service"
+  source = "../../../modules/apigateway"
   
   project_name = local.project_name
   environment  = local.environment
   api_type     = "admin"
   
   cognito_user_pool_arn = module.cognito.admins_pool_arn
+  log_retention_days    = var.log_retention_days
   
   lambda_services = {
     admin = {
@@ -633,9 +672,8 @@ module "admin_api_gateway" {
   
   cors_allow_origin       = "'https://admin.homebiyori.com'"
   enable_detailed_logging = true
-  log_retention_days      = 30
   
-  tags = merge(local.common_tags, {
+  tags = merge(local.layer_tags, {
     APIType = "admin"
   })
 }
@@ -646,5 +684,27 @@ module "bedrock" {
   
   project_name = local.project_name
   environment  = local.environment
-  common_tags  = local.common_tags
+  additional_tags = local.layer_tags
+}
+
+# SNS topic for contact inquiries
+module "contact_notifications" {
+  source = "../../../modules/sns"
+
+  topic_name    = "${local.project_name}-${local.environment}-contact-notifications"
+  display_name  = "Homebiyori Contact Notifications"
+  aws_region    = local.region
+  aws_account_id = local.account_id
+
+  # Email subscriptions (must be confirmed manually after deployment)
+  subscription_emails = var.contact_notification_emails
+
+  # Monitoring
+  enable_monitoring = true
+  alarm_actions     = []
+
+  tags = merge(local.layer_tags, {
+    Component = "contact-notifications"
+    Purpose   = "operator-alerts"
+  })
 }

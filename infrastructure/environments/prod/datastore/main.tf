@@ -119,7 +119,7 @@ locals {
 
 # DynamoDB Tables using reusable modules
 module "dynamodb_tables" {
-  source = "../../../modules/dynamodb-table"
+  source = "../../../modules/dynamodb"
   
   for_each = local.dynamodb_tables
   
@@ -150,7 +150,7 @@ module "dynamodb_tables" {
 
 # S3 Buckets using reusable modules
 module "chat_content_bucket" {
-  source = "../../../modules/s3-bucket"
+  source = "../../../modules/s3"
   
   project_name = local.project_name
   environment  = local.environment
@@ -188,7 +188,7 @@ module "chat_content_bucket" {
 }
 
 module "images_bucket" {
-  source = "../../../modules/s3-bucket"
+  source = "../../../modules/s3"
   
   project_name = local.project_name
   environment  = local.environment
@@ -222,7 +222,7 @@ module "images_bucket" {
 }
 
 module "static_bucket" {
-  source = "../../../modules/s3-bucket"
+  source = "../../../modules/s3"
   
   project_name = local.project_name
   environment  = local.environment
@@ -234,6 +234,47 @@ module "static_bucket" {
   tags = merge(local.common_tags, {
     BucketType = "static"
     Purpose    = "website-hosting"
+  })
+}
+
+module "logs_bucket" {
+  source = "../../../modules/s3"
+  
+  project_name = local.project_name
+  environment  = local.environment
+  bucket_type  = "logs"
+  bucket_purpose = "Store CloudWatch Logs via Kinesis Data Firehose"
+  
+  enable_versioning = false
+  
+  # Lifecycle configuration for log retention and cost optimization
+  lifecycle_rules = [
+    {
+      id      = "logs_lifecycle"
+      enabled = true
+      transitions = [
+        {
+          days          = 30
+          storage_class = "STANDARD_IA"
+        },
+        {
+          days          = 90
+          storage_class = "GLACIER_IR"
+        },
+        {
+          days          = 365
+          storage_class = "DEEP_ARCHIVE"
+        }
+      ]
+      expiration = {
+        days = 2555  # 7 years retention for logs
+      }
+    }
+  ]
+  
+  tags = merge(local.common_tags, {
+    BucketType = "logs"
+    Purpose    = "log-storage"
   })
 }
 

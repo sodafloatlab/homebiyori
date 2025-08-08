@@ -11,7 +11,7 @@ resource "aws_cloudwatch_log_group" "bedrock" {
   name              = "/aws/bedrock/${var.project_name}-${var.environment}"
   retention_in_days = var.log_retention_days
 
-  tags = merge(var.common_tags, {
+  tags = merge(var.additional_tags, {
     Name = "${var.project_name}-${var.environment}-bedrock-logs"
   })
 }
@@ -68,7 +68,7 @@ resource "aws_cloudwatch_metric_alarm" "bedrock_error_rate" {
 
   insufficient_data_actions = []
 
-  tags = var.common_tags
+  tags = var.additional_tags
 }
 
 resource "aws_cloudwatch_metric_alarm" "bedrock_high_token_usage" {
@@ -85,7 +85,7 @@ resource "aws_cloudwatch_metric_alarm" "bedrock_high_token_usage" {
 
   insufficient_data_actions = []
 
-  tags = var.common_tags
+  tags = var.additional_tags
 }
 
 # CloudWatch Dashboard for Bedrock metrics

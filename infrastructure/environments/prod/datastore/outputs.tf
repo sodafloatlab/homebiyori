@@ -100,6 +100,16 @@ output "static_bucket_arn" {
   value       = module.static_bucket.bucket_arn
 }
 
+output "logs_bucket_name" {
+  description = "Name of the logs S3 bucket"
+  value       = module.logs_bucket.bucket_id
+}
+
+output "logs_bucket_arn" {
+  description = "ARN of the logs S3 bucket"
+  value       = module.logs_bucket.bucket_arn
+}
+
 # Combined outputs for convenience
 output "dynamodb_table_names" {
   description = "Map of all DynamoDB table names"
@@ -121,6 +131,7 @@ output "s3_bucket_names" {
     chat-content = module.chat_content_bucket.bucket_id
     images       = module.images_bucket.bucket_id
     static       = module.static_bucket.bucket_id
+    logs         = module.logs_bucket.bucket_id
   }
 }
 
@@ -130,6 +141,7 @@ output "s3_bucket_arns" {
     chat-content = module.chat_content_bucket.bucket_arn
     images       = module.images_bucket.bucket_arn
     static       = module.static_bucket.bucket_arn
+    logs         = module.logs_bucket.bucket_arn
   }
 }
 

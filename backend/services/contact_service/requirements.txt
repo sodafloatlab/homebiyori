@@ -1,0 +1,9 @@
+# contact-service Lambda dependencies (Updated: 2025年8月基準)
+# 基本的な依存関係は homebiyori-common-layer から提供
+
+# Lambda専用軽量依存関係 (2025年8月最新)
+mangum==0.19.0
+
+# AWS SNS 通知機能 (boto3は共通レイヤーから提供)
+# email-validator は問い合わせフォームバリデーション用
+email-validator==2.2.0
