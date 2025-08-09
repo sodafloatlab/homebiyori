@@ -43,7 +43,7 @@
 
 #### **6. コード品質 (Lambda Layers統合)**
 - **homebiyori_common**: DynamoDB・認証・ログ・例外処理統合
-- **homebiyori_ai**: Bedrock・感情検出・AIキャラクター統合
+- **LangChain統合**: Bedrock・感情検出・AIキャラクター統合（chat_service内で実装）
 - **命名統一**: 全サービス "_service" 統一
 - **リファクタリング**: 200行以上重複コード削除
 

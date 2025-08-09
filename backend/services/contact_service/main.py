@@ -15,7 +15,8 @@ from mangum import Mangum
 
 # 共通Layer機能インポート
 from homebiyori_common import get_logger, success_response, error_response
-from homebiyori_common.maintenance import maintenance_required
+from homebiyori_common import maintenance_required
+from homebiyori_common import maintenance_check_middleware, get_current_user_id
 
 from .handlers.contact import router as contact_router
 from .handlers.admin import router as admin_router
@@ -42,6 +43,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# 共通ミドルウェアをLambda Layerから適用
+app.middleware("http")(maintenance_check_middleware)
 
 # ルーターの登録
 app.include_router(

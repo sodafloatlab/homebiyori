@@ -214,12 +214,12 @@ def verify_lambda_layers():
     Lambda Layers統合状態の確認
 
     ■機能概要■
-    homebiyori-common-layer と homebiyori-ai-layer の
+    homebiyori-common-layer の
     正常な読み込みを確認し、依存関係の整合性を検証。
 
     ■検証項目■
     1. homebiyori-common-layer: 共通機能（認証、DB、ログ等）
-    2. homebiyori-ai-layer: AI機能（キャラクター、プロンプト等）
+    2. chat_service: AI機能（LangChain、Claude 3 Haiku統合等）
     3. 環境変数: 必要な設定値の存在確認
     4. DynamoDB接続: データベース疎通確認
 
@@ -249,19 +249,12 @@ def verify_lambda_layers():
         }
         verification_results["system_status"] = "degraded"
 
-    try:
-        # homebiyori-ai-layer 確認
-        from homebiyori_ai import __version__ as ai_version
-
-        verification_results["lambda_layers"]["homebiyori-ai-layer"] = {
-            "status": "available",
-            "version": ai_version,
-        }
-    except ImportError as e:
-        verification_results["lambda_layers"]["homebiyori-ai-layer"] = {
-            "status": "error",
-            "error": str(e),
-        }
+    # AI機能は chat_service の LangChain統合で提供
+    verification_results["ai_integration"] = {
+        "service": "chat_service",
+        "implementation": "LangChain + Amazon Bedrock Claude 3 Haiku",
+        "status": "external_service"
+    }
 
     # 環境変数確認
     required_env_vars = ["DYNAMODB_TABLE", "AWS_REGION", "ENVIRONMENT"]

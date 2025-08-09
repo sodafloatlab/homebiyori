@@ -10,7 +10,7 @@ from typing import Dict, Any
 
 # 共通Layer機能インポート
 from homebiyori_common import get_logger, error_response
-from homebiyori_common.maintenance import maintenance_required
+from homebiyori_common import maintenance_required
 
 from .main import handler as fastapi_handler
 

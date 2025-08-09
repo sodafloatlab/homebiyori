@@ -17,7 +17,7 @@ Homebiyori（ほめびより）のチャット機能マイクロサービス。
 ■アーキテクチャ■
 - AWS Lambda (Python 3.11, 1024MB, 60秒)
 - FastAPI + Mangum
-- Lambda Layers: homebiyori-common-layer, homebiyori-ai-layer
+- Lambda Layers: homebiyori-common-layer (AI機能はLangChain統合)
 - 認証: API Gateway + Cognito Authorizer
 - データストア: DynamoDB直接保存（S3機能削除）
 - AI: Amazon Bedrock Claude 3 Haiku
@@ -35,7 +35,7 @@ Homebiyori（ほめびより）のチャット機能マイクロサービス。
 - tree-service統合: 成長計算機能の統合
 """
 
-from fastapi import FastAPI, HTTPException, Request, BackgroundTasks
+from fastapi import FastAPI, HTTPException, Request, BackgroundTasks, Depends
 from fastapi.responses import JSONResponse
 from typing import List, Optional, Dict, Any
 import os
@@ -55,7 +55,8 @@ from homebiyori_common.exceptions import (
     MaintenanceError,
     ExternalServiceError
 )
-from homebiyori_common.maintenance import is_maintenance_mode
+from homebiyori_common.utils.maintenance import is_maintenance_mode
+from homebiyori_common.utils.middleware import maintenance_check_middleware, get_current_user_id
 
 # ローカルモジュール
 from .models import (
@@ -110,78 +111,8 @@ app = FastAPI(
 # ミドルウェア・共通処理
 # =====================================
 
-@app.middleware("http")
-async def maintenance_check_middleware(request: Request, call_next):
-    """
-    メンテナンス状態チェックミドルウェア
-    
-    全APIリクエストに対してメンテナンス状態を確認し、
-    メンテナンス中の場合は503エラーを返却する。
-    """
-    try:
-        if await is_maintenance_mode():
-            raise HTTPException(status_code=503, detail="Service is under maintenance")
-        response = await call_next(request)
-        return response
-    except MaintenanceError as e:
-        logger.warning(
-            "Chat API blocked due to maintenance mode",
-            extra={"maintenance_message": str(e), "request_path": request.url.path}
-        )
-        return JSONResponse(
-            status_code=503,
-            content={
-                "error": "MAINTENANCE_MODE",
-                "message": str(e),
-                "status": "maintenance"
-            }
-        )
-    except Exception as e:
-        logger.error(
-            "Maintenance check failed, allowing request",
-            extra={"error": str(e), "request_path": request.url.path}
-        )
-        response = await call_next(request)
-        return response
-
-
-def get_authenticated_user_id(request: Request) -> str:
-    """
-    API Gateway + Cognito AuthorizerからユーザーID取得
-    
-    ■認証フロー■
-    1. API Gateway が Cognito JWT を検証
-    2. 検証成功時、JWT Claims を Lambda event に付与
-    3. homebiyori_common.auth.get_user_id_from_event() でユーザーID抽出
-    
-    Returns:
-        str: Cognito User Pool の sub (UUID形式)
-    
-    Raises:
-        AuthenticationError: JWT無効・期限切れ
-    """
-    try:
-        event = request.scope.get("aws.event")
-        if not event:
-            logger.error("Lambda event not found in request scope")
-            raise AuthenticationError("Authentication context missing")
-
-        user_id = get_user_id_from_event(event)
-        logger.debug(
-            "User authenticated for chat service",
-            extra={
-                "user_id": user_id[:8] + "****",
-                "request_path": request.url.path
-            }
-        )
-        return user_id
-
-    except Exception as e:
-        logger.error(
-            "Chat authentication failed",
-            extra={"error": str(e), "request_path": request.url.path}
-        )
-        raise AuthenticationError("User authentication failed")
+# 共通ミドルウェアをLambda Layerから適用
+app.middleware("http")(maintenance_check_middleware)
 
 
 # =====================================
@@ -191,8 +122,8 @@ def get_authenticated_user_id(request: Request) -> str:
 @app.post("/api/chat/messages", response_model=ChatResponse)
 async def send_message(
     chat_request: ChatRequest, 
-    request: Request, 
-    background_tasks: BackgroundTasks
+    background_tasks: BackgroundTasks,
+    user_id: str = Depends(get_current_user_id)
 ):
     """
     チャットメッセージ送信・AI応答生成
@@ -210,7 +141,6 @@ async def send_message(
     - BackgroundTasks活用による非同期後処理
     - TTL計算の事前実行
     """
-    user_id = get_authenticated_user_id(request)
     
     try:
         logger.info(
@@ -444,7 +374,7 @@ async def send_message(
 
 @app.get("/api/chat/history", response_model=ChatHistoryResponse)
 async def get_chat_history(
-    request: Request,
+    user_id: str = Depends(get_current_user_id),
     start_date: Optional[str] = None,
     end_date: Optional[str] = None,
     character_filter: Optional[AICharacterType] = None,
@@ -460,7 +390,6 @@ async def get_chat_history(
     - ページネーション対応
     - DynamoDB直接取得（S3参照なし）
     """
-    user_id = get_authenticated_user_id(request)
     
     try:
         logger.info(
@@ -520,7 +449,7 @@ async def get_chat_history(
 
 
 @app.put("/api/chat/mood")
-async def update_mood(mood_request: MoodUpdateRequest, request: Request):
+async def update_mood(mood_request: MoodUpdateRequest, user_id: str = Depends(get_current_user_id)):
     """
     ユーザーの気分設定変更
     
@@ -529,7 +458,6 @@ async def update_mood(mood_request: MoodUpdateRequest, request: Request):
     - listen: 聞いてほしい気分
     - AI応答の調整に反映
     """
-    user_id = get_authenticated_user_id(request)
     
     try:
         logger.info(
@@ -558,7 +486,7 @@ async def update_mood(mood_request: MoodUpdateRequest, request: Request):
 
 
 @app.post("/api/chat/emotions")
-async def send_emotion_stamp(emotion_request: EmotionStampRequest, request: Request):
+async def send_emotion_stamp(emotion_request: EmotionStampRequest, user_id: str = Depends(get_current_user_id)):
     """
     感情スタンプ送信
     
@@ -567,7 +495,6 @@ async def send_emotion_stamp(emotion_request: EmotionStampRequest, request: Requ
     - AI学習データ改善用
     - ユーザーエンゲージメント向上
     """
-    user_id = get_authenticated_user_id(request)
     
     try:
         logger.info(

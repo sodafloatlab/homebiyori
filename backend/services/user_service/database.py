@@ -9,7 +9,7 @@ DynamoDB操作を統一管理。Lambda Layersとの連携により、
 ■アーキテクチャ■
 - homebiyori-common-layer: 共通データベース機能活用
 - DynamoDB Single Table Design: 効率的なデータモデル
-- UTC統一: 全日時情報をUTCで管理
+- JST統一: 全日時情報をJSTで管理
 - 型安全性: Pydantic v2モデルとの完全統合
 
 ■設計原則■

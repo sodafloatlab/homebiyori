@@ -57,7 +57,10 @@
       "Bash(%CD%backendlayersaipython)",
       "Bash(mkdir:*)",
       "mcp__terraform-mcp-server__resolveProviderDocID",
-      "mcp__terraform-mcp-server__getProviderDocs"
+      "mcp__terraform-mcp-server__getProviderDocs",
+      "Bash(set ENVIRONMENT=test)",
+      "Bash(git checkout:*)",
+      "Bash(set PYTHONPATH=%CD%layerscommonpython)"
     ],
     "deny": []
   },

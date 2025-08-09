@@ -20,7 +20,7 @@ import os
 import json
 from mangum import Mangum
 from homebiyori_common.logger import get_logger
-from homebiyori_common.maintenance import maintenance_required
+from homebiyori_common import maintenance_required
 
 # FastAPIアプリケーションをインポート
 from .main import app

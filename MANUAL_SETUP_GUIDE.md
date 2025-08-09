@@ -239,10 +239,10 @@ admin_service.zip          - 管理画面サービス
 contact_service.zip        - お問い合わせサービス
 ```
 
-**Lambda Layer（2個）：**
+**Lambda Layer（1個）：**
 ```
 common_layer.zip           - 共通依存関係
-ai_layer.zip              - AI・LangChain依存関係
+# ai_layer.zip廃止 - chat_service内でLangChain統合済み
 ```
 
 ### 5.2 Lambda Layer詳細パッケージング手順
@@ -287,44 +287,7 @@ zip -r ../common_layer.zip python/ -x "*.pyc" "*__pycache__*"
 ls -lh ../common_layer.zip
 ```
 
-#### **5.2.2 AI Layer作成（AI・LangChain依存関係）**
-
-**依存関係一覧（backend/layers/ai/requirements.txt）：**
-```
-langchain==0.3.38         # LangChain メインライブラリ
-langchain-aws==0.2.42     # Bedrock LLM統合
-langchain-community==0.3.38 # LangChainコミュニティ拡張
-langchain-core==0.3.47    # LangChain基盤ライブラリ
-langchain-memory==0.3.7   # Memory機能拡張
-boto3==1.35.108           # Bedrock クライアント
-botocore==1.35.108        # boto3低レベル実装
-jinja2==3.1.4             # プロンプトテンプレート処理
-regex==2024.7.24          # 高性能正規表現
-orjson==3.10.17           # 高速JSON処理
-```
-
-**パッケージング手順：**
-```bash
-# 1. 作業ディレクトリ準備
-mkdir -p lambda_packages/ai_layer/python
-cd lambda_packages/ai_layer
-
-# 2. AI依存関係インストール
-pip install -r ../../backend/layers/ai/requirements.txt -t python/
-
-# 3. サイズ最適化
-find python/ -name "*.pyc" -delete
-find python/ -name "__pycache__" -type d -exec rm -rf {} +
-find python/ -name "*.dist-info" -type d -exec rm -rf {} +
-
-# 4. ZIPパッケージ作成
-zip -r ../ai_layer.zip python/ -x "*.pyc" "*__pycache__*" "*.dist-info*"
-
-# 5. パッケージサイズ確認（250MB制限内か確認）
-ls -lh ../ai_layer.zip
-```
-
-#### **5.2.3 個別Lambda関数パッケージング**
+#### **5.2.2 個別Lambda関数パッケージング**
 
 **各サービス共通手順：**
 ```bash
@@ -384,13 +347,8 @@ echo "  ✅ Common Layer完了: $(ls -lh common_layer.zip | awk '{print $5}')"
 
 # AI Layer  
 echo "  🤖 AI Layerを作成中..."
-mkdir -p ai_layer/python
-pip install -r ../backend/layers/ai/requirements.txt -t ai_layer/python/
-find ai_layer/python/ -name "*.pyc" -delete
-find ai_layer/python/ -name "__pycache__" -type d -exec rm -rf {} +
-cd ai_layer && zip -r ../ai_layer.zip python/ -x "*.pyc" "*__pycache__*"
-cd ..
-echo "  ✅ AI Layer完了: $(ls -lh ai_layer.zip | awk '{print $5}')"
+# ai_layer廃止 - chat_service内でLangChain統合済み
+echo "  ❌ AI Layer廃止: chat_service内のLangChain統合に変更"
 
 # Lambda関数パッケージング
 echo -e "${YELLOW}⚡ Lambda関数をパッケージング中...${NC}"
@@ -764,7 +722,7 @@ jobs:
 - [ ] Parameter Store設定完了
 
 **アプリケーション準備：**
-- [ ] Lambda Layer パッケージ準備完了（common_layer.zip、ai_layer.zip）
+- [ ] Lambda Layer パッケージ準備完了（common_layer.zip、ai_layer廃止）
 - [ ] Lambda関数パッケージ準備完了（10個のサービス.zip）
 - [ ] フロントエンドビルド設定完了
 - [ ] Google OAuth設定完了（推奨）

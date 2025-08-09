@@ -45,7 +45,8 @@ from homebiyori_common.exceptions import (
     MaintenanceError,
     ExternalServiceError
 )
-from homebiyori_common.maintenance import is_maintenance_mode
+from homebiyori_common.utils.maintenance import is_maintenance_mode
+from homebiyori_common.utils.middleware import maintenance_check_middleware, get_current_user_id
 
 # ローカルモジュール
 from .models import (
@@ -98,37 +99,8 @@ stripe_client = get_stripe_client()
 # ミドルウェア・依存関数
 # =====================================
 
-async def get_user_id(request: Request) -> str:
-    """
-    リクエストからユーザーIDを取得
-    
-    API Gateway + Cognito Authorizerにより既に認証済み
-    Lambda Event Contextからsub（ユーザーID）を抽出
-    """
-    try:
-        return get_user_id_from_event(request.scope.get("aws.event", {}))
-    except Exception as e:
-        logger.error(f"ユーザーID取得エラー: {e}")
-        raise HTTPException(status_code=401, detail="認証が必要です")
-
-@app.middleware("http")
-async def maintenance_check_middleware(request: Request, call_next):
-    """メンテナンスモードチェック"""
-    try:
-        if await is_maintenance_mode():
-            raise HTTPException(status_code=503, detail="Service is under maintenance")
-    except MaintenanceError as e:
-        return JSONResponse(
-            status_code=503,
-            content={
-                "error": "maintenance",
-                "message": str(e),
-                "retry_after": 3600
-            }
-        )
-    
-    response = await call_next(request)
-    return response
+# 共通ミドルウェアをLambda Layerから適用
+app.middleware("http")(maintenance_check_middleware)
 
 @app.middleware("http")
 async def error_handling_middleware(request: Request, call_next):
@@ -188,7 +160,7 @@ async def error_handling_middleware(request: Request, call_next):
 
 @app.get("/api/billing/subscription", response_model=UserSubscription)
 async def get_user_subscription(
-    user_id: str = Depends(get_user_id)
+    user_id: str = Depends(get_current_user_id)
 ):
     """
     ユーザーのサブスクリプション状態取得
@@ -231,7 +203,7 @@ async def get_user_subscription(
 async def create_subscription(
     request: CreateSubscriptionRequest,
     background_tasks: BackgroundTasks,
-    user_id: str = Depends(get_user_id)
+    user_id: str = Depends(get_current_user_id)
 ):
     """
     サブスクリプション作成
@@ -328,7 +300,7 @@ async def create_subscription(
 async def cancel_subscription(
     request: CancelSubscriptionRequest,
     background_tasks: BackgroundTasks,
-    user_id: str = Depends(get_user_id)
+    user_id: str = Depends(get_current_user_id)
 ):
     """
     サブスクリプションキャンセル
@@ -402,7 +374,7 @@ async def cancel_subscription(
 @app.put("/api/billing/payment-method")
 async def update_payment_method(
     request: UpdatePaymentMethodRequest,
-    user_id: str = Depends(get_user_id)
+    user_id: str = Depends(get_current_user_id)
 ):
     """
     支払い方法更新
@@ -450,7 +422,7 @@ async def update_payment_method(
 async def get_payment_history(
     limit: int = 20,
     next_token: Optional[str] = None,
-    user_id: str = Depends(get_user_id)
+    user_id: str = Depends(get_current_user_id)
 ):
     """
     支払い履歴取得
@@ -482,7 +454,7 @@ async def get_payment_history(
 @app.post("/api/billing/portal", response_model=BillingPortalResponse)
 async def create_billing_portal_session(
     request: BillingPortalRequest,
-    user_id: str = Depends(get_user_id)
+    user_id: str = Depends(get_current_user_id)
 ):
     """
     Stripe課金ポータルセッション作成

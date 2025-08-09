@@ -18,7 +18,7 @@
 - **FastAPI + Mangumアダプター**
 - **Pydantic** (データバリデーション)
 - **Boto3** (AWS SDK)
-- **Lambda Layers**: homebiyori_common + homebiyori_ai
+- **Lambda Layers**: homebiyori_common（AI機能はchat_service内のLangChain統合で提供）
 
 ### インフラストラクチャ ✅ **完成済み**
 - **AWS Lambda** (9サービス: health_check, user, chat, tree, webhook, notification, ttl_updater, billing, admin)

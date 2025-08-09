@@ -28,6 +28,7 @@ import json
 import time
 from fastapi.testclient import TestClient
 from datetime import datetime, timezone
+from homebiyori_common.utils.datetime_utils import get_current_jst
 
 # テスト対象のインポート
 from backend.services.health_check_service.main import app
@@ -81,27 +82,27 @@ class TestSimpleHealthCheck:
         
         テスト観点:
         - タイムスタンプがISO8601形式であること
-        - UTC時刻であること（Zサフィックス）
+        - JST時刻であること（+09:00サフィックス）
         - パース可能な形式であること
         """
         response = self.client.get("/api/health")
         data = response.json()
         
-        # タイムスタンプ形式検証
+        # タイムスタンプ形式検証（JSTサフィックス確認）
         timestamp = data["timestamp"]
-        assert timestamp.endswith("Z"), "Timestamp should be in UTC (end with Z)"
+        assert "+09:00" in timestamp or timestamp.endswith("+09:00"), "Timestamp should be in JST (end with +09:00)"
         
         # ISO8601形式のパース確認
         try:
-            parsed_time = datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
+            parsed_time = datetime.fromisoformat(timestamp)
             assert parsed_time is not None
         except ValueError:
             pytest.fail(f"Invalid ISO8601 timestamp format: {timestamp}")
         
-        # 現在時刻との差が妥当な範囲内であること（5秒以内）
-        now = datetime.now(timezone.utc)
-        time_diff = abs((now - parsed_time).total_seconds())
-        assert time_diff < 5, f"Timestamp too far from current time: {time_diff}s"
+        # 現在JST時刻との差が妥当な範囲内であること（5秒以内）
+        current_jst = get_current_jst()
+        time_diff = abs((current_jst - parsed_time).total_seconds())
+        assert time_diff < 5, f"Timestamp too far from current JST time: {time_diff}s"
     
     def test_health_check_response_time_performance(self):
         """
@@ -181,7 +182,7 @@ class TestSimpleHealthCheck:
         テスト観点:
         - アプリケーション内でエラーが発生した場合の動作
         - 適切なエラーレスポンス形式
-        - ステータスコードが200のままであること（Load Balancer対策）
+        - ステータスコードが500になること（サービス異常を明確に通知）
         """
         # 注意: 実際のエラーを発生させるのは困難なため、
         # このテストは現在の実装ではパスする想定
@@ -190,12 +191,22 @@ class TestSimpleHealthCheck:
         response = self.client.get("/api/health")
         assert response.status_code == 200
         
-        # 正常な場合でもエラーレスポンス形式をチェック
+        # 正常な場合のレスポンス形式をチェック
         data = response.json()
-        if data["status"] == "error":
-            assert "error" in data
-            assert "timestamp" in data
-            assert data["service"] == "health-check"
+        assert data["status"] == "ok"
+        assert "timestamp" in data
+        assert data["service"] == "health-check"
+        
+        # エラー時のレスポンス形式説明（コメント）
+        # エラー発生時は以下の形式で500応答:
+        # {
+        #   "detail": {
+        #     "status": "error",
+        #     "timestamp": "JST形式の時刻",
+        #     "service": "health-check",
+        #     "error": "Service temporarily unavailable"
+        #   }
+        # }
 
 class TestLambdaIntegration:
     """

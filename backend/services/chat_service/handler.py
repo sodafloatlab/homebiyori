@@ -14,7 +14,7 @@ AIチャット機能を提供。
 
 ■依存関係■
 - homebiyori-common-layer: 共通機能
-- homebiyori-ai-layer: AI機能
+- LangChain + Amazon Bedrock: AI機能統合
 - Mangum: FastAPI ↔ Lambda統合
 
 ■環境変数■
@@ -445,7 +445,7 @@ def health_check_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             },
             "dependencies": {
                 "homebiyori_common": True,
-                "homebiyori_ai": True,
+                "langchain": True,
                 "fastapi": True,
                 "mangum": True
             },
@@ -456,12 +456,12 @@ def health_check_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             }
         }
         
-        # 依存関係チェック
+        # 依存関係チェック（LangChain統合）
         try:
-            from homebiyori_ai.bedrock_client import BedrockClient
-            health_status["dependencies"]["bedrock_client"] = True
+            from langchain_aws import BedrockLLM
+            health_status["dependencies"]["bedrock_llm"] = True
         except ImportError:
-            health_status["dependencies"]["bedrock_client"] = False
+            health_status["dependencies"]["bedrock_llm"] = False
             health_status["status"] = "degraded"
         
         health_logger.info(

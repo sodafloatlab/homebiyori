@@ -185,13 +185,9 @@ backend/layers/
 │   │       └── maintenance_check.py
 │   └── requirements.txt              # 共通依存関係
 │
-└── homebiyori-ai-layer/              # AI機能専用レイヤー
-    ├── python/homebiyori_ai/
-    │   ├── __init__.py
-    │   ├── bedrock/                  # Bedrock連携
-    │   │   ├── __init__.py
-    │   │   ├── client.py
-    │   │   └── prompt_templates.py
+# AI機能は個別サービス内でLangChain統合として実装
+# - chat_service: LangChain + Amazon Bedrock Claude 3 Haiku
+# - 専用AIレイヤーは廃止（シンプル化）
     │   ├── character/                # AIキャラクターシステム
     │   │   ├── __init__.py
     │   │   ├── personalities.py
@@ -300,7 +296,7 @@ class ChatService:
 2. JWT検証ロジック統一
 
 **Phase 4: AI機能分離**
-1. `homebiyori-ai-layer` 作成
+1. `chat_service` LangChain統合完了（AI機能統合）
 2. Bedrock連携・キャラクターシステム統一
 
 ## Lambda間内部通信セキュリティ

@@ -12,10 +12,10 @@ Homebiyori（ほめびより）のユーザー管理サービスにおける
 - 子供情報の分離管理: セキュリティとプライバシー強化
 
 ■タイムゾーン統一■
-全ての日時情報はUTC（協定世界時）で管理。
-- 内部処理: UTC
-- フロントエンド表示: JSTに変換
-- データベース保存: UTC ISO8601形式
+全ての日時情報はJST（日本標準時）で管理。
+- 内部処理: JST
+- フロントエンド表示: JST
+- データベース保存: JST ISO8601形式
 
 ■バリデーション戦略■
 - 入力検証: 悪意のあるデータ防止
@@ -58,8 +58,8 @@ class AICharacter(str, Enum):
     """
     利用可能なAIキャラクター
 
-    homebiyori-ai-layer の characters.py と連携。
-    キャラクター追加時は両方のファイルを更新必要。
+    chat_service の LangChain AI実装と連携。
+    キャラクター設定は DynamoDB 経由でリアルタイム反映。
     """
 
     TAMA = "tama"  # たまさん（下町のベテランおばちゃん）
@@ -85,35 +85,13 @@ class PraiseLevel(str, Enum):
 # =======================================
 
 
-# UTC時刻関数は共通Layerから使用（homebiyori_common.utils.datetime_utils.get_current_jst）
+# JST時刻関数は共通Layerから使用（homebiyori_common.utils.datetime_utils.get_current_jst）
 
 
 
 
 
-def validate_birth_date(birth_date: date) -> date:
-    """
-    生年月日バリデーション
 
-    Args:
-        birth_date: 検証対象の生年月日
-
-    Returns:
-        date: バリデーション済み生年月日
-
-    Raises:
-        ValueError: 不正な生年月日の場合
-    """
-    today = date.today()
-
-    if birth_date > today:
-        raise ValueError("生年月日は過去の日付を入力してください")
-
-    # 150歳を超える場合はエラー（現実的でない）
-    if (today - birth_date).days > 150 * 365:
-        raise ValueError("生年月日が古すぎます")
-
-    return birth_date
 
 
 # =======================================
@@ -137,8 +115,8 @@ class UserProfile(BaseModel):
     - ai_character: 選択AIキャラクター
     - praise_level: 褒めレベル設定
     - onboarding_completed: 初期設定完了フラグ
-    - created_at: 作成日時（UTC）
-    - updated_at: 更新日時（UTC）
+    - created_at: 作成日時（JST）
+    - updated_at: 更新日時（JST）
 
     ■プライバシー保護■
     メールアドレス、氏名等の個人識別情報は保存しない。
@@ -168,11 +146,11 @@ class UserProfile(BaseModel):
     onboarding_completed: bool = Field(False, description="オンボーディング完了フラグ")
 
     created_at: datetime = Field(
-        default_factory=get_current_jst, description="作成日時（UTC）"
+        default_factory=get_current_jst, description="作成日時（JST）"
     )
 
     updated_at: datetime = Field(
-        default_factory=get_current_jst, description="更新日時（UTC）"
+        default_factory=get_current_jst, description="更新日時（JST）"
     )
 
     @field_validator("nickname")
@@ -239,7 +217,7 @@ class AIPreferences(BaseModel):
     chat-service での AI応答生成時に参照される。
 
     ■バリデーション■
-    homebiyori-ai-layer の characters.py と連携し、
+    chat_service の LangChain AI実装と連携し、
     利用可能なキャラクターと褒めレベルのみ許可。
     """
 

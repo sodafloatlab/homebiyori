@@ -6,13 +6,14 @@ Homebiyori Health Check Lambda Handler
 実装方針:
 - FastAPIアプリケーションをMangumでLambda対応に変換
 - Lambda環境でのHTTPリクエスト/レスポンス処理
-- CloudWatchへの自動ログ出力
+- CloudWatchへの自動ログ出力（JST形式）
 - エラーハンドリングとパフォーマンス監視
 
 使用方法:
 - AWS Lambda関数のhandler設定: handler.handler
 - API Gatewayとの統合でHTTPエンドポイントとして動作
 - ヘルスチェック専用サービスとして独立動作
+- エラー時は500応答でサービス異常を明確に通知
 
 関連ファイル:
 - main.py: FastAPIアプリケーション本体

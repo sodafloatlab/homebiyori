@@ -1,8 +1,11 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 import time
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Dict, Any
 import logging
+
+# Lambda Layer共通ライブラリ
+from homebiyori_common.utils.datetime_utils import get_current_jst
 
 # ログ設定 - CloudWatch統合対応
 logging.basicConfig(level=logging.INFO)
@@ -12,7 +15,7 @@ logger = logging.getLogger(__name__)
 # 設計意図：
 # - シンプルな死活監視専用API（認証なし）
 # - 一般ユーザーもアクセス可能な基本的な疎通確認
-# - Load BalancerやAPI Gatewayからの健全性チェック用
+# - API Gatewayからの健全性チェック用
 # - 詳細な外部サービス監視は管理者機能で実装
 app = FastAPI(
     title="Homebiyori Health Check Service",
@@ -26,7 +29,7 @@ async def basic_health_check() -> Dict[str, Any]:
     基本的な死活監視エンドポイント（認証なし・パブリックアクセス可能）
     
     用途：
-    - Load BalancerやAPI Gatewayからの基本的な死活確認
+    - API Gatewayからの基本的な死活確認
     - 一般ユーザーからのサービス稼働状況確認
     - Lambda関数が正常に起動できることの確認
     - レスポンス時間の測定（CloudWatch メトリクス用）
@@ -34,10 +37,11 @@ async def basic_health_check() -> Dict[str, Any]:
     Returns:
         Dict[str, Any]: ヘルスチェック結果
         {
-            "status": "ok" | "error",
-            "timestamp": "ISO8601形式の現在時刻",
+            "status": "ok",
+            "timestamp": "JST形式の現在時刻",
             "service": "health-check",
-            "version": "アプリケーションバージョン"
+            "version": "アプリケーションバージョン",
+            "response_time_ms": "レスポンス時間（ミリ秒）"
         }
     
     レスポンス時間目標: < 200ms（シンプル構成のため）
@@ -50,8 +54,8 @@ async def basic_health_check() -> Dict[str, Any]:
         # Lambda関数とFastAPIアプリケーションが正常に動作していることを確認
         start_time = time.time()
         
-        # 現在時刻取得（Lambda実行環境の時刻同期確認）
-        current_time = datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')
+        # 現在時刻取得（JST）- Lambda実行環境の時刻同期確認
+        current_time = get_current_jst().isoformat()
         
         # レスポンス時間計算
         response_time_ms = (time.time() - start_time) * 1000
@@ -70,11 +74,13 @@ async def basic_health_check() -> Dict[str, Any]:
         # 予期しないエラーが発生した場合
         logger.error(f"Health check failed: {str(e)}")
         
-        # 500エラーではなく200で "error" ステータスを返す
-        # 理由：Load Balancerが誤って健全性チェックを失敗と判定することを防ぐ
-        return {
-            "status": "error",
-            "timestamp": datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z'),
-            "service": "health-check",
-            "error": "Service temporarily unavailable"  # エラー詳細は隠蔽
-        }
+        # 500エラーを返してサービス異常を明確に通知
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "status": "error",
+                "timestamp": get_current_jst().isoformat(),
+                "service": "health-check",
+                "error": "Service temporarily unavailable"  # エラー詳細は隠蔽
+            }
+        )

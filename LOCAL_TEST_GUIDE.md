@@ -1,12 +1,18 @@
 # Homebiyori ローカルテスト実行手順書
 
-**更新日:** 2025年8月8日  
+**更新日:** 2025年8月9日  
 **対象:** Homebiyori全Lambdaサービス（10種類）  
 **Python要件:** Python 3.13+、pytest 8.4.1+  
+**重要:** Lambda Layer共通ミドルウェア統合対応版  
 
 ## 📋 概要
 
 本書では、Homebiyoriプロジェクトの全Lambdaサービスをローカル環境でテストするための詳細手順を記載します。各サービスには固有の環境変数要件とテスト制約があるため、サービスごとに適切な設定が必要です。
+
+## 🔄 **2025年8月9日更新内容**
+- **共通ミドルウェア統合**: 全サービスでLambda Layer統一ミドルウェアを使用
+- **テスト環境対応**: `ENVIRONMENT=test` 環境変数による認証フォールバック機能
+- **保守性向上**: 重複したメンテナンス・認証処理をLayer化で統一
 
 ## 🛠️ 前提条件
 
@@ -27,10 +33,10 @@ pip install email-validator==2.2.0
 
 ### 環境変数テンプレート
 ```bash
-# 基本環境変数
+# 基本環境変数（全サービス共通）
 set PYTHONPATH=%CD%\backend\layers\common\python
 set AWS_DEFAULT_REGION=ap-northeast-1
-set ENVIRONMENT=test
+set ENVIRONMENT=test  # 重要: テスト環境フラグ（認証フォールバック有効化）
 
 # DynamoDB関連
 set DYNAMODB_TABLE=test-homebiyori
@@ -43,6 +49,22 @@ set COGNITO_USER_POOL_ID=test_pool_id
 set SNS_TOPIC_ARN=arn:aws:sns:ap-northeast-1:123456789012:test-contact-notifications
 ```
 
+### **環境変数の重要性**
+- **`ENVIRONMENT=test`**: 共通ミドルウェアでテスト環境認証フォールバック機能を有効化
+- **`PYTHONPATH`**: Lambda Layer共通ライブラリへのパス設定（全サービスで必須）
+
+### **⚠️ Lambda Layer環境と現在のローカル環境の違い**
+
+**Lambda本番環境（AWS）:**
+- ✅ `/opt/python/` が自動でsys.pathに追加されるため、`import homebiyori_common` が問題なく動作
+- ✅ Lambda Layerの内容が自動認識される
+- ✅ 追加のPYTHONPATH設定は不要
+
+**現在のローカルテスト環境（Windows）:**
+- ❌ `homebiyori_common`パッケージへのパス設定が必要
+- ⚠️ Windows環境変数の設定が複雑な場合あり
+- 🔧 **解決策**: 推奨実行方法（下記参照）
+
 ---
 
 ## 🎯 サービス別テスト実行手順
@@ -51,10 +73,19 @@ set SNS_TOPIC_ARN=arn:aws:sns:ap-northeast-1:123456789012:test-contact-notificat
 
 **説明:** 最もシンプルなヘルスチェック専用サービス
 
-**実行手順:**
+**実行手順（推奨）:**
+```bash
+# 🔧 推奨: 直接実行（PYTHONPATH問題を回避）
+cd backend/layers/common/python
+set ENVIRONMENT=test
+python -m pytest ../../../../tests/backend/services/health_check_service/ -v --tb=short
+```
+
+**実行手順（従来）:**
 ```bash
 # 環境変数設定
 set PYTHONPATH=%CD%\backend\layers\common\python
+set ENVIRONMENT=test
 
 # テスト実行
 python -m pytest tests/backend/services/health_check_service/ -v --tb=short
@@ -73,7 +104,14 @@ python -m pytest tests/backend/services/health_check_service/ -v --tb=short
 
 **説明:** ユーザープロフィール・認証管理サービス
 
-**実行手順:**
+**実行手順（推奨）:**
+```bash
+# 🔧 推奨: 直接実行（PYTHONPATH問題を回避）
+cd backend/layers/common/python
+python -m pytest ../../../../tests/backend/services/user_service/ -v --tb=short
+```
+
+**実行手順（従来）:**
 ```bash
 # 環境変数設定
 set PYTHONPATH=%CD%\backend\layers\common\python
@@ -255,7 +293,14 @@ python -m pytest tests/backend/services/ttl_updater_service/ -v --tb=short
 
 **説明:** 木の成長・実管理サービス
 
-**実行手順:**
+**実行手順（推奨）:**
+```bash
+# 🔧 推奨: 直接実行（PYTHONPATH問題を回避）
+cd backend/layers/common/python
+python -m pytest ../../../../tests/backend/services/tree_service/ -v --tb=short -x
+```
+
+**実行手順（従来）:**
 ```bash
 # 環境変数設定
 set PYTHONPATH=%CD%\backend\layers\common\python
@@ -376,7 +421,16 @@ python -m pytest tests/backend/services/contact_service/test_integration.py -v -
 
 ## 🚀 全サービス一括テスト実行
 
-### クイック全体テスト
+### クイック全体テスト（推奨）
+```bash
+# 🔧 推奨: 直接実行方式
+cd backend/layers/common/python
+
+# シンプルサービス（6個）を一括実行
+python -m pytest ../../../../tests/backend/services/health_check_service/ ../../../../tests/backend/services/user_service/ ../../../../tests/backend/services/notification_service/ ../../../../tests/backend/services/billing_service/ ../../../../tests/backend/services/admin_service/ ../../../../tests/backend/services/contact_service/test_contact_service.py -v
+```
+
+### クイック全体テスト（従来）
 ```bash
 # 基本環境変数設定
 set PYTHONPATH=%CD%\backend\layers\common\python
@@ -463,12 +517,31 @@ python -m pytest tests/backend/services/contact_service/test_contact_service.py 
 ### よくある問題と解決方法
 
 **1. `ModuleNotFoundError: No module named 'homebiyori_common'`**
+
+これは最も一般的な問題です。以下の手順で解決してください：
+
+**解決策A（推奨）: 直接実行方式**
+```bash
+# 最も確実な方法
+cd backend/layers/common/python
+python -m pytest ../../../../tests/backend/services/[サービス名]/ -v --tb=short
+```
+
+**解決策B（従来方式）: PYTHONPATH設定**
 ```bash
 # PYTHONPATHが正しく設定されているか確認
 echo %PYTHONPATH%
-# 正しい設定
+# 正しく設定されていない場合
 set PYTHONPATH=%CD%\backend\layers\common\python
+
+# Python環境でパスを確認
+cd backend/layers/common/python
+python -c "import homebiyori_common; print('SUCCESS: homebiyori_common loaded')"
 ```
+
+**背景説明:**
+- **Lambda本番環境**: `/opt/python/homebiyori_common` が自動でsys.pathに追加される
+- **ローカル環境**: 手動でPYTHONPATHを設定するか、直接実行が必要
 
 **2. `ModuleNotFoundError: No module named 'langchain'`**
 ```bash

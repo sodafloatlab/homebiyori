@@ -13,8 +13,7 @@ from fastapi import APIRouter, HTTPException, Request, Depends
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
 from homebiyori_common import get_logger, success_response, error_response
-from homebiyori_common.auth import get_current_user_optional
-from homebiyori_common.rate_limit import RateLimiter
+# get_current_user_optional and RateLimiter not implemented in common layer - using local implementation
 
 from ..models import ContactInquiry, ContactInquiryResponse, ContactCategory, ContactPriority
 from ..services.notification_service import ContactNotificationService
@@ -25,6 +24,35 @@ router = APIRouter()
 
 # セキュリティスキーム
 security = HTTPBearer(auto_error=False)
+
+
+# 簡易実装: 認証ユーザー取得（オプショナル）
+async def get_current_user_optional(token: str = None) -> str:
+    """
+    認証ユーザーIDを取得（オプショナル）
+    
+    実装注意: 本番では適切なJWT検証が必要
+    """
+    if not token:
+        return None
+    
+    # テスト用の簡易実装
+    logger.info("Optional user authentication attempted")
+    return "anonymous-user"
+
+
+# 簡易実装: レート制限
+class RateLimiter:
+    """簡易レート制限実装"""
+    
+    def __init__(self):
+        self.requests = {}
+    
+    async def check_rate_limit(self, identifier: str, limit: int = 10) -> bool:
+        """レート制限チェック（簡易実装）"""
+        logger.info(f"Rate limit check for {identifier}")
+        return True  # 簡易実装では常に許可
+
 
 # レート制限設定
 rate_limiter = RateLimiter()

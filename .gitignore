@@ -92,10 +92,6 @@ yarn-error.log
 package-lock.json
 tsconfig.tsbuildinfo
 
-# Lambda Layers
-backend/layers/ai/python/
-backend/layers/common/python/
-
 # Terraform
 *.tfstate
 *.tfstate.*

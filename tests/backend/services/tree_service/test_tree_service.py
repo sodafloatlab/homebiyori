@@ -23,6 +23,7 @@ from fastapi.testclient import TestClient
 
 # テスト対象のインポート
 from backend.services.tree_service.main import app
+from homebiyori_common import get_current_user_id
 from backend.services.tree_service.models import (
     TreeStatus, TreeGrowthInfo, FruitInfo, EmotionType, 
     AICharacterType, TreeTheme, get_current_jst,
@@ -96,20 +97,22 @@ class TestTreeService:
     # T001: 木の状態取得テスト
     # =====================================
     
-    @patch('backend.services.tree_service.main.get_tree_database')
-    def test_get_tree_status_existing_user(self, mock_get_db, client, mock_tree_database, sample_tree_stats, mock_cognito_event):
+    def test_get_tree_status_existing_user(self, client, mock_tree_database, sample_tree_stats, mock_cognito_event):
         """
         [T001-1] 既存ユーザーの木の状態取得成功
         """
         # モック設定
-        mock_get_db.return_value = mock_tree_database
         mock_tree_database.get_user_tree_stats.return_value = sample_tree_stats
         
-        # リクエスト実行（認証モック）
-        with patch('backend.services.tree_service.main.get_user_id') as mock_get_user:
-            mock_get_user.return_value = "test-user-123"
-            
-            response = client.get("/api/tree/status")
+        # FastAPI依存性オーバーライド（推奨方式）
+        app.dependency_overrides[get_current_user_id] = lambda: "test-user-123"
+        
+        try:
+            with patch('backend.services.tree_service.main.db', mock_tree_database):
+                response = client.get("/api/tree/status")
+        finally:
+            # テスト後にクリーンアップ
+            app.dependency_overrides.clear()
         
         # レスポンス検証
         assert response.status_code == 200
@@ -145,11 +148,13 @@ class TestTreeService:
         }
         mock_tree_database.create_initial_tree.return_value = initial_stats
         
-        # リクエスト実行
-        with patch('backend.services.tree_service.main.get_user_id') as mock_get_user:
-            mock_get_user.return_value = "new-user-456"
-            
+        # FastAPI依存性オーバーライド
+        app.dependency_overrides[get_current_user_id] = lambda: "new-user-456"
+        
+        try:
             response = client.get("/api/tree/status")
+        finally:
+            app.dependency_overrides.clear()
         
         # レスポンス検証
         assert response.status_code == 200
@@ -178,11 +183,13 @@ class TestTreeService:
         mock_get_db.return_value = mock_tree_database
         mock_tree_database.get_user_tree_stats.return_value = sample_tree_stats
         
-        # リクエスト実行
-        with patch('backend.services.tree_service.main.get_user_id') as mock_get_user:
-            mock_get_user.return_value = "test-user-123"
-            
+        # FastAPI依存性オーバーライド
+        app.dependency_overrides[get_current_user_id] = lambda: "test-user-123"
+        
+        try:
             response = client.post("/api/tree/update-growth?added_characters=50")
+        finally:
+            app.dependency_overrides.clear()
         
         # レスポンス検証
         assert response.status_code == 200

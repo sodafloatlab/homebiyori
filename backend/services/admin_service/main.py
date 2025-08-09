@@ -34,6 +34,7 @@ from homebiyori_common.exceptions.custom_exceptions import (
     AuthenticationError,
     ExternalServiceError
 )
+from homebiyori_common.utils.middleware import maintenance_check_middleware
 
 # 環境変数取得
 ENVIRONMENT = os.getenv('ENVIRONMENT', 'prod')
@@ -71,6 +72,9 @@ app.add_middleware(
     allow_methods=["GET", "POST", "PUT", "DELETE"],
     allow_headers=["*"],
 )
+
+# 共通ミドルウェアをLambda Layerから適用
+app.middleware("http")(maintenance_check_middleware)
 
 # セキュリティ設定
 security = HTTPBearer()

@@ -53,7 +53,7 @@ Homebiyori（ほめびより）のユーザー管理マイクロサービス。
 - 設計更新: 2024-08-03 (Lambda Layers + design.md準拠)
 """
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Request, Depends
 from fastapi.responses import JSONResponse
 from typing import List
 import os
@@ -68,7 +68,8 @@ from homebiyori_common.exceptions import (
     DatabaseError,
     MaintenanceError,
 )
-from homebiyori_common.maintenance import check_maintenance_mode
+from homebiyori_common.utils.maintenance import check_maintenance_mode
+from homebiyori_common.utils.middleware import maintenance_check_middleware, get_current_user_id
 
 # ローカルモジュール
 from .models import (
@@ -100,94 +101,8 @@ app = FastAPI(
 # ミドルウェア・共通処理
 # =====================================
 
-
-@app.middleware("http")
-async def maintenance_check_middleware(request: Request, call_next):
-    """
-    メンテナンス状態チェックミドルウェア
-
-    全APIリクエストに対してメンテナンス状態を確認し、
-    メンテナンス中の場合は503エラーを返却する。
-
-    ■処理フロー■
-    1. Parameter Store からメンテナンス状態取得
-    2. メンテナンス中の場合、503エラーレスポンス返却
-    3. 通常時は次の処理に継続
-
-    ■例外処理■
-    - Parameter Store接続エラー: 処理継続（可用性優先）
-    - メンテナンス設定不正: 処理継続（フェイルセーフ）
-    """
-    try:
-        check_maintenance_mode()
-        response = await call_next(request)
-        return response
-    except MaintenanceError as e:
-        logger.warning(
-            "API blocked due to maintenance mode",
-            extra={"maintenance_message": str(e), "request_path": request.url.path},
-        )
-        return JSONResponse(
-            status_code=503,
-            content={
-                "error": "MAINTENANCE_MODE",
-                "message": str(e),
-                "status": "maintenance",
-            },
-        )
-    except Exception as e:
-        logger.error(
-            "Maintenance check failed, allowing request",
-            extra={"error": str(e), "request_path": request.url.path},
-        )
-        response = await call_next(request)
-        return response
-
-
-def get_authenticated_user_id(request: Request) -> str:
-    """
-    API Gateway + Cognito AuthorizerからユーザーID取得
-
-    ■認証フロー■
-    1. API Gateway が Cognito JWT を検証
-    2. 検証成功時、JWT Claims を Lambda event に付与
-    3. homebiyori_common.auth.get_user_id_from_event() でユーザーID抽出
-
-    ■戻り値■
-    str: Cognito User Pool の sub (UUID形式)
-
-    ■例外■
-    - AuthenticationError: JWT無効・期限切れ
-    - ValidationError: event構造不正
-
-    ■プライバシー保護■
-    この関数で取得するuser_idは、API Gateway経由で一時的に取得される
-    Cognito subであり、個人情報ではない。永続化は最小限に留める。
-    """
-    try:
-        # FastAPI Request から Lambda event を取得
-        # API Gateway Proxyインテグレーションの場合、request.scope["aws.event"] に格納
-        event = request.scope.get("aws.event")
-        if not event:
-            logger.error("Lambda event not found in request scope")
-            raise AuthenticationError("Authentication context missing")
-
-        user_id = get_user_id_from_event(event)
-        logger.debug(
-            "User authenticated successfully",
-            extra={
-                "user_id": user_id[:8] + "****",  # プライバシー保護のためマスク
-                "request_path": request.url.path,
-            },
-        )
-        return user_id
-
-    except Exception as e:
-        logger.error(
-            "Authentication failed",
-            extra={"error": str(e), "request_path": request.url.path},
-        )
-        raise AuthenticationError("User authentication failed")
+# 共通ミドルウェアをLambda Layerから適用
+app.middleware("http")(maintenance_check_middleware)
 
 
 # =====================================
@@ -196,7 +111,7 @@ def get_authenticated_user_id(request: Request) -> str:
 
 
 @app.get("/users/profile", response_model=UserProfile)
-async def get_user_profile(request: Request):
+async def get_user_profile(user_id: str = Depends(get_current_user_id)):
     """
     現在認証されているユーザーのプロフィール情報取得
 
@@ -220,8 +135,6 @@ async def get_user_profile(request: Request):
     - SK: PROFILE
     - GSI: 使用なし（ユーザー個別アクセスのみ）
     """
-    user_id = get_authenticated_user_id(request)
-
     try:
         logger.info("Fetching user profile", extra={"user_id": user_id[:8] + "****"})
 
@@ -253,7 +166,7 @@ async def get_user_profile(request: Request):
 
 
 @app.put("/users/profile", response_model=UserProfile)
-async def update_user_profile(profile_update: UserProfileUpdate, request: Request):
+async def update_user_profile(profile_update: UserProfileUpdate, user_id: str = Depends(get_current_user_id)):
     """
     ユーザープロフィール更新
 
@@ -277,7 +190,6 @@ async def update_user_profile(profile_update: UserProfileUpdate, request: Reques
     - updated_at フィールド自動更新
     - created_at は初回作成時のみ設定
     """
-    user_id = get_authenticated_user_id(request)
 
     try:
         logger.info(
@@ -332,19 +244,19 @@ async def update_user_profile(profile_update: UserProfileUpdate, request: Reques
 
 
 @app.put("/users/ai-preferences", response_model=AIPreferences)
-async def update_ai_preferences(ai_preferences: AIPreferences, request: Request):
+async def update_ai_preferences(ai_preferences: AIPreferences, user_id: str = Depends(get_current_user_id)):
     """
     AI設定（キャラクター・褒めレベル）更新
 
     ■機能概要■
     - AIキャラクター選択（たまさん、まどか姉さん、ヒデじい）
-    - 褒めレベル設定（ライト、スタンダード、ディープ）
+    - 褒めレベル設定（ノーマル、ディープ）
     - プロフィールとは独立した設定として管理
 
     ■バリデーション■
     - ai_character: 'tama', 'madoka', 'hide' のみ許可
-    - praise_level: 'light', 'standard', 'deep' のみ許可
-    - characters.py の AVAILABLE_CHARACTERS と連携
+    - praise_level: 'normal', 'deep' のみ許可（2段階設計）
+    - models.py の AICharacter・PraiseLevel Enum で定義
 
     ■レスポンス■
     - 200: 更新後のAI設定
@@ -353,9 +265,8 @@ async def update_ai_preferences(ai_preferences: AIPreferences, request: Request)
 
     ■AI連携■
     この設定は chat-service Lambda での AI応答生成時に参照される。
-    homebiyori-ai-layer の characters.py と連携。
+    LangChain統合によりDynamoDB経由でリアルタイム設定反映。
     """
-    user_id = get_authenticated_user_id(request)
 
     try:
         logger.info(
@@ -409,7 +320,7 @@ async def update_ai_preferences(ai_preferences: AIPreferences, request: Request)
 
 
 @app.get("/users/onboarding-status")
-async def get_onboarding_status(request: Request):
+async def get_onboarding_status(user_id: str = Depends(get_current_user_id)):
     """
     オンボーディング状態確認
 
@@ -422,7 +333,6 @@ async def get_onboarding_status(request: Request):
     - 200: オンボーディング状態情報
     - 401: 認証エラー
     """
-    user_id = get_authenticated_user_id(request)
 
     try:
         logger.info("Checking onboarding status", extra={"user_id": user_id[:8] + "****"})
@@ -453,7 +363,7 @@ async def get_onboarding_status(request: Request):
 
 @app.post("/users/complete-onboarding")
 async def complete_onboarding(
-    onboarding_data: dict, request: Request
+    onboarding_data: dict, user_id: str = Depends(get_current_user_id)
 ):
     """
     ニックネーム登録・オンボーディング完了
@@ -472,7 +382,6 @@ async def complete_onboarding(
     - 400: バリデーションエラー
     - 401: 認証エラー
     """
-    user_id = get_authenticated_user_id(request)
 
     try:
         nickname = onboarding_data.get("nickname")
