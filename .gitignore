@@ -10,7 +10,13 @@ dist/
 downloads/
 eggs/
 .eggs/
-lib/
+# Python lib/ ディレクトリのみ除外（フロントエンドのlib/は管理対象）
+/backend/**/lib/
+/tests/**/lib/
+/venv/lib/
+/env/lib/
+# フロントエンドのlibディレクトリは管理対象として明示的に含める
+!/frontend/**/lib/
 lib64/
 parts/
 sdist/

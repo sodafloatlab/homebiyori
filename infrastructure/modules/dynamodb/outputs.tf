@@ -50,34 +50,10 @@ output "local_secondary_index_names" {
   ] : []
 }
 
-# Auto Scaling information
-output "autoscaling_read_target_arn" {
-  description = "ARN of the read capacity auto scaling target"
-  value = var.billing_mode == "PROVISIONED" && var.autoscaling_enabled ? (
-    length(aws_appautoscaling_target.table_read) > 0 ? aws_appautoscaling_target.table_read[0].arn : null
-  ) : null
-}
-
-output "autoscaling_write_target_arn" {
-  description = "ARN of the write capacity auto scaling target"
-  value = var.billing_mode == "PROVISIONED" && var.autoscaling_enabled ? (
-    length(aws_appautoscaling_target.table_write) > 0 ? aws_appautoscaling_target.table_write[0].arn : null
-  ) : null
-}
-
-output "autoscaling_read_policy_arn" {
-  description = "ARN of the read capacity auto scaling policy"
-  value = var.billing_mode == "PROVISIONED" && var.autoscaling_enabled ? (
-    length(aws_appautoscaling_policy.table_read) > 0 ? aws_appautoscaling_policy.table_read[0].arn : null
-  ) : null
-}
-
-output "autoscaling_write_policy_arn" {
-  description = "ARN of the write capacity auto scaling policy"
-  value = var.billing_mode == "PROVISIONED" && var.autoscaling_enabled ? (
-    length(aws_appautoscaling_policy.table_write) > 0 ? aws_appautoscaling_policy.table_write[0].arn : null
-  ) : null
-}
+# =========================================
+# オートスケーリング情報を削除
+# =========================================
+# Homebiyoriではオンデマンドモードのみ使用のため不要
 
 # Configuration information
 output "billing_mode" {

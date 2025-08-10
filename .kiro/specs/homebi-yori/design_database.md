@@ -45,11 +45,19 @@ graph TB
   "nickname": "string?",                  // ユーザー設定ニックネーム（1-20文字）
   "ai_character": "tama|madoka|hide",     // 選択したAIキャラクター
   "praise_level": "normal|deep",          // 褒めレベル設定（2段階）
+  "interaction_mode": "praise|listen", // 対話モード（褒めモード/傾聴モード）
   "onboarding_completed": "boolean",      // オンボーディング完了フラグ
   "created_at": "2024-01-01T09:00:00+09:00",
   "updated_at": "2024-01-01T09:00:00+09:00"
 }
 ```
+
+**interaction_mode 仕様:**
+- **praise**: 褒めモード - 積極的な肯定・承認・励まし中心
+- **listen**: 傾聴モード - 共感・理解・寄り添い中心
+- デフォルト値: "praise"
+- chat_serviceでプロンプト生成時にpraise_levelと組み合わせて使用
+- ユーザーの今日の気分や必要に応じてAI応答のトーンを調整
 
 ## 2. prod-homebiyori-subscriptions（サブスクリプション管理）
 

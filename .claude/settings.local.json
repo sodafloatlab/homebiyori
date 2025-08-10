@@ -60,7 +60,12 @@
       "mcp__terraform-mcp-server__getProviderDocs",
       "Bash(set ENVIRONMENT=test)",
       "Bash(git checkout:*)",
-      "Bash(set PYTHONPATH=%CD%layerscommonpython)"
+      "Bash(set PYTHONPATH=%CD%layerscommonpython)",
+      "Bash(npm test)",
+      "Bash(npm test:*)",
+      "Bash(npm install)",
+      "Bash(npm install:*)",
+      "Bash(npx jest:*)"
     ],
     "deny": []
   },

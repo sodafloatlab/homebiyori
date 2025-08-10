@@ -56,53 +56,44 @@ const useMaintenanceStore = create<MaintenanceState>((set, get) => ({
   setLastChecked: (lastChecked) => set({ lastChecked }),
   setCheckInterval: (checkInterval) => set({ checkInterval }),
 
-  // Maintenance Actions
+  // Maintenance Actions - Secondary Detection Method（補助的検知）
   checkMaintenanceStatus: async () => {
-    const { setLoading, setError, setMaintenanceInfo, setLastChecked } = get();
+    const { setLoading, setError, setLastChecked, handleMaintenanceResponse } = get();
 
     try {
       setLoading(true);
       setError(null);
 
-      // TODO: API統合時に実際のメンテナンス状態チェックAPI呼び出し
-      // const response = await apiClient.get('/maintenance/status');
-      // const maintenanceData = response.data;
+      // Secondary Detection: 定期ヘルスチェック（API Interceptorを経由）
+      const { apiClient } = await import('@/lib/api');
+      
+      // API Interceptorを経由して統一的なメンテナンス検知を実行
+      const response = await apiClient.client.get('/api/health', {
+        validateStatus: (status) => status < 500 || status === 503
+      });
 
-      // 現在はダミー実装
-      const maintenanceData: MaintenanceStatus = {
-        is_maintenance_mode: false,
-        maintenance_message: undefined,
-        estimated_recovery_time: undefined,
-        affected_services: []
-      };
-
-      setMaintenanceInfo(maintenanceData);
       setLastChecked(Date.now());
+      
+      // 明示的にSecondary Detectionとしてログ出力
+      console.log('🔍 Secondary Maintenance Detection via Health Check:', {
+        endpoint: '/api/health',
+        status: response.status,
+        method: 'HEALTH_CHECK'
+      });
 
-      // メンテナンスモードが検出された場合
-      if (maintenanceData.is_maintenance_mode) {
-        set({ 
-          isMaintenanceMode: true, 
-          showMaintenanceModal: true 
-        });
-      } else {
-        set({ isMaintenanceMode: false });
-      }
+      // API Interceptorで既にメンテナンス状態が検知されている場合があるため
+      // ここでは明示的にhandleMaintenanceResponseを呼ばない（重複回避）
 
     } catch (error) {
-      // API エラーの場合、メンテナンス状態として扱う可能性もある
+      console.error('Health check error:', error);
+      
       if ((error as any)?.response?.status === 503) {
-        const maintenanceData = (error as any).response?.data;
-        if (maintenanceData) {
-          set({
-            isMaintenanceMode: true,
-            maintenanceInfo: maintenanceData,
-            showMaintenanceModal: true
-          });
-        }
+        // 503エラーの場合は既にAPI Interceptorで処理済み
+        console.log('🔍 Secondary Detection: 503 handled by Primary Interceptor');
+      } else if ((error as any)?.code === 'NETWORK_ERROR' || !(error as any)?.response) {
+        setError('ネットワークエラーが発生しました。接続を確認してください。');
       } else {
-        setError('メンテナンス状態の確認に失敗しました。');
-        console.error('Maintenance check error:', error);
+        setError('システム状態の確認に失敗しました。');
       }
     } finally {
       setLoading(false);
@@ -135,19 +126,58 @@ const useMaintenanceStore = create<MaintenanceState>((set, get) => ({
 
   handleMaintenanceResponse: (response: any) => {
     const { setMaintenanceInfo, setMaintenanceMode } = get();
+    const currentState = get();
 
-    // HTTPステータス503 (Service Unavailable) の場合
+    // 統一ハンドラー: すべてのメンテナンス検知方法に対応
+    let maintenanceData = null;
+    let isMaintenanceDetected = false;
+
+    // Detection Priority 1: HTTP 503 Service Unavailable（最高優先度）
     if (response.status === 503) {
-      const maintenanceData = response.data || {
+      isMaintenanceDetected = true;
+      maintenanceData = response.data || {
         is_maintenance_mode: true,
-        maintenance_message: 'システムメンテナンス中です。',
+        maintenance_message: 'システムメンテナンス中です。しばらくお待ちください。',
         estimated_recovery_time: undefined,
         affected_services: ['全サービス']
       };
+      console.log('🔧 Maintenance detected (Priority 1 - HTTP 503):', maintenanceData);
+    }
+    // Detection Priority 2: Response Headers（中優先度）
+    else if (response.headers?.['x-maintenance-mode'] === 'true') {
+      isMaintenanceDetected = true;
+      maintenanceData = {
+        is_maintenance_mode: true,
+        maintenance_message: response.headers?.['x-maintenance-message'] || 'システムメンテナンス中です。',
+        estimated_recovery_time: response.headers?.['x-maintenance-recovery'],
+        affected_services: response.headers?.['x-maintenance-services']?.split(',') || ['全サービス']
+      };
+      console.log('🔧 Maintenance detected (Priority 2 - Headers):', maintenanceData);
+    }
+    // Detection Priority 3: API Response Data（低優先度）
+    else if (response.status === 200 && response.data?.maintenance_status?.is_maintenance_mode) {
+      isMaintenanceDetected = true;
+      maintenanceData = response.data.maintenance_status;
+      console.log('🔧 Maintenance detected (Priority 3 - Response Data):', maintenanceData);
+    }
 
+    // メンテナンス状態の処理
+    if (isMaintenanceDetected && maintenanceData) {
+      // 新しいメンテナンス状態の開始または継続
+      if (!currentState.isMaintenanceMode) {
+        console.log('🚨 Entering Maintenance Mode');
+      }
       setMaintenanceInfo(maintenanceData);
       setMaintenanceMode(true);
       set({ showMaintenanceModal: true });
+    } else {
+      // 正常状態: メンテナンス終了の検知
+      if (currentState.isMaintenanceMode) {
+        console.log('✅ Exiting Maintenance Mode - System Restored');
+        setMaintenanceInfo(null);
+        setMaintenanceMode(false);
+        set({ showMaintenanceModal: false });
+      }
     }
   },
 

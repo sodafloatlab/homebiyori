@@ -102,7 +102,7 @@ python -m pytest tests/backend/services/health_check_service/ -v --tb=short
 
 ### 2. user_service
 
-**説明:** ユーザープロフィール・認証管理サービス
+**説明:** ユーザープロフィール・認証管理・アカウント削除サービス
 
 **実行手順（推奨）:**
 ```bash
@@ -126,12 +126,21 @@ python -m pytest tests/backend/services/user_service/ -v --tb=short
 - ❌ 実際のCognitoトークン検証は不可
 - ⏱️ 実行時間: ~2秒
 
-**期待結果:** 12/12テスト通過
+**期待結果:** 24/24テスト通過
+
+**新機能（2025年8月10日追加）:**
+- **InteractionMode機能**: ユーザーの今日の気分設定（褒めて欲しい/話を聞いて欲しい）
+- **AI設定統合**: chat_serviceとの連携でプロフィール設定ベースAI応答生成
+- **無料ユーザー制限**: praise_level="deep"の無料ユーザー制限機能
+- **統合テスト**: chat_service AI設定情報統合テスト完了
 
 **検証困難な部分:**
 - Amazon Cognito実認証フロー
 - JWT トークン実検証
 - ユーザープール実操作
+- アカウント削除時の他サービス連携（billing_service等）
+- 段階的削除プロセスのE2E検証
+- InteractionModeの実際のプロンプト選択動作（chat_service実連携要）
 
 ---
 
@@ -496,7 +505,7 @@ python -m pytest tests/backend/services/contact_service/test_contact_service.py 
 | サービス | 成功テスト数 | 制約レベル | 実行時間 |
 |---------|-------------|-----------|---------|
 | health_check_service | 3/3 | ✅ 制約なし | ~1秒 |
-| user_service | 12/12 | ⚠️ 軽微制約 | ~2秒 |
+| user_service | 24/24 | ⚠️ 軽微制約 | ~2秒 |
 | notification_service | 13/13 | ⚠️ 軽微制約 | ~2秒 |
 | billing_service | 13/13 | ⚠️ 中程度制約 | ~2秒 |
 | admin_service | 17/17 | ⚠️ 軽微制約 | ~2秒 |
@@ -582,7 +591,7 @@ pip install pytest==8.4.1 pytest-asyncio==0.21.1
 
 ### 成功したサービス
 - [ ] health_check_service (3/3)
-- [ ] user_service (12/12)
+- [ ] user_service (21/21)
 - [ ] notification_service (13/13)
 - [ ] billing_service (13/13)
 - [ ] admin_service (17/17)

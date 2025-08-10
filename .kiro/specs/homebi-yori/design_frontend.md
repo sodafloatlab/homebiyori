@@ -5,79 +5,91 @@
 ```
 src/
 ├── app/                          # Next.js App Router
+│   ├── favicon.ico              # ファビコン
 │   ├── globals.css              # グローバルスタイル
 │   ├── layout.tsx               # ルートレイアウト
-│   └── page.tsx                 # ホームページ
+│   ├── page.tsx                 # ホームページ
+│   └── test/                    # テストページ
+│       └── page.tsx             # API統合テストページ
 ├── components/                   # UIコンポーネント
 │   ├── ui/                      # 基本UIコンポーネント
+│   │   ├── AiIcon.tsx           # AIキャラクターアイコン
 │   │   ├── Button.tsx           # 再利用可能ボタン
+│   │   ├── ConfirmationDialog.tsx # 確認ダイアログ
+│   │   ├── LoadingSpinner.tsx   # ローディング表示
+│   │   ├── ProgressBar.tsx      # プログレスバー
+│   │   ├── Toast.tsx            # トースト通知
+│   │   ├── TopPageWatercolorTree.tsx # トップページ専用木
 │   │   ├── TouchTarget.tsx      # タッチ対応ボタン
 │   │   ├── Typography.tsx       # タイポグラフィー統一
 │   │   ├── UserMenu.tsx         # ユーザーメニュー
-│   │   ├── LoadingSpinner.tsx   # ローディング表示
-│   │   ├── Toast.tsx            # トースト通知
-│   │   ├── WatercolorTree.tsx   # 木の描画コンポーネント
-│   │   └── TopPageWatercolorTree.tsx # トップページ専用木
+│   │   ├── WarningButton.tsx    # 警告ボタン
+│   │   └── WatercolorTree.tsx   # 木の描画コンポーネント
 │   ├── features/                # 機能別コンポーネント
+│   │   ├── MainApp.tsx         # メインアプリケーション
+│   │   ├── TopPage.tsx         # トップページ
 │   │   ├── auth/               # 認証機能
 │   │   │   └── AuthScreen.tsx
-│   │   ├── chat/               # チャット機能
-│   │   │   ├── ChatHeader.tsx  # 共有チャットヘッダー
-│   │   │   ├── ChatScreen.tsx  # 1:1チャット
-│   │   │   └── TreeGrowthStatus.tsx # 木の成長状況
 │   │   ├── character/          # キャラクター選択
 │   │   │   └── CharacterSelection.tsx
+│   │   ├── chat/               # チャット機能
+│   │   │   └── ChatScreen.tsx  # 1:1チャット
 │   │   ├── tree/               # 木の表示・管理
 │   │   │   └── TreeView.tsx
-│   │   ├── subscription/       # サブスクリプション
-│   │   │   ├── PremiumLandingPage.tsx
-│   │   │   └── SubscriptionCancelPage.tsx
 │   │   ├── maintenance/        # メンテナンス機能
 │   │   │   └── MaintenanceScreen.tsx
-│   │   ├── notifications/      # 通知機能
-│   │   │   ├── NotificationList.tsx
-│   │   │   ├── NotificationItem.tsx
-│   │   │   └── NotificationBadge.tsx
-│   │   ├── admin/              # 管理機能（管理者のみ）
-│   │   │   ├── AdminDashboard.tsx
-│   │   │   ├── AdminNotificationManager.tsx
-│   │   │   └── MaintenanceControl.tsx
-│   │   ├── static/             # 静的ページ
-│   │   │   ├── TermsOfServicePage.tsx
-│   │   │   ├── PrivacyPolicyPage.tsx
-│   │   │   ├── ContactFormPage.tsx
-│   │   │   ├── CommercialTransactionPage.tsx
-│   │   │   └── FAQPage.tsx
-│   │   ├── MainApp.tsx         # メインアプリケーション
-│   │   └── TopPage.tsx         # トップページ
-│   └── layout/                 # レイアウト関連
-│       ├── NavigationHeader.tsx # ナビゲーションヘッダー
-│       ├── Footer.tsx          # フッター
-│       ├── PremiumLayout.tsx   # プレミアム用レイアウト
-│       ├── ResponsiveContainer.tsx # レスポンシブコンテナ
-│       └── StaticPageLayout.tsx # 静的ページレイアウト
+│   │   ├── account/           # アカウント管理
+│   │   │   ├── AccountSettingsPage.tsx
+│   │   │   ├── AccountDeletionConfirmPage.tsx
+│   │   │   ├── AccountDeletionProgressPage.tsx
+│   │   │   ├── AccountDeletionCompletePage.tsx
+│   │   │   └── SubscriptionCancelPage.tsx
+│   │   └── static/             # 静的ページ
+│   │       ├── CommercialTransactionPage.tsx
+│   │       ├── ContactFormPage.tsx
+│   │       ├── FAQPage.tsx
+│   │       ├── PrivacyPolicyPage.tsx
+│   │       └── TermsOfServicePage.tsx
+│   ├── layout/                 # レイアウト関連
+│   │   ├── Footer.tsx          # フッター
+│   │   ├── NavigationHeader.tsx # ナビゲーションヘッダー
+│   │   ├── PremiumLayout.tsx   # プレミアム用レイアウト
+│   │   ├── ResponsiveContainer.tsx # レスポンシブコンテナ
+│   │   └── StaticPageLayout.tsx # 静的ページレイアウト
+│   ├── network/                # ネットワーク監視
+│   │   └── NetworkStatus.tsx   # ネットワーク状態表示
+│   └── error/                  # エラーハンドリング
+│       └── ErrorBoundary.tsx   # エラーバウンダリー
 ├── lib/                        # ユーティリティ・ヘルパー
 │   ├── constants.ts            # 定数定義
 │   ├── utils.ts                # ユーティリティ関数
 │   ├── hooks.ts                # カスタムフック
+│   ├── auth.ts                 # 認証ヘルパー
 │   ├── api.ts                  # APIクライアント統合
-│   ├── storage.ts              # ローカルストレージ管理
-│   └── validators.ts           # 入力バリデーション
+│   ├── api/                    # API関連
+│   │   ├── chatService.ts      # チャットAPI
+│   │   ├── contact.ts          # お問い合わせAPI
+│   │   └── treeService.ts      # 木の成長API
+│   ├── services/               # ビジネスロジック
+│   │   ├── index.ts            # サービス統合
+│   │   ├── AccountDeletionService.ts # アカウント削除
+│   │   ├── chatService.ts      # チャットサービス
+│   │   ├── notificationService.ts # 通知サービス
+│   │   ├── treeService.ts      # 木の成長サービス
+│   │   └── userService.ts      # ユーザーサービス
+│   ├── network/                # ネットワーク監視
+│   │   └── networkMonitor.ts   # ネットワークモニター
+│   └── test/                   # テストユーティリティ
+│       └── apiTest.ts          # API統合テスト
 ├── stores/                     # 状態管理（Zustand）
 │   ├── authStore.ts           # 認証状態
 │   ├── chatStore.ts           # チャット状態
 │   ├── treeStore.ts           # 木の成長状態
 │   ├── notificationStore.ts   # 通知状態
-│   ├── maintenanceStore.ts    # メンテナンス状態
-│   └── subscriptionStore.ts   # サブスクリプション状態
-├── types/                      # TypeScript型定義
-│   ├── index.ts               # 型定義統合
-│   ├── api.ts                 # API関連型定義
-│   ├── chat.ts                # チャット関連型定義
-│   ├── tree.ts                # 木の成長関連型定義
-│   └── notification.ts        # 通知関連型定義
-└── styles/                     # スタイル関連
-    └── globals.css             # グローバルCSS
+│   └── maintenanceStore.ts    # メンテナンス状態
+└── types/                      # TypeScript型定義
+    ├── index.ts               # 型定義統合
+    └── api.ts                 # API関連型定義
 ```
 
 ## 技術スタック
@@ -109,33 +121,62 @@ src/
 
 ### チャット機能
 - **LangChain統合** バックエンドとの通信
-- **3つのAIキャラクター** 対応
+- **3つのAIキャラクター** 対応（たまさん・まどか姉さん・ヒデじい）
 - **リアルタイム会話** 履歴管理
+- **InteractionMode** 対応（ライト・スタンダード・ディープ）
 - **文字数制限** (2000文字)
 
 ### 木の成長システム
-- **Canvas API** による木の描画
-- **実の表示・管理** 
+- **Framer Motion** による木の描画・アニメーション
+- **ほめの実** 表示・管理（6段階成長対応）
 - **成長進捗** の可視化
 - **キャラクター別テーマカラー** 対応
+- **TopPageWatercolorTree** トップページ専用表示
 
-### 通知システム
-- **アプリ内通知** 一覧・バッジ表示
-- **未読数管理**
-- **通知タイプ別** アイコン・色分け
-- **既読・未読** 状態管理
+### ネットワーク監視
+- **リアルタイム接続** 状態監視
+- **ネットワーク状態** 表示コンポーネント
+- **オフライン検知** 機能
+- **接続復旧** 自動検知
 
-### メンテナンス機能
-- **API応答監視** による自動検知
-- **メンテナンス画面** 自動表示
-- **グローバル状態制御**
-- **復旧予定時刻** 表示
+### メンテナンス機能（ハイブリッド検知システム）
+- **Primary Detection**: API Interceptor経由のリアルタイム検知
+  - 全API呼び出し時に自動的にメンテナンス状態を検知
+  - レスポンスヘッダー・データの即座チェック
+  - ユーザー操作と同時のメンテナンス状態反映
+- **Secondary Detection**: 定期ヘルスチェック（補助）
+  - 30秒間隔での `/api/health` エンドポイント監視
+  - API非活用時のメンテナンス状態変化検知
+  - 自動更新機能（手動切り替え可能）
+- **統一検知システム**:
+  - **Priority 1**: HTTP 503 Service Unavailable（最高優先度）
+  - **Priority 2**: Response Headers (`x-maintenance-mode`等)（中優先度）
+  - **Priority 3**: API Response Data (`maintenance_status`)（低優先度）
+- **UI表示機能**:
+  - **フルスクリーン** およびモーダル表示対応
+  - **復旧予定時刻** および影響範囲表示  
+  - **メンテナンスストア** との完全統合
+  - **レスポンシブデザイン** 対応
 
-### サブスクリプション機能
-- **Stripe Checkout** 連携
-- **プラン切り替え**
-- **請求履歴** 表示
-- **解約・再開** 機能
+### アカウント管理
+- **プロフィール設定** 管理
+- **アカウント削除** 3段階フロー
+- **サブスクリプション** キャンセル機能
+- **削除進行状況** 表示
+- **完了画面** 表示
+
+### 静的ページ機能
+- **利用規約** ページ
+- **プライバシーポリシー** ページ
+- **FAQ** ページ（検索・フィルタ機能付き）
+- **お問い合わせ** フォーム
+- **特定商取引法** 表記
+- **ResponsiveContainer** レイアウト統一
+
+### 開発・テスト支援
+- **API統合テスト** ページ（/test）
+- **エラーバウンダリー** 統合
+- **ネットワーク状態** 詳細表示
 
 ## レスポンシブデザイン
 
@@ -191,3 +232,31 @@ src/
 - **TypeScript** 厳格モード
 - **ESLint + Prettier** コード品質管理
 - **Husky + lint-staged** プリコミットフック
+- **API統合テスト** (/test ページ)
+- **エラーバウンダリー** 統合
+- **ネットワーク監視** 機能
+- **ハイブリッドメンテナンス検知** システム統合
+
+## メンテナンス検知アーキテクチャ設計
+
+### システム構成
+```
+User API Request → API Interceptor (Primary Detection) → MaintenanceStore
+                                ↓
+                      Immediate UI Response
+                                
+Health Check Timer → /api/health → API Interceptor → MaintenanceStore (Secondary)
+    (30秒間隔)                           ↓
+                              Backup Coverage
+```
+
+### 検知優先度システム
+1. **HTTP 503 Service Unavailable** - バックエンドミドルウェア直接応答
+2. **Response Headers** - `x-maintenance-mode: true` 等のカスタムヘッダー
+3. **API Response Data** - `maintenance_status.is_maintenance_mode: true`
+
+### アーキテクチャ利点
+- **高レスポンシブ性**: ユーザー操作と同時にメンテナンス検知
+- **冗長性確保**: 定期チェックでAPI非使用時もカバー
+- **統一処理**: MaintenanceStore統一ハンドラーで状態管理
+- **重複回避**: Primary/Secondary Detection区別によるログ重複防止

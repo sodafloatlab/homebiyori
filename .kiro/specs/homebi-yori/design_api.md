@@ -28,6 +28,10 @@
 - `GET /users/profile` - ユーザープロフィール取得 🔐認証必須
 - `PUT /users/profile` - ユーザープロフィール更新 🔐認証必須
 - `PUT /users/ai-preferences` - AI設定（キャラクター・褒めレベル）更新 🔐認証必須
+- `GET /users/account-status` - アカウント・サブスクリプション状態取得 🔐認証必須
+- `POST /users/request-deletion` - アカウント削除要求（段階的プロセス開始） 🔐認証必須
+- `POST /users/confirm-deletion` - アカウント削除実行（最終確認後） 🔐認証必須
+
 
 ### 課金・サブスクリプション管理（billing-service）
 - `GET /api/billing/subscription` - ユーザーサブスクリプション状態取得 🔐認証必須
@@ -182,5 +186,129 @@
 {
   "checkout_url": "https://checkout.stripe.com/c/pay/cs_...",
   "session_id": "cs_..."
+}
+```
+
+### アカウント・サブスクリプション状態取得
+```json
+// GET /users/account-status
+// Response
+{
+  "account": {
+    "user_id": "user123",
+    "nickname": "ほのぼのママ",
+    "created_at": "2024-01-01T00:00:00+09:00",
+    "status": "active"
+  },
+  "subscription": {
+    "status": "active",
+    "current_plan": "monthly",
+    "current_period_end": "2024-02-01T00:00:00+09:00",
+    "cancel_at_period_end": false
+  },
+  "data_summary": {
+    "total_chat_messages": 150,
+    "tree_growth_characters": 5420,
+    "total_fruits": 12,
+    "data_size_mb": 2.3
+  }
+}
+```
+
+### アカウント削除要求（段階的プロセス開始）
+```json
+// POST /users/request-deletion
+{
+  "deletion_type": "account_with_subscription", // "account_only", "subscription_only", "account_with_subscription"
+  "reason": "service_no_longer_needed", // オプション
+  "feedback": "ありがとうございました" // オプション
+}
+
+// Response
+{
+  "deletion_request_id": "del_req_abc123",
+  "process_steps": [
+    {
+      "step": 1,
+      "title": "サブスクリプション状態確認",
+      "completed": true
+    },
+    {
+      "step": 2,
+      "title": "削除内容詳細説明",
+      "completed": false,
+      "next": true
+    },
+    {
+      "step": 3,
+      "title": "最終確認と実行",
+      "completed": false
+    }
+  ],
+  "subscription_action_required": true,
+  "data_to_be_deleted": [
+    "チャット履歴 (150メッセージ)",
+    "木の成長データ (5,420文字)",
+    "ユーザープロフィール",
+    "AI設定情報",
+    "ほめの実データ (12個)"
+  ],
+  "warning": "この操作は元に戻せません"
+}
+```
+
+### アカウント削除実行（最終確認後）
+```json
+// POST /users/confirm-deletion
+{
+  "deletion_request_id": "del_req_abc123",
+  "confirmation_text": "削除", // ユーザーが入力する確認文字
+  "final_consent": true
+}
+
+// Response
+{
+  "deletion_started": true,
+  "estimated_completion": "2024-01-01T12:05:00+09:00",
+  "process_id": "proc_xyz789",
+  "actions_performed": [
+    {
+      "action": "subscription_cancelled",
+      "status": "completed",
+      "timestamp": "2024-01-01T12:00:30+09:00"
+    },
+    {
+      "action": "dynamodb_data_deletion",
+      "status": "in_progress",
+      "estimated_completion": "2024-01-01T12:02:00+09:00"
+    },
+    {
+      "action": "cognito_account_deletion", 
+      "status": "pending",
+      "estimated_completion": "2024-01-01T12:05:00+09:00"
+    }
+  ],
+  "message": "アカウント削除処理を開始しました。完了後、自動的にログアウトされます。",
+  "support_contact": "support@homebiyori.com"
+}
+```
+
+### アカウント削除エラーレスポンス例
+```json
+// エラーケース：サブスクリプション解約失敗
+{
+  "error": "subscription_cancellation_failed",
+  "error_message": "サブスクリプションの自動解約に失敗しました",
+  "error_details": {
+    "stripe_error": "card_declined",
+    "next_steps": [
+      "Stripeカスタマーポータルから手動で解約してください",
+      "解約完了後、再度アカウント削除をお試しください"
+    ],
+    "customer_portal_url": "https://billing.stripe.com/p/session/...",
+    "support_contact": "support@homebiyori.com"
+  },
+  "can_retry": true,
+  "account_deletion_blocked": true
 }
 ```

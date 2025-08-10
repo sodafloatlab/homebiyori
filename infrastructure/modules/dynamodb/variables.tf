@@ -66,27 +66,17 @@ variable "attributes" {
 
 # Billing configuration
 variable "billing_mode" {
-  description = "Controls how you are charged for read and write throughput"
+  description = "Controls how you are charged for read and write throughput (Homebiyoriではオンデマンドのみサポート)"
   type        = string
   default     = "PAY_PER_REQUEST"
   
   validation {
-    condition     = contains(["PAY_PER_REQUEST", "PROVISIONED"], var.billing_mode)
-    error_message = "Billing mode must be PAY_PER_REQUEST or PROVISIONED."
+    condition     = var.billing_mode == "PAY_PER_REQUEST"
+    error_message = "Homebiyoriではコスト最適化のためPAY_PER_REQUESTモードのみサポートします。"
   }
 }
 
-variable "read_capacity" {
-  description = "The number of read units for PROVISIONED billing mode"
-  type        = number
-  default     = 20
-}
-
-variable "write_capacity" {
-  description = "The number of write units for PROVISIONED billing mode"
-  type        = number
-  default     = 20
-}
+# read_capacity/write_capacityを削除 - オンデマンドモードでは不要
 
 # Global Secondary Indexes
 variable "global_secondary_indexes" {
@@ -96,12 +86,8 @@ variable "global_secondary_indexes" {
     range_key                   = optional(string)
     projection_type             = optional(string, "ALL")
     non_key_attributes          = optional(list(string))
-    read_capacity               = optional(number)
-    write_capacity              = optional(number)
-    autoscaling_read_max_capacity  = optional(number)
-    autoscaling_read_min_capacity  = optional(number)
-    autoscaling_write_max_capacity = optional(number)
-    autoscaling_write_min_capacity = optional(number)
+    # オンデマンドモードではread/write_capacityは不要
+    # autoscaling関連パラメータも削除
   }))
   default = null
 }
@@ -127,7 +113,7 @@ variable "ttl_enabled" {
 variable "ttl_attribute_name" {
   description = "The name of the TTL attribute"
   type        = string
-  default     = "ttl"
+  default     = "TTL"  # Homebiyori仕様: 大文字TTLを使用
 }
 
 # Point-in-time recovery
@@ -188,40 +174,10 @@ variable "table_class" {
   }
 }
 
-# Auto Scaling configuration
-variable "autoscaling_enabled" {
-  description = "Whether auto scaling is enabled for PROVISIONED billing mode"
-  type        = bool
-  default     = true
-}
-
-variable "autoscaling_read" {
-  description = "Read capacity auto scaling configuration"
-  type = object({
-    min_capacity = number
-    max_capacity = number
-    target_value = number
-  })
-  default = {
-    min_capacity = 20
-    max_capacity = 4000
-    target_value = 70
-  }
-}
-
-variable "autoscaling_write" {
-  description = "Write capacity auto scaling configuration"
-  type = object({
-    min_capacity = number
-    max_capacity = number
-    target_value = number
-  })
-  default = {
-    min_capacity = 20
-    max_capacity = 4000
-    target_value = 70
-  }
-}
+# =========================================
+# オートスケーリング設定を削除
+# =========================================
+# Homebiyoriではコスト最適化のためPAY_PER_REQUESTモードのみ使用
 
 # Tags
 variable "tags" {

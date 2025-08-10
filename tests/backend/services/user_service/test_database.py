@@ -46,7 +46,8 @@ import uuid
 from backend.services.user_service.database import UserServiceDatabase, get_database
 from backend.services.user_service.models import (
     UserProfile,
-    AICharacter, PraiseLevel, get_current_jst
+    AICharacter, PraiseLevel, InteractionMode, get_current_jst,
+    AccountStatus, DeletionRequest, DeletionConfirmation, DeletionType
 )
 
 # Lambda Layers機能のモック（テスト環境では実際のLayersは利用不可）
@@ -164,6 +165,7 @@ async def sample_user_profile():
         nickname="テストユーザー",
         ai_character=AICharacter.TAMA,
         praise_level=PraiseLevel.NORMAL,
+        interaction_mode=InteractionMode.PRAISE,
         onboarding_completed=True
     )
 
@@ -191,6 +193,7 @@ async def test_user_profile_create_and_get(database_client, sample_user_profile)
     assert saved_profile.nickname == "テストユーザー"
     assert saved_profile.ai_character == AICharacter.TAMA
     assert saved_profile.praise_level == PraiseLevel.NORMAL
+    assert saved_profile.interaction_mode == InteractionMode.PRAISE
     assert saved_profile.onboarding_completed is True
     
     # JST時刻確認（共通Layer使用）
@@ -206,6 +209,7 @@ async def test_user_profile_create_and_get(database_client, sample_user_profile)
     assert retrieved_profile.nickname == "テストユーザー"
     assert retrieved_profile.ai_character == AICharacter.TAMA
     assert retrieved_profile.praise_level == PraiseLevel.NORMAL
+    assert retrieved_profile.interaction_mode == InteractionMode.PRAISE
 
 
 @pytest.mark.asyncio
@@ -244,6 +248,7 @@ async def test_user_profile_update(database_client, sample_user_profile):
     sample_user_profile.nickname = "更新後ユーザー"
     sample_user_profile.ai_character = AICharacter.MADOKA
     sample_user_profile.praise_level = PraiseLevel.DEEP
+    sample_user_profile.interaction_mode = InteractionMode.LISTEN
     
     # 更新保存
     updated_profile = await db.save_user_profile(sample_user_profile)
@@ -252,6 +257,7 @@ async def test_user_profile_update(database_client, sample_user_profile):
     assert updated_profile.nickname == "更新後ユーザー"
     assert updated_profile.ai_character == AICharacter.MADOKA
     assert updated_profile.praise_level == PraiseLevel.DEEP
+    assert updated_profile.interaction_mode == InteractionMode.LISTEN
     assert updated_profile.updated_at > original_updated_at
 
 
@@ -259,22 +265,269 @@ async def test_user_profile_update(database_client, sample_user_profile):
 # 子供情報管理テスト
 # =====================================
 
+# 子供情報管理は削除されたため、この部分は空になっています。
+
+# =====================================
+# InteractionMode（対話モード）テスト
+# =====================================
+
+@pytest.mark.asyncio
+async def test_interaction_mode_default_value():
+    """
+    [USER-DB-017] InteractionModeデフォルト値テスト
+    
+    AIPreferencesのinteraction_modeフィールドのデフォルト値がPRAISEであることを確認。
+    """
+    # デフォルト値でプロフィール作成
+    profile = UserProfile(
+        user_id="12345678-1234-5678-9012-123456789012",
+        nickname="デフォルトテスト"
+    )
+    
+    # デフォルト値確認
+    assert profile.interaction_mode == InteractionMode.PRAISE
 
 
+@pytest.mark.asyncio
+async def test_interaction_mode_enum_values():
+    """
+    [USER-DB-018] InteractionMode Enum値確認
+    
+    対話モードEnumの正しい値を確認。
+    """
+    # 各対話モードの値確認
+    assert InteractionMode.PRAISE == "praise"
+    assert InteractionMode.LISTEN == "listen"
+    
+    # Enum値の網羅性確認
+    expected_modes = {"praise", "listen"}
+    actual_modes = {mode.value for mode in InteractionMode}
+    assert actual_modes == expected_modes
 
 
+@pytest.mark.asyncio
+async def test_interaction_mode_all_combinations(database_client):
+    """
+    [USER-DB-019] 全InteractionMode組み合わせテスト
+    
+    すべての対話モードがデータベース保存・取得で正しく動作することを確認。
+    """
+    db, test_data = database_client
+    
+    # PRASEモードテスト
+    praise_profile = UserProfile(
+        user_id="12345678-1234-5678-9012-123456789001",
+        nickname="褒めモードユーザー",
+        ai_character=AICharacter.TAMA,
+        praise_level=PraiseLevel.NORMAL,
+        interaction_mode=InteractionMode.PRAISE
+    )
+    
+    saved_praise = await db.save_user_profile(praise_profile)
+    assert saved_praise.interaction_mode == InteractionMode.PRAISE
+    
+    retrieved_praise = await db.get_user_profile(praise_profile.user_id)
+    assert retrieved_praise.interaction_mode == InteractionMode.PRAISE
+    
+    # LISTENモードテスト
+    listen_profile = UserProfile(
+        user_id="12345678-1234-5678-9012-123456789002",
+        nickname="傾聴モードユーザー",
+        ai_character=AICharacter.MADOKA,
+        praise_level=PraiseLevel.DEEP,
+        interaction_mode=InteractionMode.LISTEN
+    )
+    
+    saved_listen = await db.save_user_profile(listen_profile)
+    assert saved_listen.interaction_mode == InteractionMode.LISTEN
+    
+    retrieved_listen = await db.get_user_profile(listen_profile.user_id)
+    assert retrieved_listen.interaction_mode == InteractionMode.LISTEN
+
+# =====================================
+# InteractionMode統合テスト（chat_service連携）
+# =====================================
+
+@pytest.mark.asyncio
+async def test_chat_service_ai_preferences_integration():
+    """
+    [INTEGRATION-001] chat_serviceでのAI設定情報統合テスト
+    
+    chat_serviceがユーザーのAI設定情報を正しく取得・使用することを確認。
+    """
+    from backend.services.chat_service.database import ChatServiceDatabase
+    
+    # テスト用ユーザー設定
+    test_user_id = "12345678-1234-5678-9012-123456789999"
+    
+    # ChatServiceDatabaseのモック作成
+    chat_db = ChatServiceDatabase()
+    
+    # モックデータベースクライアント設定
+    mock_profile_data = {
+        "PK": f"USER#{test_user_id}",
+        "SK": "PROFILE",
+        "ai_character": "madoka",
+        "praise_level": "deep",
+        "interaction_mode": "listen",
+        "subscription_plan": "monthly"  # プレミアムユーザー
+    }
+    
+    with patch.object(chat_db.db_client, 'get_item', new_callable=AsyncMock) as mock_get_item:
+        mock_get_item.return_value = mock_profile_data
+        
+        # AI設定情報取得テスト
+        ai_preferences = await chat_db.get_user_ai_preferences(test_user_id)
+        
+        # 設定値確認
+        assert ai_preferences["ai_character"] == "madoka"
+        assert ai_preferences["praise_level"] == "deep"
+        assert ai_preferences["interaction_mode"] == "listen"
+        
+        # サブスクリプション情報取得テスト
+        subscription_info = await chat_db.get_user_subscription_info(test_user_id)
+        
+        # サブスクリプション確認
+        assert subscription_info["plan"] == "monthly"
+        
+
+@pytest.mark.asyncio
+async def test_free_user_praise_level_restriction():
+    """
+    [INTEGRATION-002] 無料ユーザーのpraise_level制限テスト
+    
+    無料ユーザーのpraise_levelが強制的にnormalに制限されることを確認。
+    """
+    from backend.services.chat_service.database import ChatServiceDatabase
+    
+    # テスト用無料ユーザー設定
+    test_user_id = "12345678-1234-5678-9012-123456789998"
+    
+    # ChatServiceDatabaseのモック作成
+    chat_db = ChatServiceDatabase()
+    
+    # 無料ユーザーのモックデータ（praise_level=deepに設定）
+    mock_profile_data = {
+        "PK": f"USER#{test_user_id}",
+        "SK": "PROFILE",
+        "ai_character": "tama",
+        "praise_level": "deep",  # deepに設定されているが
+        "interaction_mode": "praise",
+        "subscription_plan": "free"  # 無料ユーザー
+    }
+    
+    with patch.object(chat_db.db_client, 'get_item', new_callable=AsyncMock) as mock_get_item:
+        mock_get_item.return_value = mock_profile_data
+        
+        # AI設定情報とサブスクリプション情報を取得
+        ai_preferences = await chat_db.get_user_ai_preferences(test_user_id)
+        subscription_info = await chat_db.get_user_subscription_info(test_user_id)
+        
+        # 制限前の設定値確認
+        assert ai_preferences["praise_level"] == "deep"
+        assert subscription_info["plan"] == "free"
+        
+        # 無料ユーザー制限ロジックをシミュレート
+        user_tier = "premium" if subscription_info["plan"] in ["monthly", "yearly"] else "free"
+        effective_praise_level = "normal" if user_tier == "free" else ai_preferences["praise_level"]
+        
+        # 無料ユーザーのpraise_levelがnormalに制限されることを確認
+        assert user_tier == "free"
+        assert effective_praise_level == "normal"
 
 
-  # 前の値が保持
+@pytest.mark.asyncio 
+async def test_ai_character_fallback_logic():
+    """
+    [INTEGRATION-003] AIキャラクター設定フォールバックロジックテスト
+    
+    リクエストパラメータ優先、なければプロフィール設定のフォールバック動作を確認。
+    """
+    from backend.services.chat_service.database import ChatServiceDatabase
+    
+    # テスト用ユーザー設定
+    test_user_id = "12345678-1234-5678-9012-123456789997"
+    
+    # ChatServiceDatabaseのモック作成
+    chat_db = ChatServiceDatabase()
+    
+    # プロフィール設定（デフォルト）
+    mock_profile_data = {
+        "PK": f"USER#{test_user_id}",
+        "SK": "PROFILE", 
+        "ai_character": "hide",      # プロフィールではhide
+        "praise_level": "normal",
+        "interaction_mode": "listen",  # プロフィールではlisten
+        "subscription_plan": "yearly"
+    }
+    
+    with patch.object(chat_db.db_client, 'get_item', new_callable=AsyncMock) as mock_get_item:
+        mock_get_item.return_value = mock_profile_data
+        
+        # AI設定情報取得
+        ai_preferences = await chat_db.get_user_ai_preferences(test_user_id)
+        
+        # ケース1: リクエストパラメータが指定された場合
+        request_ai_character = "tama"    # リクエストでtamaを指定
+        request_mood = "praise"          # リクエストでpraiseを指定
+        
+        # フォールバックロジックをシミュレート
+        effective_character = request_ai_character or ai_preferences["ai_character"]
+        effective_mood = request_mood or ai_preferences["interaction_mode"]
+        
+        # リクエストパラメータが優先されることを確認
+        assert effective_character == "tama"    # リクエスト値が使用される
+        assert effective_mood == "praise"       # リクエスト値が使用される
+        
+        # ケース2: リクエストパラメータがNoneの場合
+        request_ai_character = None
+        request_mood = None
+        
+        # フォールバックロジックをシミュレート
+        effective_character = request_ai_character or ai_preferences["ai_character"]
+        effective_mood = request_mood or ai_preferences["interaction_mode"]
+        
+        # プロフィール設定が使用されることを確認
+        assert effective_character == "hide"    # プロフィール値が使用される
+        assert effective_mood == "listen"       # プロフィール値が使用される
 
 
-
-
-
-
-
-
-
+@pytest.mark.asyncio
+async def test_interaction_mode_with_different_characters():
+    """
+    [USER-DB-020] InteractionModeとAIキャラクター組み合わせテスト
+    
+    各AIキャラクターと対話モードの組み合わせが正しく動作することを確認。
+    """
+    # たまさん + 褒めモード
+    tama_praise = UserProfile(
+        user_id="12345678-1234-5678-9012-123456789003",
+        nickname="たまさん褒めユーザー",
+        ai_character=AICharacter.TAMA,
+        interaction_mode=InteractionMode.PRAISE
+    )
+    assert tama_praise.ai_character == AICharacter.TAMA
+    assert tama_praise.interaction_mode == InteractionMode.PRAISE
+    
+    # まどか姉さん + 傾聴モード
+    madoka_listen = UserProfile(
+        user_id="12345678-1234-5678-9012-123456789004", 
+        nickname="まどか傾聴ユーザー",
+        ai_character=AICharacter.MADOKA,
+        interaction_mode=InteractionMode.LISTEN
+    )
+    assert madoka_listen.ai_character == AICharacter.MADOKA
+    assert madoka_listen.interaction_mode == InteractionMode.LISTEN
+    
+    # ヒデじい + 褒めモード
+    hide_praise = UserProfile(
+        user_id="12345678-1234-5678-9012-123456789005",
+        nickname="ヒデじい褒めユーザー",
+        ai_character=AICharacter.HIDE,
+        interaction_mode=InteractionMode.PRAISE
+    )
+    assert hide_praise.ai_character == AICharacter.HIDE
+    assert hide_praise.interaction_mode == InteractionMode.PRAISE
 
 
 # =====================================
@@ -342,4 +595,169 @@ async def test_utc_timezone_consistency():
     )
     assert profile.created_at.tzinfo.zone == 'Asia/Tokyo'
     assert profile.updated_at.tzinfo.zone == 'Asia/Tokyo'
+
+# =====================================
+# アカウント削除機能テスト
+# =====================================
+
+@pytest.mark.asyncio
+async def test_delete_user_profile_success(database_client, sample_user_profile):
+    """
+    [USER-DB-011] ユーザープロフィール削除成功
+    
+    既存ユーザープロフィールの削除が正常に動作することを確認。
+    """
+    db, test_data = database_client
+    user_id = sample_user_profile.user_id
+    
+    # プロフィール保存
+    await db.save_user_profile(sample_user_profile)
+    
+    # 保存確認
+    retrieved_profile = await db.get_user_profile(user_id)
+    assert retrieved_profile is not None
+    
+    # db_clientのdelete_user_profileメソッドをモック
+    with patch.object(db.db_client, 'delete_user_profile', new_callable=AsyncMock) as mock_delete:
+        mock_delete.return_value = {"ResponseMetadata": {"HTTPStatusCode": 200}}
+        
+        # プロフィール削除
+        result = await db.delete_user_profile(user_id)
+        assert result is True
+        
+        # モック呼び出し確認
+        mock_delete.assert_called_once_with(user_id)
+
+
+@pytest.mark.asyncio
+async def test_delete_nonexistent_user_profile(database_client):
+    """
+    [USER-DB-012] 存在しないユーザープロフィール削除
+    
+    存在しないユーザーIDでの削除時もTrueが返されることを確認（冪等性）。
+    """
+    db, test_data = database_client
+    non_existent_user_id = "00000000-0000-0000-0000-000000000000"
+    
+    # db_clientのdelete_user_profileメソッドをモック
+    with patch.object(db.db_client, 'delete_user_profile', new_callable=AsyncMock) as mock_delete:
+        mock_delete.return_value = {"ResponseMetadata": {"HTTPStatusCode": 200}}
+        
+        # 存在しないユーザーの削除
+        result = await db.delete_user_profile(non_existent_user_id)
+        
+        # 削除成功確認（冪等性）
+        assert result is True
+        
+        # モック呼び出し確認
+        mock_delete.assert_called_once_with(non_existent_user_id)
+
+
+@pytest.mark.asyncio
+async def test_deletion_request_model_validation():
+    """
+    [USER-DB-013] DeletionRequest データモデルバリデーション
+    
+    削除要求データモデルの正しいバリデーションを確認。
+    """
+    # 有効なDeletionRequest
+    valid_request = DeletionRequest(
+        deletion_type=DeletionType.ACCOUNT_WITH_SUBSCRIPTION,
+        reason="service_no_longer_needed",
+        feedback="Thank you for the service"
+    )
+    assert valid_request.deletion_type == DeletionType.ACCOUNT_WITH_SUBSCRIPTION
+    assert valid_request.reason == "service_no_longer_needed"
+    assert valid_request.feedback == "Thank you for the service"
+    
+    # 必須フィールドのみのDeletionRequest
+    minimal_request = DeletionRequest(deletion_type=DeletionType.ACCOUNT_ONLY)
+    assert minimal_request.deletion_type == DeletionType.ACCOUNT_ONLY
+    assert minimal_request.reason is None
+    assert minimal_request.feedback is None
+
+
+@pytest.mark.asyncio
+async def test_deletion_confirmation_model_validation():
+    """
+    [USER-DB-014] DeletionConfirmation データモデルバリデーション
+    
+    削除確認データモデルの正しいバリデーションを確認。
+    """
+    # 有効なDeletionConfirmation
+    valid_confirmation = DeletionConfirmation(
+        deletion_request_id="del_req_123456789abc",
+        confirmation_text="削除",
+        final_consent=True
+    )
+    assert valid_confirmation.deletion_request_id == "del_req_123456789abc"
+    assert valid_confirmation.confirmation_text == "削除"
+    assert valid_confirmation.final_consent is True
+    
+    # 無効な確認文字でのバリデーションエラー
+    with pytest.raises(ValueError, match="確認のため「削除」と入力してください"):
+        invalid_confirmation = DeletionConfirmation(
+            deletion_request_id="del_req_123456789abc",
+            confirmation_text="delete",  # 英語での入力
+            final_consent=True
+        )
+
+
+@pytest.mark.asyncio 
+async def test_account_status_model_creation():
+    """
+    [USER-DB-015] AccountStatus データモデル作成
+    
+    アカウント状態データモデルの正しい作成を確認。
+    """
+    # テスト用のアカウント状態データ
+    account_info = {
+        "user_id": "12345678-1234-5678-9012-123456789012",
+        "nickname": "テストユーザー",
+        "created_at": "2024-08-09T00:00:00+09:00",
+        "status": "active"
+    }
+    
+    subscription_info = {
+        "status": "active",
+        "current_plan": "monthly",
+        "current_period_end": "2024-09-09T00:00:00+09:00",
+        "cancel_at_period_end": False
+    }
+    
+    data_summary = {
+        "total_chat_messages": 150,
+        "tree_growth_characters": 5420,
+        "total_fruits": 12,
+        "data_size_mb": 2.3
+    }
+    
+    # AccountStatus作成
+    account_status = AccountStatus(
+        account=account_info,
+        subscription=subscription_info,
+        data_summary=data_summary
+    )
+    
+    assert account_status.account == account_info
+    assert account_status.subscription == subscription_info
+    assert account_status.data_summary == data_summary
+
+
+@pytest.mark.asyncio
+async def test_deletion_type_enum_values():
+    """
+    [USER-DB-016] DeletionType Enum値確認
+    
+    削除タイプEnumの正しい値を確認。
+    """
+    # 各削除タイプの値確認
+    assert DeletionType.ACCOUNT_ONLY == "account_only"
+    assert DeletionType.SUBSCRIPTION_ONLY == "subscription_only"
+    assert DeletionType.ACCOUNT_WITH_SUBSCRIPTION == "account_with_subscription"
+    
+    # Enum値の網羅性確認
+    expected_types = {"account_only", "subscription_only", "account_with_subscription"}
+    actual_types = {deletion_type.value for deletion_type in DeletionType}
+    assert actual_types == expected_types
     

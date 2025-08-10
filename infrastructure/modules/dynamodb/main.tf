@@ -42,9 +42,8 @@ resource "aws_dynamodb_table" "this" {
   hash_key     = var.hash_key
   range_key    = var.range_key
 
-  # Provisioned throughput (only for PROVISIONED billing mode)
-  read_capacity  = var.billing_mode == "PROVISIONED" ? var.read_capacity : null
-  write_capacity = var.billing_mode == "PROVISIONED" ? var.write_capacity : null
+  # オンデマンドモードのみサポート（プロビジョニングモードは使用しない）
+  # read_capacity / write_capacityはオンデマンドモードではnullに設定
 
   # Table attributes
   dynamic "attribute" {
@@ -67,8 +66,8 @@ resource "aws_dynamodb_table" "this" {
       projection_type = lookup(global_secondary_index.value, "projection_type", "ALL")
       non_key_attributes = lookup(global_secondary_index.value, "non_key_attributes", null)
       
-      read_capacity  = var.billing_mode == "PROVISIONED" ? lookup(global_secondary_index.value, "read_capacity", var.read_capacity) : null
-      write_capacity = var.billing_mode == "PROVISIONED" ? lookup(global_secondary_index.value, "write_capacity", var.write_capacity) : null
+      # GSIもオンデマンドモードではキャパシティ指定不要
+      # read_capacity / write_capacityはオンデマンドモードではnull
     }
   }
 
@@ -121,82 +120,11 @@ resource "aws_dynamodb_table" "this" {
   tags = local.tags
 }
 
-# Auto Scaling (for PROVISIONED billing mode)
-resource "aws_appautoscaling_target" "table_read" {
-  count = var.billing_mode == "PROVISIONED" && var.autoscaling_enabled ? 1 : 0
-  
-  max_capacity       = var.autoscaling_read.max_capacity
-  min_capacity       = var.autoscaling_read.min_capacity
-  resource_id        = "table/${aws_dynamodb_table.this.name}"
-  scalable_dimension = "dynamodb:table:ReadCapacityUnits"
-  service_namespace  = "dynamodb"
-}
-
-resource "aws_appautoscaling_target" "table_write" {
-  count = var.billing_mode == "PROVISIONED" && var.autoscaling_enabled ? 1 : 0
-  
-  max_capacity       = var.autoscaling_write.max_capacity
-  min_capacity       = var.autoscaling_write.min_capacity
-  resource_id        = "table/${aws_dynamodb_table.this.name}"
-  scalable_dimension = "dynamodb:table:WriteCapacityUnits"
-  service_namespace  = "dynamodb"
-}
-
-# Auto Scaling Policies
-resource "aws_appautoscaling_policy" "table_read" {
-  count = var.billing_mode == "PROVISIONED" && var.autoscaling_enabled ? 1 : 0
-  
-  name               = "${local.table_name}-read-scaling-policy"
-  policy_type        = "TargetTrackingScaling"
-  resource_id        = aws_appautoscaling_target.table_read[0].resource_id
-  scalable_dimension = aws_appautoscaling_target.table_read[0].scalable_dimension
-  service_namespace  = aws_appautoscaling_target.table_read[0].service_namespace
-
-  target_tracking_scaling_policy_configuration {
-    predefined_metric_specification {
-      predefined_metric_type = "DynamoDBReadCapacityUtilization"
-    }
-    target_value = var.autoscaling_read.target_value
-  }
-}
-
-resource "aws_appautoscaling_policy" "table_write" {
-  count = var.billing_mode == "PROVISIONED" && var.autoscaling_enabled ? 1 : 0
-  
-  name               = "${local.table_name}-write-scaling-policy"
-  policy_type        = "TargetTrackingScaling"
-  resource_id        = aws_appautoscaling_target.table_write[0].resource_id
-  scalable_dimension = aws_appautoscaling_target.table_write[0].scalable_dimension
-  service_namespace  = aws_appautoscaling_target.table_write[0].service_namespace
-
-  target_tracking_scaling_policy_configuration {
-    predefined_metric_specification {
-      predefined_metric_type = "DynamoDBWriteCapacityUtilization"
-    }
-    target_value = var.autoscaling_write.target_value
-  }
-}
-
-# GSI Auto Scaling (for PROVISIONED billing mode)
-resource "aws_appautoscaling_target" "gsi_read" {
-  for_each = var.billing_mode == "PROVISIONED" && var.autoscaling_enabled ? local.global_secondary_indexes : {}
-  
-  max_capacity       = lookup(each.value, "autoscaling_read_max_capacity", var.autoscaling_read.max_capacity)
-  min_capacity       = lookup(each.value, "autoscaling_read_min_capacity", var.autoscaling_read.min_capacity)
-  resource_id        = "table/${aws_dynamodb_table.this.name}/index/${each.key}"
-  scalable_dimension = "dynamodb:index:ReadCapacityUnits"
-  service_namespace  = "dynamodb"
-}
-
-resource "aws_appautoscaling_target" "gsi_write" {
-  for_each = var.billing_mode == "PROVISIONED" && var.autoscaling_enabled ? local.global_secondary_indexes : {}
-  
-  max_capacity       = lookup(each.value, "autoscaling_write_max_capacity", var.autoscaling_write.max_capacity)
-  min_capacity       = lookup(each.value, "autoscaling_write_min_capacity", var.autoscaling_write.min_capacity)
-  resource_id        = "table/${aws_dynamodb_table.this.name}/index/${each.key}"
-  scalable_dimension = "dynamodb:index:WriteCapacityUnits"
-  service_namespace  = "dynamodb"
-}
+# =========================================
+# オートスケーリング関連リソースを削除
+# =========================================
+# Homebiyoriではコスト最適化のためPAY_PER_REQUESTモードで運用
+# プロビジョニングモードやオートスケーリングは使用しない
 
 # Data sources
 data "aws_caller_identity" "current" {}
