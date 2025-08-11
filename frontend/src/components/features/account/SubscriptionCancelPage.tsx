@@ -5,6 +5,7 @@ import { Button } from '../../ui/Button';
 import { WarningButton } from '../../ui/WarningButton';
 import { LoadingSpinner } from '../../ui/LoadingSpinner';
 import { TouchTarget } from '../../ui/TouchTarget';
+import { useSubscriptionCancel } from '@/lib/hooks';
 
 interface SubscriptionStatus {
   status: 'active' | 'inactive' | 'cancelled';
@@ -17,18 +18,16 @@ interface SubscriptionStatus {
 interface SubscriptionCancelPageProps {
   subscriptionStatus: SubscriptionStatus;
   onBack: () => void;
-  onConfirmCancel: (reason?: string) => Promise<void>;
-  loading?: boolean;
+  onSuccess?: () => void;
 }
 
 export function SubscriptionCancelPage({
   subscriptionStatus,
   onBack,
-  onConfirmCancel,
-  loading = false
+  onSuccess
 }: SubscriptionCancelPageProps) {
   const [reason, setReason] = useState('');
-  const [processing, setProcessing] = useState(false);
+  const { loading, error, cancelSubscription, clearError } = useSubscriptionCancel();
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('ja-JP', {
@@ -48,11 +47,12 @@ export function SubscriptionCancelPage({
   ];
 
   const handleConfirmCancel = async () => {
-    setProcessing(true);
     try {
-      await onConfirmCancel(reason || undefined);
-    } finally {
-      setProcessing(false);
+      await cancelSubscription(reason || undefined);
+      onSuccess?.();
+    } catch (error) {
+      // エラーは useSubscriptionCancel フックで管理される
+      console.error('サブスクリプション解約に失敗:', error);
     }
   };
 
@@ -195,14 +195,14 @@ export function SubscriptionCancelPage({
             onClick={onBack} 
             variant="secondary" 
             className="flex-1"
-            disabled={processing}
+            disabled={loading}
           >
             戻る
           </Button>
           <WarningButton
             onClick={handleConfirmCancel}
-            disabled={processing}
-            loading={processing}
+            disabled={loading}
+            loading={loading}
             className="flex-1"
           >
             解約を実行

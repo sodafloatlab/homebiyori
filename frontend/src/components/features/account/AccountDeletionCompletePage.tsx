@@ -47,12 +47,12 @@ export function AccountDeletionCompletePage({
   };
 
   const completedItems = [
-    'ユーザープロフィール削除',
-    'チャット履歴削除',
-    'ほめの実データ削除',
-    '木の成長記録削除',
-    'AI設定情報削除',
-    'アカウント情報削除'
+    'アカウント情報の削除',
+    'チャット履歴の削除',
+    'ほめの実データの削除', 
+    '木の成長記録の削除',
+    'AI設定情報の削除',
+    'すべてのユーザーデータの削除'
   ];
 
   if (loading) {
@@ -80,10 +80,11 @@ export function AccountDeletionCompletePage({
         <section className="text-center py-8">
           <div className="text-6xl mb-4">🎊</div>
           <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
-            お疲れ様でした
+            アカウント削除が完了しました
           </h2>
-          <p className="text-gray-600 dark:text-gray-400">
-            アカウント削除処理が正常に完了いたしました
+          <p className="text-gray-600 dark:text-gray-400 leading-relaxed">
+            長い間Homebiyoriをご利用いただき、<br/>
+            本当にありがとうございました
           </p>
         </section>
 
@@ -147,9 +148,10 @@ export function AccountDeletionCompletePage({
               🙏 感謝の気持ち
             </h3>
             <p className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed">
-              Homebiyoriをご利用いただき、本当にありがとうございました。<br/>
-              皆様の育児を応援できたこと、心から嬉しく思います。<br/>
-              今後ともよろしくお願いいたします。
+              Homebiyoriと一緒に過ごした時間が、<br/>
+              少しでも皆様の育児の支えになれていたら幸いです。<br/>
+              これからも頑張る親御さんを心から応援しています。<br/>
+              本当にありがとうございました。
             </p>
           </div>
         </section>

@@ -7,6 +7,14 @@ import useNotificationStore from '@/stores/notificationStore';
 import useMaintenanceStore from '@/stores/maintenanceStore';
 import { AuthService } from '@/lib/auth';
 import { ChatService, TreeService, UserService, NotificationService } from '@/lib/services';
+import { accountSettingsService } from '@/lib/services/AccountSettingsService';
+import type { 
+  AccountStatus, 
+  DeletionRequest, 
+  DeletionConfirmation,
+  DeletionResponse,
+  DeletionProgressResponse 
+} from '@/lib/services/AccountSettingsService';
 
 /**
  * 認証状態管理フック
@@ -379,5 +387,139 @@ export const useLocalStorageSync = (key: string, defaultValue: any) => {
     updateValue,
     clearValue,
     isLoading
+  };
+};
+
+/**
+ * アカウント状態取得フック
+ */
+export const useAccountStatus = () => {
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [accountStatus, setAccountStatus] = useState<AccountStatus | null>(null);
+
+  const fetchAccountStatus = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const status = await accountSettingsService.getAccountStatus();
+      setAccountStatus(status);
+      return status;
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : '不明なエラーが発生しました';
+      setError(errorMessage);
+      throw error;
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  const clearError = useCallback(() => {
+    setError(null);
+  }, []);
+
+  return {
+    loading,
+    error,
+    accountStatus,
+    fetchAccountStatus,
+    clearError
+  };
+};
+
+/**
+ * アカウント削除フック（安全性重視）
+ */
+export const useAccountDeletion = () => {
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [deletionResponse, setDeletionResponse] = useState<DeletionResponse | null>(null);
+  const [completionResponse, setCompletionResponse] = useState<DeletionProgressResponse | null>(null);
+
+  const requestAccountDeletion = useCallback(async (request: DeletionRequest) => {
+    try {
+      setLoading(true);
+      setError(null);
+      const response = await accountSettingsService.requestAccountDeletion(request);
+      setDeletionResponse(response);
+      return response;
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : '削除リクエストに失敗しました';
+      setError(errorMessage);
+      throw error;
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  const confirmAccountDeletion = useCallback(async (confirmation: DeletionConfirmation) => {
+    try {
+      setLoading(true);
+      setError(null);
+      const response = await accountSettingsService.confirmAccountDeletion(confirmation);
+      setCompletionResponse(response);
+      return response;
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : '削除確認に失敗しました';
+      setError(errorMessage);
+      throw error;
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  const clearError = useCallback(() => {
+    setError(null);
+  }, []);
+
+  const reset = useCallback(() => {
+    setError(null);
+    setDeletionResponse(null);
+    setCompletionResponse(null);
+  }, []);
+
+  return {
+    loading,
+    error,
+    deletionResponse,
+    completionResponse,
+    requestAccountDeletion,
+    confirmAccountDeletion,
+    clearError,
+    reset
+  };
+};
+
+/**
+ * サブスクリプション解約フック（安全性重視）
+ */
+export const useSubscriptionCancel = () => {
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const cancelSubscription = useCallback(async (reason?: string) => {
+    try {
+      setLoading(true);
+      setError(null);
+      const response = await accountSettingsService.cancelSubscription(reason);
+      return response;
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'サブスクリプション解約に失敗しました';
+      setError(errorMessage);
+      throw error;
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  const clearError = useCallback(() => {
+    setError(null);
+  }, []);
+
+  return {
+    loading,
+    error,
+    cancelSubscription,
+    clearError
   };
 };

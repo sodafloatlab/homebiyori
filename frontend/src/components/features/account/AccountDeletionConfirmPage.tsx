@@ -9,40 +9,39 @@ import { ProgressBar } from '../../ui/ProgressBar';
 
 interface AccountStatus {
   account: {
-    userId: string;
+    user_id: string;
     nickname: string | null;
-    aiCharacter: 'tama' | 'madoka' | 'hide';
-    createdAt: string;
-    usagePeriod: string;
+    created_at: string;
+    status: string;
   };
   subscription: {
     status: 'active' | 'inactive' | 'cancelled';
-    currentPlan: string | null;
-    currentPeriodEnd: string | null;
-    cancelAtPeriodEnd: boolean;
-    monthlyAmount: number | null;
+    current_plan: string | null;
+    current_period_end: string | null;
+    cancel_at_period_end: boolean;
+    monthly_amount: number | null;
   } | null;
-  data_summary: {
-    chatCount: number;
-    fruitCount: number;
-    treeLevel: number;
-    dataSizeMB: number;
-  };
 }
 
 interface DeletionRequest {
-  deletion_type: 'account_only'; // 仕様変更：アカウントのみ削除
+  deletion_type: 'subscription_cancel' | 'account_delete';
   reason: string | null;
   feedback: string | null;
+}
+
+interface DeletionConfirmation {
+  deletion_request_id: string;
+  final_consent: boolean;
 }
 
 interface AccountDeletionConfirmPageProps {
   accountStatus: AccountStatus;
   currentStep: 1 | 2 | 3;
   deletionRequest: DeletionRequest | null;
+  deletionRequestId?: string;
   onBack: () => void;
   onNext: (data?: Partial<DeletionRequest>) => void;
-  onConfirm: (deletionRequest: DeletionRequest) => void;
+  onConfirm: (confirmation: DeletionConfirmation) => void;
   loading?: boolean;
 }
 
@@ -50,6 +49,7 @@ export function AccountDeletionConfirmPage({
   accountStatus,
   currentStep,
   deletionRequest,
+  deletionRequestId,
   onBack,
   onNext,
   onConfirm,
@@ -57,7 +57,7 @@ export function AccountDeletionConfirmPage({
 }: AccountDeletionConfirmPageProps) {
   const [reason, setReason] = useState(deletionRequest?.reason || '');
   const [feedback, setFeedback] = useState(deletionRequest?.feedback || '');
-  const [confirmationText, setConfirmationText] = useState('');
+
   const [finalConsent, setFinalConsent] = useState(false);
 
   const formatDate = (dateString: string) => {
@@ -68,14 +68,7 @@ export function AccountDeletionConfirmPage({
     });
   };
 
-  const getCharacterName = (character: string) => {
-    const names = {
-      tama: 'たまさん',
-      madoka: 'まどか姉さん',
-      hide: 'ヒデじい'
-    };
-    return names[character as keyof typeof names] || character;
-  };
+
 
   const reasonOptions = [
     'サービスが不要になった',
@@ -88,27 +81,26 @@ export function AccountDeletionConfirmPage({
 
   const handleStep2Next = () => {
     onNext({
-      deletion_type: 'account_only',
+      deletion_type: 'account_delete',
       reason: reason || null,
       feedback: feedback || null
     });
   };
 
   const handleFinalConfirm = () => {
-    if (confirmationText === '削除' && finalConsent) {
+    if (finalConsent && deletionRequestId) {
       onConfirm({
-        deletion_type: 'account_only',
-        reason: reason || null,
-        feedback: feedback || null
+        deletion_request_id: deletionRequestId,
+        final_consent: true
       });
     }
   };
 
-  const isStep3Valid = confirmationText === '削除' && finalConsent;
+  const isStep3Valid = finalConsent;
 
   // 解約予定がある場合のプレミアム期間確認
-  const hasFutureCancellation = accountStatus.subscription?.currentPeriodEnd && 
-    new Date(accountStatus.subscription.currentPeriodEnd) > new Date();
+  const hasFutureCancellation = accountStatus.subscription?.current_period_end && 
+    new Date(accountStatus.subscription.current_period_end) > new Date();
 
   if (loading) {
     return (
@@ -167,7 +159,7 @@ export function AccountDeletionConfirmPage({
                 <div className="flex justify-between">
                   <span className="text-sm text-gray-700 dark:text-gray-300">作成日:</span>
                   <span className="text-gray-900 dark:text-white">
-                    {formatDate(accountStatus.account.createdAt)}
+                    {formatDate(accountStatus.account.created_at)}
                   </span>
                 </div>
                 <div className="flex justify-between">
@@ -177,54 +169,21 @@ export function AccountDeletionConfirmPage({
                   </span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-sm text-gray-700 dark:text-gray-300">AIキャラクター:</span>
-                  <span className="text-gray-900 dark:text-white">
-                    {getCharacterName(accountStatus.account.aiCharacter)}
+                  <span className="text-sm text-gray-700 dark:text-gray-300">ユーザーID:</span>
+                  <span className="text-gray-900 dark:text-white font-mono text-xs">
+                    {accountStatus.account.user_id.substring(0, 8)}****
                   </span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-sm text-gray-700 dark:text-gray-300">利用期間:</span>
+                  <span className="text-sm text-gray-700 dark:text-gray-300">ステータス:</span>
                   <span className="text-gray-900 dark:text-white">
-                    {accountStatus.account.usagePeriod}
+                    {accountStatus.account.status}
                   </span>
                 </div>
               </div>
             </section>
 
-            {/* データ概要 */}
-            <section className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
-              <div className="p-4 border-b border-gray-200 dark:border-gray-700">
-                <h3 className="text-base font-semibold text-gray-900 dark:text-white flex items-center">
-                  📈 保存されているデータ
-                </h3>
-              </div>
-              <div className="p-4 space-y-3">
-                <div className="flex justify-between">
-                  <span className="text-sm text-gray-700 dark:text-gray-300">チャット数:</span>
-                  <span className="text-gray-900 dark:text-white">
-                    {accountStatus.data_summary.chatCount}件
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-sm text-gray-700 dark:text-gray-300">ほめの実:</span>
-                  <span className="text-gray-900 dark:text-white">
-                    {accountStatus.data_summary.fruitCount}個
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-sm text-gray-700 dark:text-gray-300">木の成長:</span>
-                  <span className="text-gray-900 dark:text-white">
-                    レベル{accountStatus.data_summary.treeLevel}
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-sm text-gray-700 dark:text-gray-300">データサイズ:</span>
-                  <span className="text-gray-900 dark:text-white">
-                    約{accountStatus.data_summary.dataSizeMB}MB
-                  </span>
-                </div>
-              </div>
-            </section>
+
 
             {/* プレミアム期間の注意 */}
             {hasFutureCancellation && (
@@ -234,7 +193,7 @@ export function AccountDeletionConfirmPage({
                     ⚠️ 重要なお知らせ
                   </h3>
                   <p className="text-sm text-yellow-800 dark:text-yellow-200">
-                    現在、{formatDate(accountStatus.subscription!.currentPeriodEnd!)}まで
+                    現在、{formatDate(accountStatus.subscription!.current_period_end!)}まで
                     プレミアム機能をご利用いただけますが、アカウントを削除すると
                     <span className="font-medium">この利用権も失われ、復旧できません。</span>
                   </p>
@@ -272,15 +231,15 @@ export function AccountDeletionConfirmPage({
                 <div className="space-y-2 text-sm">
                   <div className="flex items-center text-red-700 dark:text-red-300">
                     <span className="mr-2">✓</span>
-                    チャット履歴（{accountStatus.data_summary.chatCount}件）
+                    チャット履歴（すべて）
                   </div>
                   <div className="flex items-center text-red-700 dark:text-red-300">
                     <span className="mr-2">✓</span>
-                    ほめの実データ（{accountStatus.data_summary.fruitCount}個）
+                    ほめの実データ（すべて）
                   </div>
                   <div className="flex items-center text-red-700 dark:text-red-300">
                     <span className="mr-2">✓</span>
-                    木の成長記録（レベル{accountStatus.data_summary.treeLevel}）
+                    木の成長記録（すべて）
                   </div>
                   <div className="flex items-center text-red-700 dark:text-red-300">
                     <span className="mr-2">✓</span>
@@ -379,21 +338,7 @@ export function AccountDeletionConfirmPage({
               </div>
             </section>
 
-            {/* 確認テキスト入力 */}
-            <section className="bg-red-50 dark:bg-red-900/20 rounded-lg border border-red-200 dark:border-red-800">
-              <div className="p-4">
-                <h3 className="text-base font-semibold text-red-800 dark:text-red-200 mb-4 flex items-center">
-                  ✋ 確認のため「削除」と入力してください
-                </h3>
-                <input
-                  type="text"
-                  value={confirmationText}
-                  onChange={(e) => setConfirmationText(e.target.value)}
-                  placeholder="ここに「削除」と入力"
-                  className="w-full px-3 py-2 border border-red-300 dark:border-red-600 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500 dark:bg-red-900/10 dark:text-white"
-                />
-              </div>
-            </section>
+
 
             {/* 最終同意 */}
             <section className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">

@@ -2,9 +2,8 @@ interface AccountStatus {
   account: {
     userId: string;
     nickname: string | null;
-    aiCharacter: 'tama' | 'madoka' | 'hide';
     createdAt: string;
-    usagePeriod: string;
+    status: string;
   };
   subscription: {
     status: 'active' | 'inactive' | 'cancelled';
@@ -13,47 +12,30 @@ interface AccountStatus {
     cancelAtPeriodEnd: boolean;
     monthlyAmount: number | null;
   } | null;
-  data_summary: {
-    chatCount: number;
-    fruitCount: number;
-    treeLevel: number;
-    dataSizeMB: number;
-  };
 }
 
 interface DeletionRequest {
-  deletion_type: 'account_only' | 'subscription_only' | 'account_with_subscription';
+  deletion_type: 'account_delete' | 'subscription_cancel';
   reason: string | null;
   feedback: string | null;
 }
 
 interface DeletionConfirmation {
   deletion_request_id: string;
-  confirmation_text: string;
   final_consent: boolean;
 }
 
 interface DeletionResponse {
-  success: boolean;
   deletion_request_id: string;
-  message: string;
-  estimated_completion_time: string;
+  subscription_action_required: boolean;
 }
 
 interface DeletionProgressResponse {
-  success: boolean;
+  deletion_started: boolean;
   process_id: string;
-  status: 'processing' | 'completed' | 'failed';
-  actions_performed: Array<{
-    id: string;
-    name: string;
-    status: 'pending' | 'in_progress' | 'completed' | 'failed';
-    completedAt?: string;
-    estimatedCompletion?: string;
-    error?: string;
-  }>;
+  profile_deleted: boolean;
+  async_tasks_queued: boolean;
   estimated_completion: string;
-  completion_time?: string;
 }
 
 interface APIClient {
@@ -63,7 +45,7 @@ interface APIClient {
   delete<T>(url: string): Promise<T>;
 }
 
-export class AccountDeletionService {
+export class AccountSettingsService {
   private apiClient: APIClient;
   private baseURL: string;
 
@@ -79,9 +61,19 @@ export class AccountDeletionService {
   async getAccountStatus(): Promise<AccountStatus> {
     try {
       const response = await this.apiClient.get<{
-        account: any;
-        subscription: any | null;
-        data_summary: any;
+        account: {
+          user_id: string;
+          nickname: string | null;
+          created_at: string;
+          status: string;
+        };
+        subscription: {
+          status: 'active' | 'inactive' | 'cancelled';
+          current_plan: string | null;
+          current_period_end: string | null;
+          cancel_at_period_end: boolean;
+          monthly_amount: number | null;
+        } | null;
       }>(`${this.baseURL}/users/account-status`);
 
       // レスポンスの正規化
@@ -89,9 +81,8 @@ export class AccountDeletionService {
         account: {
           userId: response.account.user_id,
           nickname: response.account.nickname,
-          aiCharacter: response.account.ai_character,
           createdAt: response.account.created_at,
-          usagePeriod: this.calculateUsagePeriod(response.account.created_at)
+          status: response.account.status
         },
         subscription: response.subscription ? {
           status: response.subscription.status,
@@ -99,13 +90,7 @@ export class AccountDeletionService {
           currentPeriodEnd: response.subscription.current_period_end,
           cancelAtPeriodEnd: response.subscription.cancel_at_period_end,
           monthlyAmount: response.subscription.monthly_amount
-        } : null,
-        data_summary: {
-          chatCount: response.data_summary.chat_count,
-          fruitCount: response.data_summary.fruit_count,
-          treeLevel: response.data_summary.tree_level,
-          dataSizeMB: response.data_summary.data_size_mb
-        }
+        } : null
       };
     } catch (error) {
       throw new Error(`アカウント状態の取得に失敗しました: ${error}`);
@@ -119,10 +104,8 @@ export class AccountDeletionService {
   async requestAccountDeletion(request: DeletionRequest): Promise<DeletionResponse> {
     try {
       const response = await this.apiClient.post<{
-        success: boolean;
         deletion_request_id: string;
-        message: string;
-        estimated_completion_time: string;
+        subscription_action_required: boolean;
       }>(`${this.baseURL}/users/request-deletion`, {
         deletion_type: request.deletion_type,
         reason: request.reason,
@@ -130,10 +113,8 @@ export class AccountDeletionService {
       });
 
       return {
-        success: response.success,
         deletion_request_id: response.deletion_request_id,
-        message: response.message,
-        estimated_completion_time: response.estimated_completion_time
+        subscription_action_required: response.subscription_action_required
       };
     } catch (error) {
       throw new Error(`削除リクエストに失敗しました: ${error}`);
@@ -147,88 +128,25 @@ export class AccountDeletionService {
   async confirmAccountDeletion(confirmation: DeletionConfirmation): Promise<DeletionProgressResponse> {
     try {
       const response = await this.apiClient.post<{
-        success: boolean;
+        deletion_started: boolean;
         process_id: string;
-        status: string;
-        actions_performed: Array<{
-          id: string;
-          name: string;
-          status: string;
-          completed_at?: string;
-          estimated_completion?: string;
-          error?: string;
-        }>;
+        profile_deleted: boolean;
+        async_tasks_queued: boolean;
         estimated_completion: string;
-        completion_time?: string;
       }>(`${this.baseURL}/users/confirm-deletion`, {
         deletion_request_id: confirmation.deletion_request_id,
-        confirmation_text: confirmation.confirmation_text,
         final_consent: confirmation.final_consent
       });
 
       return {
-        success: response.success,
+        deletion_started: response.deletion_started,
         process_id: response.process_id,
-        status: response.status as 'processing' | 'completed' | 'failed',
-        actions_performed: response.actions_performed.map(action => ({
-          id: action.id,
-          name: action.name,
-          status: action.status as 'pending' | 'in_progress' | 'completed' | 'failed',
-          completedAt: action.completed_at,
-          estimatedCompletion: action.estimated_completion,
-          error: action.error
-        })),
-        estimated_completion: response.estimated_completion,
-        completion_time: response.completion_time
+        profile_deleted: response.profile_deleted,
+        async_tasks_queued: response.async_tasks_queued,
+        estimated_completion: response.estimated_completion
       };
     } catch (error) {
       throw new Error(`削除確認に失敗しました: ${error}`);
-    }
-  }
-
-  /**
-   * 削除進行状況をチェック
-   * 実装上は confirm-deletion のレスポンスと同じ構造を期待
-   */
-  async checkDeletionProgress(processId: string): Promise<DeletionProgressResponse> {
-    try {
-      // バックエンドに進行状況チェック専用のエンドポイントがない場合、
-      // processIdを使って状況確認を行う（実装に応じて調整）
-      const response = await this.apiClient.get<{
-        success: boolean;
-        process_id: string;
-        status: string;
-        actions_performed: Array<{
-          id: string;
-          name: string;
-          status: string;
-          completed_at?: string;
-          estimated_completion?: string;
-          error?: string;
-        }>;
-        estimated_completion: string;
-        completion_time?: string;
-      }>(`${this.baseURL}/users/deletion-status/${processId}`);
-
-      return {
-        success: response.success,
-        process_id: response.process_id,
-        status: response.status as 'processing' | 'completed' | 'failed',
-        actions_performed: response.actions_performed.map(action => ({
-          id: action.id,
-          name: action.name,
-          status: action.status as 'pending' | 'in_progress' | 'completed' | 'failed',
-          completedAt: action.completed_at,
-          estimatedCompletion: action.estimated_completion,
-          error: action.error
-        })),
-        estimated_completion: response.estimated_completion,
-        completion_time: response.completion_time
-      };
-    } catch (error) {
-      // エラーの場合は現在の状況をそのまま返す（進行状況チェックは失敗してもフロー継続）
-      console.warn('削除進行状況の取得に失敗:', error);
-      throw new Error(`削除進行状況の取得に失敗しました: ${error}`);
     }
   }
 
@@ -312,9 +230,13 @@ export class AccountDeletionService {
 }
 
 // シングルトンインスタンス用のファクトリ関数
-export function createAccountDeletionService(apiClient: APIClient): AccountDeletionService {
-  return new AccountDeletionService(apiClient);
+export function createAccountSettingsService(apiClient: APIClient): AccountSettingsService {
+  return new AccountSettingsService(apiClient);
 }
+
+// デフォルトのサービスインスタンス
+import apiClient from '@/lib/api';
+export const accountSettingsService = createAccountSettingsService(apiClient);
 
 // 型エクスポート
 export type {
