@@ -101,13 +101,17 @@ export interface CharacterInfo {
   color: 'rose' | 'sky' | 'amber';
 }
 
+export type TreeStage = 1 | 2 | 3 | 4 | 5 | 6;
+
 export interface Fruit {
-  id: string;
-  userMessage: string;
-  aiResponse: string;
-  aiRole: AiRole;
-  createdAt: string;
-  emotion: string;
+  fruit_id: string;
+  user_id: string;
+  user_message: string;
+  ai_response: string;
+  ai_character: AiRole;
+  created_at: string;
+  emotion_detected?: string;
+  tree_id: string;
 }
 
 // バックエンドtree_serviceと連携
@@ -119,6 +123,9 @@ export interface TreeStatus {
   theme_color: string;
   created_at: string;
   updated_at: string;
+  current_stage: TreeStage;
+  fruits_count: number;
+  total_messages: number;
 }
 
 // ========================================

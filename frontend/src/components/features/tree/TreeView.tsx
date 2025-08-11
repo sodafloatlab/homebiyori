@@ -34,6 +34,26 @@ const TreeView = ({ onNavigate, previousScreen = 'chat' }: TreeViewProps) => {
     }
   }, [auth.user, tree]);
 
+  // ESCキーでモーダルを閉じる
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && selectedFruit) {
+        setSelectedFruit(null);
+      }
+    };
+
+    if (selectedFruit) {
+      document.addEventListener('keydown', handleKeyDown);
+      // モーダル表示時は背景をスクロール不可にする
+      document.body.style.overflow = 'hidden';
+    }
+
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+      document.body.style.overflow = 'unset';
+    };
+  }, [selectedFruit]);
+
   // 成長段階の情報を取得
   const getGrowthStageInfo = (stage: TreeStage) => {
     switch (stage) {
@@ -273,13 +293,22 @@ const TreeView = ({ onNavigate, previousScreen = 'chat' }: TreeViewProps) => {
                   {Array.from({ length: Math.min(tree.treeStatus?.fruits_count || 0, 12) }).map((_, index) => (
                     <motion.div
                       key={index}
-                      className="text-2xl cursor-pointer hover:scale-110 transition-transform"
+                      className="text-2xl cursor-pointer hover:scale-110 transition-transform focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 rounded-full p-1"
                       whileHover={{ scale: 1.2, rotate: 10 }}
                       onClick={() => {
                         if (tree.fruits && tree.fruits[index]) {
                           handleFruitClick(tree.fruits[index]);
                         }
                       }}
+                      onKeyDown={(e) => {
+                        if ((e.key === 'Enter' || e.key === ' ') && tree.fruits && tree.fruits[index]) {
+                          e.preventDefault();
+                          handleFruitClick(tree.fruits[index]);
+                        }
+                      }}
+                      tabIndex={0}
+                      role="button"
+                      aria-label={`${index + 1}番目のほめの実を詳細表示`}
                     >
                       🍎
                     </motion.div>
@@ -389,21 +418,52 @@ const TreeView = ({ onNavigate, previousScreen = 'chat' }: TreeViewProps) => {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={() => setSelectedFruit(null)}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="fruit-modal-title"
+            aria-describedby="fruit-modal-description"
           >
             <motion.div 
-              className="bg-white rounded-2xl p-6 max-w-lg w-full max-h-[80vh] overflow-y-auto"
+              className="bg-white rounded-2xl p-6 max-w-lg w-full max-h-[80vh] overflow-y-auto focus:outline-none"
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.9, opacity: 0 }}
               onClick={(e) => e.stopPropagation()}
+              tabIndex={-1}
+              ref={(ref) => {
+                // モーダル表示時に自動フォーカス
+                if (ref && selectedFruit) {
+                  setTimeout(() => ref.focus(), 100);
+                }
+              }}
             >
               <div className="text-center mb-6">
-                <div className="text-6xl mb-3">🍎</div>
-                <Typography variant="h3" color="primary" className="mb-2">
+                <div 
+                  className="text-6xl mb-3"
+                  style={{ 
+                    filter: `hue-rotate(${
+                      selectedFruit.ai_character === 'tama' ? '320deg' :
+                      selectedFruit.ai_character === 'madoka' ? '200deg' : 
+                      '30deg'
+                    })` 
+                  }}
+                >
+                  🍎
+                </div>
+                <Typography 
+                  variant="h3" 
+                  color="primary" 
+                  className="mb-2"
+                  id="fruit-modal-title"
+                >
                   ほめの実の記録
                 </Typography>
-                <Typography variant="caption" color="secondary">
-                  {formatDate(selectedFruit.created_at)}
+                <Typography 
+                  variant="caption" 
+                  color="secondary"
+                  id="fruit-modal-description"
+                >
+                  {formatDate(selectedFruit.created_at)} に生まれた実の詳細情報
                 </Typography>
               </div>
               
@@ -452,6 +512,8 @@ const TreeView = ({ onNavigate, previousScreen = 'chat' }: TreeViewProps) => {
                 size="lg"
                 fullWidth
                 onClick={() => setSelectedFruit(null)}
+                aria-label="ほめの実の詳細モーダルを閉じる"
+                autoFocus
               >
                 閉じる
               </Button>
