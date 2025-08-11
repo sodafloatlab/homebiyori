@@ -39,19 +39,19 @@ class HomebiyoriAIChain:
         try:
             characters = ["tama", "madoka", "hide"]
             moods = ["praise", "listen"]
-            response_types = ["normal", "long"]
+            praise_levels = ["normal", "deep"]
             
             for character in characters:
                 for mood in moods:
-                    for response_type in response_types:
-                        file_name = f"{character}_{mood}_{response_type}.md"
+                    for praise_level in praise_levels:
+                        file_name = f"{character}_{mood}_{praise_level}.md"
                         file_path = self.prompt_base_path / file_name
                         
                         if file_path.exists():
                             with open(file_path, 'r', encoding='utf-8') as f:
                                 content = f.read()
                             
-                            cache_key = f"{character}_{mood}_{response_type}"
+                            cache_key = f"{character}_{mood}_{praise_level}"
                             self.prompt_cache[cache_key] = content
                             
                             logger.info(f"Loaded prompt template: {cache_key}")
@@ -83,22 +83,44 @@ class HomebiyoriAIChain:
         self,
         character: str,
         mood: str,
-        user_tier: str
+        user_tier: str,
+        praise_level: str = "normal",
+        group_context: Optional[List[str]] = None
     ) -> PromptTemplate:
         """プロンプトテンプレート構築"""
-        # プロンプト選択（固定部分）
-        response_type = "normal" if user_tier == "free" else "long"
-        cache_key = f"{character}_{mood}_{response_type}"
+        # 無料版でのpraise_level制限を適用
+        effective_praise_level = "normal" if user_tier == "free" else praise_level
+        cache_key = f"{character}_{mood}_{effective_praise_level}"
         
         base_prompt = self.prompt_cache.get(cache_key)
         if not base_prompt:
             logger.warning(f"Prompt template not found for key: {cache_key}")
-            base_prompt = self._get_fallback_prompt(character, mood, response_type)
+            base_prompt = self._get_fallback_prompt(character, mood, effective_praise_level)
+        
+        # グループチャット用の追加指示
+        group_instruction = ""
+        if group_context and len(group_context) > 1:
+            character_names = {
+                "tama": "たまさん",
+                "madoka": "まどか姉さん", 
+                "hide": "ヒデじい"
+            }
+            
+            other_characters = [char for char in group_context if char != character]
+            other_names = [character_names.get(char, char) for char in other_characters]
+            
+            group_instruction = f"""
+=== グループチャット特別指示 ===
+現在、あなた（{character_names.get(character, character)}）は{', '.join(other_names)}と一緒にユーザーとお話ししています。
+他のキャラクターも同じメッセージに応答するため、あなたらしい独自の視点で応答してください。
+重複を避け、{character}らしい個性を活かした応答を心がけてください。
+"""
         
         # LangChainプロンプトテンプレート形式に変換
-        # 固定部分（キャッシュ対象）+ 変動部分
         template = f"""
 {base_prompt}
+
+{group_instruction}
 
 === 会話履歴 ===
 {{history}}
@@ -115,7 +137,7 @@ class HomebiyoriAIChain:
             template=template.strip()
         )
     
-    def _get_fallback_prompt(self, character: str, mood: str, response_type: str) -> str:
+    def _get_fallback_prompt(self, character: str, mood: str, praise_level: str) -> str:
         """フォールバック用の基本プロンプト"""
         character_names = {
             "tama": "たまさん",
@@ -124,11 +146,12 @@ class HomebiyoriAIChain:
         }
         
         mood_text = "褒めて欲しい" if mood == "praise" else "話を聞いて欲しい"
-        length_constraint = "50-150文字以内" if response_type == "normal" else "200-400文字程度"
+        praise_text = "心から褒めて安心させる" if praise_level == "deep" else "適度にサポートして承認する"
+        length_constraint = "50-150文字程度"
         
         return f"""
 # AIキャラクター「{character_names.get(character, character)}」
-あなたは{character_names.get(character, character)}として、ユーザーの{mood_text}気分に寄り添って応答してください。
+あなたは{character_names.get(character, character)}として、ユーザーの{mood_text}気分に{praise_text}応答をしてください。
 {length_constraint}で温かく共感的な応答をしてください。
 """
     
@@ -137,7 +160,9 @@ class HomebiyoriAIChain:
         user_message: str,
         user_id: str,
         character: str = "tama",
-        mood: str = "praise"
+        mood: str = "praise",
+        praise_level: str = "normal",
+        group_context: Optional[List[str]] = None
     ) -> str:
         """
         AI応答生成（LangChainベース）
@@ -147,6 +172,8 @@ class HomebiyoriAIChain:
             user_id: ユーザーID
             character: AIキャラクター（tama/madoka/hide）
             mood: ムード（praise/listen）
+            praise_level: 褒めレベル（normal/deep）
+            group_context: グループチャット時のアクティブキャラクターリスト（オプション）
             
         Returns:
             生成されたAI応答テキスト
@@ -165,11 +192,13 @@ class HomebiyoriAIChain:
             # LLM取得
             llm = self._get_llm(user_tier)
             
-            # プロンプトテンプレート構築
+            # プロンプトテンプレート構築（グループコンテキスト対応）
             prompt_template = self._build_prompt_template(
                 character=character,
                 mood=mood,
-                user_tier=user_tier
+                user_tier=user_tier,
+                praise_level=praise_level,
+                group_context=group_context
             )
             
             # LangChain ConversationChain構築
@@ -199,6 +228,7 @@ class HomebiyoriAIChain:
                     "character": character,
                     "mood": mood,
                     "user_tier": user_tier,
+                    "group_context": group_context,
                     "response_length": len(validated_response),
                     "memory_stats": memory_stats
                 }
@@ -213,7 +243,8 @@ class HomebiyoriAIChain:
                     "error": str(e),
                     "user_id": user_id[:8] + "****",
                     "character": character,
-                    "mood": mood
+                    "mood": mood,
+                    "group_context": group_context
                 },
                 exc_info=True
             )
@@ -274,7 +305,9 @@ async def generate_ai_response_langchain(
     user_message: str,
     user_id: str,
     character: str = "tama",
-    mood: str = "praise"
+    mood: str = "praise",
+    praise_level: str = "normal",
+    group_context: Optional[List[str]] = None
 ) -> str:
     """
     LangChainベースAI応答生成（外部API）
@@ -284,6 +317,8 @@ async def generate_ai_response_langchain(
         user_id: ユーザーID
         character: AIキャラクター（tama/madoka/hide）
         mood: ムード（praise/listen）
+        praise_level: 褒めレベル（normal/deep）
+        group_context: グループチャット時のアクティブキャラクターリスト（オプション）
         
     Returns:
         生成されたAI応答テキスト
@@ -293,7 +328,9 @@ async def generate_ai_response_langchain(
         user_message=user_message,
         user_id=user_id,
         character=character,
-        mood=mood
+        mood=mood,
+        praise_level=praise_level,
+        group_context=group_context
     )
 
 

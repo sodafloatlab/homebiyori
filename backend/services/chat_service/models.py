@@ -55,6 +55,39 @@ class ChatRequest(BaseModel):
     ai_character: AICharacterType = Field(default=AICharacterType.TAMA, description="AIキャラクター")
     mood: MoodType = Field(default=MoodType.PRAISE, description="気分設定")
 
+
+
+class GroupChatRequest(BaseModel):
+    """
+    グループチャットリクエストモデル
+    複数AIキャラクターとの同時チャット機能用
+    """
+    message: str = Field(..., min_length=1, max_length=2000, description="ユーザーメッセージ")
+    active_characters: List[AICharacterType] = Field(
+        ..., 
+        min_items=1, 
+        max_items=3, 
+        description="アクティブなAIキャラクターリスト"
+    )
+    mood: Optional[MoodType] = Field(None, description="対話モード（省略時はプロフィール設定値使用）")
+    context_length: int = Field(10, ge=1, le=50, description="文脈履歴取得件数")
+    
+    @validator("active_characters")
+    def validate_unique_characters(cls, v):
+        if len(set(v)) != len(v):
+            raise ValueError("重複するキャラクターは指定できません")
+        return v
+    
+    class Config:
+        schema_extra = {
+            "example": {
+                "message": "今日は子供と公園で遊んで楽しかったです",
+                "active_characters": ["tama", "madoka", "hide"],
+                "mood": "praise",
+                "context_length": 10
+            }
+        }
+
 class FruitInfo(BaseModel):
     """実の情報"""
     fruit_id: str = Field(default_factory=lambda: str(uuid.uuid4()), description="実ID")
@@ -102,6 +135,21 @@ class ChatResponse(BaseModel):
     fruit_generated: bool = Field(description="実が生成されたかどうか")
     fruit_info: Optional[FruitInfo] = Field(None, description="生成された実の情報")
     timestamp: datetime = Field(description="処理完了時刻")
+
+    class Config:
+        json_encoders = {
+            datetime: to_jst_string
+        }
+
+class GroupChatResponse(BaseModel):
+    """グループチャット応答レスポンス"""
+    message_id: str = Field(description="メッセージID")
+    ai_responses: List[AIResponse] = Field(description="複数AI応答情報リスト")
+    tree_growth: TreeGrowthInfo = Field(description="木の成長情報")
+    fruit_generated: bool = Field(description="実が生成されたかどうか")
+    fruit_info: Optional[FruitInfo] = Field(None, description="生成された実の情報")
+    timestamp: datetime = Field(description="処理完了時刻")
+    active_characters: List[AICharacterType] = Field(description="応答したAIキャラクターリスト")
 
     class Config:
         json_encoders = {

@@ -61,7 +61,9 @@ from homebiyori_common.utils.middleware import maintenance_check_middleware, get
 # ローカルモジュール
 from .models import (
     ChatRequest,
+    GroupChatRequest,
     ChatResponse,
+    GroupChatResponse,
     AIResponse,
     TreeGrowthInfo,
     ChatMessage,
@@ -165,21 +167,38 @@ async def send_message(
         previous_stage = calculate_tree_stage(previous_total)
         
         # ===============================
-        # 2. AI応答生成（LangChainベース）
+        # 2. ユーザーAI設定情報取得
+        # ===============================
+        user_ai_preferences = await chat_db.get_user_ai_preferences(user_id)
+        user_subscription = await chat_db.get_user_subscription_info(user_id)
+        
+        # AI設定の決定（リクエスト優先、なければプロフィール設定）
+        ai_character = chat_request.ai_character or user_ai_preferences["ai_character"]
+        interaction_mode = chat_request.mood or user_ai_preferences["interaction_mode"]
+        praise_level = user_ai_preferences["praise_level"]
+        
+        # 無料ユーザーのpraise_level制限適用
+        user_tier = "premium" if user_subscription["plan"] in ["monthly", "yearly"] else "free"
+        if user_tier == "free":
+            praise_level = "normal"  # 無料版は常にnormal固定
+        
+        # ===============================
+        # 3. AI応答生成（LangChainベース）
         # ===============================
         # LangChainベースでAI応答生成（Memory統合済み）
         ai_response_text = await generate_ai_response_langchain(
             user_message=chat_request.message,
             user_id=user_id,
-            character=chat_request.ai_character,
-            mood=chat_request.mood
+            character=ai_character,
+            mood=interaction_mode,
+            praise_level=praise_level
         )
         
         # 感情検出（簡易版）
         detected_emotion, emotion_score = detect_emotion_simple(chat_request.message)
         
         # ===============================
-        # 3. 木の成長計算
+        # 4. 木の成長計算
         # ===============================
         message_character_count = len(chat_request.message)
         new_total_characters = previous_total + message_character_count
@@ -207,7 +226,7 @@ async def send_message(
         )
         
         # ===============================
-        # 4. 実生成判定・実行
+        # 5. 実生成判定・実行
         # ===============================
         fruit_generated = False
         fruit_info = None
@@ -229,8 +248,8 @@ async def send_message(
                         message=f"「{chat_request.message}」から素敵な気持ちが伝わってきました。",
                         emotion_trigger=detected_emotion,
                         emotion_score=emotion_score,
-                        ai_character=chat_request.ai_character,
-                        character_color=get_character_theme_color(chat_request.ai_character),
+                        ai_character=ai_character,  # 実際に使用されたキャラクター
+                        character_color=get_character_theme_color(ai_character),
                         trigger_message_id=message_id
                     )
                     
@@ -257,7 +276,7 @@ async def send_message(
                     # 実生成失敗は致命的エラーではないため、処理継続
         
         # ===============================
-        # 5. DynamoDB保存用データ作成
+        # 6. DynamoDB保存用データ作成
         # ===============================
         # TTL計算
         user_subscription = await chat_db.get_user_subscription_info(user_id)
@@ -272,8 +291,8 @@ async def send_message(
             message_id=message_id,
             user_message_s3_key=f"dummy_user_{message_id}",  # DynamoDB直接保存のためダミー
             ai_response_s3_key=f"dummy_ai_{message_id}",    # DynamoDB直接保存のためダミー
-            ai_character=chat_request.ai_character,
-            mood=chat_request.mood,
+            ai_character=ai_character,  # 実際に使用されたキャラクター
+            mood=interaction_mode,      # 実際に使用された対話モード
             emotion_detected=detected_emotion,
             emotion_score=emotion_score,
             character_count=message_character_count,
@@ -288,7 +307,7 @@ async def send_message(
         )
         
         # ===============================
-        # 6. DynamoDB保存実行
+        # 7. DynamoDB保存実行
         # ===============================
         await chat_db.save_chat_message(chat_message)
         
@@ -300,22 +319,22 @@ async def send_message(
             await chat_db.save_fruit_info(user_id, fruit_info)
         
         # ===============================
-        # 7. バックグラウンド処理追加
+        # 8. バックグラウンド処理追加
         # ===============================
         background_tasks.add_task(
             update_chat_analytics,
             user_id=user_id,
-            character=chat_request.ai_character,
+            character=ai_character,  # 実際に使用されたキャラクター
             emotion=detected_emotion,
             stage_changed=stage_changed
         )
         
         # ===============================
-        # 8. レスポンス構築・返却
+        # 9. レスポンス構築・返却
         # ===============================
         ai_response = AIResponse(
             message=ai_response_text,
-            character=chat_request.ai_character,
+            character=ai_character,  # 実際に使用されたキャラクター
             emotion_detected=detected_emotion,
             emotion_score=emotion_score,
             confidence=1.0  # 簡素化のため固定値
@@ -335,6 +354,10 @@ async def send_message(
             extra={
                 "user_id": user_id[:8] + "****",
                 "message_id": message_id,
+                "ai_character": ai_character,
+                "interaction_mode": interaction_mode,
+                "praise_level": praise_level,
+                "user_tier": user_tier,
                 "tree_stage_change": f"{previous_stage} -> {current_stage}",
                 "fruit_generated": fruit_generated,
                 "processing_time_ms": int((get_current_jst() - timestamp).total_seconds() * 1000)
@@ -367,6 +390,316 @@ async def send_message(
     except Exception as e:
         logger.error(
             "Unexpected error in chat processing",
+            extra={"error": str(e), "user_id": user_id[:8] + "****"}
+        )
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+@app.post("/api/chat/group-messages", response_model=GroupChatResponse)
+async def send_group_message(
+    group_chat_request: GroupChatRequest, 
+    background_tasks: BackgroundTasks,
+    user_id: str = Depends(get_current_user_id)
+):
+    """
+    グループチャットメッセージ送信・複数AI応答生成
+    
+    ■処理フロー■
+    1. ユーザー認証・リクエスト検証（プレミアムプラン確認含む）
+    2. 複数AI応答生成（Bedrock Claude 3 Haiku）
+    3. 感情検出・木の成長計算
+    4. 実生成判定・実行
+    5. レスポンスデータをDynamoDB保存
+    6. 複数AI統合レスポンス返却
+    
+    ■パフォーマンス最適化■
+    - 並行AI応答生成による処理時間短縮
+    - DynamoDB直接保存による高速化
+    - BackgroundTasks活用による非同期後処理
+    """
+    
+    try:
+        logger.info(
+            "Processing group chat message",
+            extra={
+                "user_id": user_id[:8] + "****",
+                "active_characters": group_chat_request.active_characters,
+                "message_length": len(group_chat_request.message)
+            }
+        )
+        
+        # ===============================
+        # 1. プレミアムプラン確認
+        # ===============================
+        user_subscription = await chat_db.get_user_subscription_info(user_id)
+        user_tier = "premium" if user_subscription["plan"] in ["monthly", "yearly"] else "free"
+        
+        if user_tier == "free":
+            logger.info(
+                "Free user accessing group chat, redirecting to premium",
+                extra={"user_id": user_id[:8] + "****"}
+            )
+            raise HTTPException(
+                status_code=200,
+                detail={
+                    "redirect_to": "premium",
+                    "message": "グループチャット機能はプレミアムプラン限定です。",
+                    "upgrade_required": True
+                }
+            )
+        
+        # メッセージID生成
+        message_id = str(uuid.uuid4())
+        timestamp = get_current_jst()
+        
+        # ===============================
+        # 2. 現在の木の状態取得
+        # ===============================
+        current_tree_stats = await chat_db.get_user_tree_stats(user_id)
+        previous_total = current_tree_stats.get("total_characters", 0)
+        previous_stage = calculate_tree_stage(previous_total)
+        
+        # ===============================
+        # 3. ユーザーAI設定情報取得
+        # ===============================
+        user_ai_preferences = await chat_db.get_user_ai_preferences(user_id)
+        interaction_mode = group_chat_request.mood or user_ai_preferences["interaction_mode"]
+        praise_level = user_ai_preferences["praise_level"]  # プレミアムユーザーは設定値使用
+        
+        # ===============================
+        # 4. 複数AI応答生成（並行実行）
+        # ===============================
+        ai_responses = []
+        
+        # 並行処理用のタスクを作成
+        async def generate_single_ai_response(character):
+            try:
+                response_text = await generate_ai_response_langchain(
+                    user_message=group_chat_request.message,
+                    user_id=user_id,
+                    character=character,
+                    mood=interaction_mode,
+                    praise_level=praise_level,
+                    group_context=group_chat_request.active_characters  # グループコンテキスト追加
+                )
+                
+                return AIResponse(
+                    message=response_text,
+                    character=character,
+                    emotion_detected=None,  # 各キャラクター個別の感情検出は簡略化
+                    emotion_score=0.0,
+                    confidence=1.0
+                )
+                
+            except Exception as e:
+                logger.error(
+                    f"AI response generation failed for {character}",
+                    extra={"error": str(e), "user_id": user_id[:8] + "****"}
+                )
+                # フォールバック応答
+                fallback_responses = {
+                    "tama": "申し訳ありません。今少し考えがまとまらないようです。",
+                    "madoka": "ごめんなさい！今ちょっと言葉が見つからないです。",
+                    "hide": "うむ、今はうまく言えんが、あなたの気持ちはよくわかるぞ。"
+                }
+                
+                return AIResponse(
+                    message=fallback_responses.get(character, "申し訳ありません。"),
+                    character=character,
+                    emotion_detected=None,
+                    emotion_score=0.0,
+                    confidence=0.5
+                )
+        
+        # 全てのアクティブキャラクターに対して並行処理実行
+        tasks = [generate_single_ai_response(char) for char in group_chat_request.active_characters]
+        ai_responses = await asyncio.gather(*tasks)
+        
+        # ===============================
+        # 5. 感情検出（ユーザーメッセージから）
+        # ===============================
+        detected_emotion, emotion_score = detect_emotion_simple(group_chat_request.message)
+        
+        # ===============================
+        # 6. 木の成長計算
+        # ===============================
+        message_character_count = len(group_chat_request.message)
+        new_total_characters = previous_total + message_character_count
+        current_stage = calculate_tree_stage(new_total_characters)
+        characters_to_next = get_characters_to_next_stage(new_total_characters)
+        stage_changed = current_stage > previous_stage
+        progress_percentage = calculate_progress_percentage(new_total_characters)
+        
+        # 段階変化時のお祝いメッセージ（グループチャット用）
+        growth_celebration = None
+        if stage_changed:
+            stage_config = TREE_STAGE_CONFIG.get(current_stage, {})
+            growth_celebration = f"みんなでお祝いです！木が{stage_config.get('name', '新しい段階')}に成長しました！{stage_config.get('description', '')}"
+        
+        tree_growth = TreeGrowthInfo(
+            previous_stage=previous_stage,
+            current_stage=current_stage,
+            previous_total=previous_total,
+            current_total=new_total_characters,
+            added_characters=message_character_count,
+            stage_changed=stage_changed,
+            characters_to_next=characters_to_next,
+            progress_percentage=progress_percentage,
+            growth_celebration=growth_celebration
+        )
+        
+        # ===============================
+        # 7. 実生成判定・実行（グループチャット特別処理）
+        # ===============================
+        fruit_generated = False
+        fruit_info = None
+        
+        # グループチャットの場合、複数キャラクターの中からランダムで実の担当を決定
+        if (detected_emotion and 
+            emotion_score >= 0.7 and 
+            detected_emotion in [EmotionType.JOY, EmotionType.GRATITUDE, EmotionType.ACCOMPLISHMENT, 
+                               EmotionType.RELIEF, EmotionType.EXCITEMENT]):
+            
+            last_fruit_date = await chat_db.get_last_fruit_date(user_id)
+            
+            if can_generate_fruit(last_fruit_date):
+                try:
+                    # ランダムでキャラクターを選択（実の生成担当）
+                    import random
+                    fruit_character = random.choice(group_chat_request.active_characters)
+                    
+                    fruit_info = FruitInfo(
+                        user_id=user_id,
+                        message=f"「{group_chat_request.message}」から素敵な気持ちが伝わってきました。みんなで育てた実です。",
+                        emotion_trigger=detected_emotion,
+                        emotion_score=emotion_score,
+                        ai_character=fruit_character,
+                        character_color=get_character_theme_color(fruit_character),
+                        trigger_message_id=message_id
+                    )
+                    
+                    fruit_generated = True
+                    
+                    logger.info(
+                        "Group chat fruit generated",
+                        extra={
+                            "user_id": user_id[:8] + "****",
+                            "fruit_character": fruit_character,
+                            "active_characters": group_chat_request.active_characters
+                        }
+                    )
+                    
+                except Exception as e:
+                    logger.error(
+                        "Group chat fruit generation failed",
+                        extra={"error": str(e), "user_id": user_id[:8] + "****"}
+                    )
+        
+        # ===============================
+        # 8. DynamoDB保存用データ作成
+        # ===============================
+        ttl_timestamp = await chat_db.calculate_message_ttl(
+            subscription_plan=user_subscription.get("plan", "premium"),
+            created_at=timestamp
+        )
+        
+        # グループチャット用のメッセージ保存（代表キャラクター使用）
+        primary_character = group_chat_request.active_characters[0]  # 最初のキャラクターを代表とする
+        
+        chat_message = ChatMessage(
+            user_id=user_id,
+            message_id=message_id,
+            user_message_s3_key=f"group_user_{message_id}",  # グループチャット識別用
+            ai_response_s3_key=f"group_ai_{message_id}",     # グループチャット識別用
+            ai_character=primary_character,
+            mood=interaction_mode,
+            emotion_detected=detected_emotion,
+            emotion_score=emotion_score,
+            character_count=message_character_count,
+            tree_stage_before=previous_stage,
+            tree_stage_after=current_stage,
+            fruit_generated=fruit_generated,
+            fruit_id=fruit_info.fruit_id if fruit_info else None,
+            image_s3_key=None,
+            created_at=timestamp,
+            ttl=ttl_timestamp,
+            character_date=f"GROUP#{timestamp.strftime('%Y-%m-%d')}"  # グループチャット用
+        )
+        
+        # ===============================
+        # 9. DynamoDB保存実行
+        # ===============================
+        await chat_db.save_chat_message(chat_message)
+        await chat_db.update_tree_stats(user_id, new_total_characters, current_stage)
+        
+        if fruit_generated and fruit_info:
+            await chat_db.save_fruit_info(user_id, fruit_info)
+        
+        # ===============================
+        # 10. バックグラウンド処理追加
+        # ===============================
+        background_tasks.add_task(
+            update_chat_analytics,
+            user_id=user_id,
+            character="GROUP",  # グループチャット識別子
+            emotion=detected_emotion,
+            stage_changed=stage_changed
+        )
+        
+        # ===============================
+        # 11. レスポンス構築・返却
+        # ===============================
+        response = GroupChatResponse(
+            message_id=message_id,
+            ai_responses=ai_responses,
+            tree_growth=tree_growth,
+            fruit_generated=fruit_generated,
+            fruit_info=fruit_info,
+            timestamp=timestamp,
+            active_characters=group_chat_request.active_characters
+        )
+        
+        logger.info(
+            "Group chat message processed successfully",
+            extra={
+                "user_id": user_id[:8] + "****",
+                "message_id": message_id,
+                "active_characters": group_chat_request.active_characters,
+                "responses_count": len(ai_responses),
+                "fruit_generated": fruit_generated,
+                "processing_time_ms": int((get_current_jst() - timestamp).total_seconds() * 1000)
+            }
+        )
+        
+        return response
+        
+    except HTTPException:
+        # HTTPExceptionはそのまま再発生
+        raise
+        
+    except ValidationError as e:
+        logger.warning(
+            "Group chat request validation failed",
+            extra={"error": str(e), "user_id": user_id[:8] + "****"}
+        )
+        raise HTTPException(status_code=400, detail=str(e))
+        
+    except ExternalServiceError as e:
+        logger.error(
+            "External service error in group chat processing",
+            extra={"error": str(e), "user_id": user_id[:8] + "****"}
+        )
+        raise HTTPException(status_code=502, detail="External service temporarily unavailable")
+        
+    except DatabaseError as e:
+        logger.error(
+            "Database error in group chat processing",
+            extra={"error": str(e), "user_id": user_id[:8] + "****"}
+        )
+        raise HTTPException(status_code=500, detail="Internal server error")
+        
+    except Exception as e:
+        logger.error(
+            "Unexpected error in group chat processing",
             extra={"error": str(e), "user_id": user_id[:8] + "****"}
         )
         raise HTTPException(status_code=500, detail="Internal server error")

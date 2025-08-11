@@ -8,6 +8,7 @@ import AuthScreen from './AuthScreen';
 import CharacterSelection from './CharacterSelection';
 import ChatScreen from './ChatScreen';
 import TreeView from './TreeView';
+import GroupChatScreen from './chat/GroupChatScreen';
 import StaticPages from './StaticPages';
 import ErrorBoundary from '@/components/error/ErrorBoundary';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
@@ -118,6 +119,27 @@ const MainApp = () => {
 
   // ナビゲーション処理
   const handleNavigate = (screen: AppScreen, updateHistory: boolean = true) => {
+    // グループチャットへのアクセス時、無料ユーザーはプレミアムページにリダイレクト
+    if (screen === 'group-chat' && auth.user?.plan === 'free') {
+      console.log('Free user attempting to access group chat, redirecting to premium');
+      setPreviousScreen(currentScreen);
+      setCurrentScreen('premium');
+      
+      if (updateHistory && typeof window !== 'undefined') {
+        window.history.pushState({ screen: 'premium' }, '', '/#premium');
+        window.scrollTo(0, 0);
+      }
+      
+      // プレミアムアップグレード促進のトースト表示
+      setToastMessage({
+        type: 'info',
+        title: 'プレミアム限定機能',
+        message: 'グループチャット機能はプレミアムプラン限定です。'
+      });
+      setShowToast(true);
+      return;
+    }
+
     setPreviousScreen(currentScreen);
     setCurrentScreen(screen);
 
@@ -206,20 +228,56 @@ const MainApp = () => {
 
       case 'group-chat':
         return (
-          <div className="min-h-screen bg-gradient-to-br from-emerald-50 to-green-50 flex items-center justify-center">
-            <div className="text-center max-w-md mx-auto p-6">
-              <div className="text-6xl mb-4">👥</div>
-              <h2 className="text-2xl font-bold text-emerald-800 mb-4">グループチャット</h2>
-              <p className="text-emerald-600 mb-6">3つのAIキャラクターと同時にお話しできる機能です。</p>
-              <p className="text-sm text-gray-500 mb-6">※プレミアムプラン限定機能・実装予定</p>
-              <button
-                onClick={() => handleNavigate('chat')}
-                className="px-6 py-3 bg-emerald-500 text-white rounded-xl hover:bg-emerald-600 transition-colors"
-              >
-                1対1チャットに戻る
-              </button>
-            </div>
-          </div>
+          <GroupChatScreen
+            currentMood={chat.currentMood || 'praise'}
+            selectedAiRole={chat.selectedAiRole}
+            onNavigate={handleNavigate}
+            onAddCharacters={(count) => {
+              // 文字数追加処理
+              console.log('Adding characters:', count);
+            }}
+            onAddFruit={(userMessage, aiResponse, emotion) => {
+              // 実の生成処理
+              console.log('Adding fruit:', { userMessage, aiResponse, emotion });
+            }}
+            onAddChatHistory={(userMessage, aiResponse, aiRole) => {
+              // チャット履歴追加
+              chat.addChatHistory({ userMessage, aiResponse, aiRole });
+            }}
+            totalCharacters={tree.status?.experience || 0}
+            fruits={tree.fruits}
+            userPlan={auth.user?.plan || 'free'}
+            chatMode={chat.currentMode || 'normal'}
+            chatHistory={chat.history}
+            onChatModeChange={(mode) => chat.setCurrentMode(mode)}
+            globalMessages={chat.messages}
+            onAddGlobalMessage={(message) => chat.addMessage(message)}
+            onMoodChange={(mood) => chat.setCurrentMood(mood)}
+            userInfo={auth.user ? {
+              email: auth.user.email || '',
+              nickname: auth.user.nickname || '',
+              plan: auth.user.plan || 'free'
+            } : undefined}
+            isLoggedIn={auth.isLoggedIn}
+            onPlanChange={(plan) => {
+              // プラン変更処理
+              console.log('Plan change requested:', plan);
+            }}
+            onPlanChangeRequest={(plan) => {
+              if (plan === 'premium') {
+                handleNavigate('premium');
+              }
+            }}
+            onLogout={auth.logout}
+            onNicknameChange={(nickname) => {
+              // ニックネーム変更処理
+              console.log('Nickname change:', nickname);
+            }}
+            onEmailChange={(email) => {
+              // メール変更処理
+              console.log('Email change:', email);
+            }}
+          />
         );
 
       case 'premium':
@@ -228,11 +286,27 @@ const MainApp = () => {
             <div className="text-center max-w-lg mx-auto p-6">
               <div className="text-6xl mb-4">👑</div>
               <h2 className="text-2xl font-bold text-amber-800 mb-4">プレミアムプラン</h2>
+              
+              {/* グループチャット機能アクセス時の特別メッセージ */}
+              {previousScreen === 'group-chat' && (
+                <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-6">
+                  <div className="flex items-center mb-2">
+                    <span className="text-2xl mr-2">👥</span>
+                    <h3 className="font-bold text-blue-800">グループチャット機能をお試しいただきありがとうございます！</h3>
+                  </div>
+                  <p className="text-blue-700 text-sm">
+                    3つのAIキャラクターと同時にお話しできる特別な機能です。プレミアムプランでご利用いただけます。
+                  </p>
+                </div>
+              )}
+
               <div className="bg-white/90 backdrop-blur-sm rounded-2xl p-6 shadow-lg mb-6">
                 <div className="space-y-3 text-left mb-6">
                   <div className="flex items-center">
                     <span className="text-green-500 mr-2">✓</span>
-                    <span>グループチャット機能</span>
+                    <span className={previousScreen === 'group-chat' ? 'font-bold text-amber-600' : ''}>
+                      グループチャット機能
+                    </span>
                   </div>
                   <div className="flex items-center">
                     <span className="text-green-500 mr-2">✓</span>
