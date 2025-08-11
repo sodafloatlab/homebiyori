@@ -5,6 +5,7 @@ import { motion } from 'framer-motion';
 import { ArrowLeft, Home, User, Crown, Mail, HelpCircle } from 'lucide-react';
 import { AppScreen, UserPlan, UserInfo } from '@/types';
 import UserMenu from '../ui/UserMenu';
+import NotificationBell from '../ui/NotificationBell';
 
 interface NavigationStep {
   screen: AppScreen;
@@ -61,6 +62,7 @@ const NavigationHeader = ({
     'terms-of-service': { parent: 'landing', label: '利用規約' },
     'privacy-policy': { parent: 'landing', label: 'プライバシーポリシー' },
     'commercial-transaction': { parent: 'landing', label: '特定商取引法表記' },
+    'notifications': { parent: 'landing', label: '通知' },
     'contact': { parent: 'landing', label: 'お問い合わせ', icon: <Mail className="w-4 h-4" /> },
     'faq': { parent: 'landing', label: 'よくある質問', icon: <HelpCircle className="w-4 h-4" /> }
   };
@@ -139,6 +141,17 @@ const NavigationHeader = ({
               >
                 <Home className="w-5 h-5 text-emerald-600 group-hover:text-emerald-700" />
               </motion.button>
+            )}
+            
+            {/* 通知ベル（ログイン時のみ表示） */}
+            {isLoggedIn && (
+              <motion.div
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ delay: 0.05 }}
+              >
+                <NotificationBell onNavigate={onNavigate} />
+              </motion.div>
             )}
             
             {/* ユーザーメニュー（ログイン時のみ表示） */}

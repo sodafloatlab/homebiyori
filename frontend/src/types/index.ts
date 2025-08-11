@@ -4,7 +4,7 @@
 
 export type AiRole = 'tama' | 'madoka' | 'hide';
 export type MoodType = 'praise' | 'listen';
-export type AppScreen = 'landing' | 'auth' | 'character-selection' | 'chat' | 'tree' | 'group-chat' | 'premium' | 'subscription-cancel' | 'terms-of-service' | 'privacy-policy' | 'commercial-transaction' | 'contact' | 'faq';
+export type AppScreen = 'landing' | 'auth' | 'character-selection' | 'chat' | 'tree' | 'group-chat' | 'notifications' | 'premium' | 'subscription-cancel' | 'terms-of-service' | 'privacy-policy' | 'commercial-transaction' | 'contact' | 'faq';
 export type UserPlan = 'free' | 'premium';
 export type ChatMode = 'normal' | 'deep';
 

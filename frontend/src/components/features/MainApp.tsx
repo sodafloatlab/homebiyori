@@ -9,6 +9,7 @@ import CharacterSelection from './CharacterSelection';
 import ChatScreen from './ChatScreen';
 import TreeView from './TreeView';
 import GroupChatScreen from './chat/GroupChatScreen';
+import NotificationsPage from './notifications/NotificationsPage';
 import StaticPages from './StaticPages';
 import ErrorBoundary from '@/components/error/ErrorBoundary';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
@@ -81,7 +82,7 @@ const MainApp = () => {
     const hash = window.location.hash.replace('#', '');
     const validScreens: AppScreen[] = [
       'landing', 'auth', 'character-selection', 'chat', 'tree', 
-      'group-chat', 'premium', 'subscription-cancel', 'terms-of-service', 
+      'group-chat', 'notifications', 'premium', 'subscription-cancel', 'terms-of-service', 
       'privacy-policy', 'commercial-transaction', 'contact', 'faq'
     ];
     
@@ -214,6 +215,36 @@ const MainApp = () => {
           />
         );
         
+      case 'notifications':
+        return (
+          <NotificationsPage
+            onNavigate={handleNavigate}
+            previousScreen={previousScreen}
+            userPlan={auth.user?.plan || 'free'}
+            userInfo={auth.user ? {
+              email: auth.user.email || '',
+              nickname: auth.user.nickname || '',
+              plan: auth.user.plan || 'free'
+            } : undefined}
+            isLoggedIn={auth.isLoggedIn}
+            onPlanChange={(plan) => {
+              console.log('Plan change requested:', plan);
+            }}
+            onPlanChangeRequest={(plan) => {
+              if (plan === 'premium') {
+                handleNavigate('premium');
+              }
+            }}
+            onLogout={auth.logout}
+            onNicknameChange={(nickname) => {
+              console.log('Nickname change:', nickname);
+            }}
+            onEmailChange={(email) => {
+              console.log('Email change:', email);
+            }}
+          />
+        );
+
       case 'terms-of-service':
       case 'privacy-policy':
       case 'commercial-transaction':

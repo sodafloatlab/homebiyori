@@ -253,7 +253,7 @@ const TopPage = ({ onNavigate }: TopPageProps) => {
                 <Typography variant="caption" color="secondary" align="center">
                   ※ アカウント登録不要。Googleアカウントで簡単に始められます
                 </Typography>
-              </div>
+              </motion.div>
 
               {/* 統計情報 */}
               <motion.div
