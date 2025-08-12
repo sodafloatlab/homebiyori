@@ -1,10 +1,10 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Button } from '../../ui/Button';
+import Button from '../../ui/Button';
 import { WarningButton } from '../../ui/WarningButton';
-import { LoadingSpinner } from '../../ui/LoadingSpinner';
-import { TouchTarget } from '../../ui/TouchTarget';
+import LoadingSpinner from '../../ui/LoadingSpinner';
+import TouchTarget from '../../ui/TouchTarget';
 import { ProgressBar } from '../../ui/ProgressBar';
 
 interface AccountStatus {

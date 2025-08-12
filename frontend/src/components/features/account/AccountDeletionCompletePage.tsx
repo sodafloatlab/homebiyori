@@ -1,8 +1,8 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Button } from '../../ui/Button';
-import { LoadingSpinner } from '../../ui/LoadingSpinner';
+import Button from '../../ui/Button';
+import LoadingSpinner from '../../ui/LoadingSpinner';
 
 interface AccountDeletionCompletePageProps {
   completionTime: string;
@@ -176,6 +176,7 @@ export function AccountDeletionCompletePage({
         {/* アクションボタン */}
         <div className="space-y-3 pt-4">
           <Button
+            variant="primary"
             onClick={onClose}
             className="w-full"
             size="lg"
