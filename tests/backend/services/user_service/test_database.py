@@ -660,19 +660,29 @@ async def test_deletion_request_model_validation():
     
     削除要求データモデルの正しいバリデーションを確認。
     """
-    # 有効なDeletionRequest
+    # 有効なDeletionRequest（アカウント削除）
     valid_request = DeletionRequest(
-        deletion_type=DeletionType.ACCOUNT_WITH_SUBSCRIPTION,
+        deletion_type=DeletionType.ACCOUNT_DELETE,
         reason="service_no_longer_needed",
         feedback="Thank you for the service"
     )
-    assert valid_request.deletion_type == DeletionType.ACCOUNT_WITH_SUBSCRIPTION
+    assert valid_request.deletion_type == DeletionType.ACCOUNT_DELETE
     assert valid_request.reason == "service_no_longer_needed"
     assert valid_request.feedback == "Thank you for the service"
     
+    # 有効なDeletionRequest（サブスクリプション解約）
+    subscription_request = DeletionRequest(
+        deletion_type=DeletionType.SUBSCRIPTION_CANCEL,
+        reason="too_expensive",
+        feedback="Great service but too costly"
+    )
+    assert subscription_request.deletion_type == DeletionType.SUBSCRIPTION_CANCEL
+    assert subscription_request.reason == "too_expensive"
+    assert subscription_request.feedback == "Great service but too costly"
+    
     # 必須フィールドのみのDeletionRequest
-    minimal_request = DeletionRequest(deletion_type=DeletionType.ACCOUNT_ONLY)
-    assert minimal_request.deletion_type == DeletionType.ACCOUNT_ONLY
+    minimal_request = DeletionRequest(deletion_type=DeletionType.ACCOUNT_DELETE)
+    assert minimal_request.deletion_type == DeletionType.ACCOUNT_DELETE
     assert minimal_request.reason is None
     assert minimal_request.feedback is None
 
@@ -684,23 +694,21 @@ async def test_deletion_confirmation_model_validation():
     
     削除確認データモデルの正しいバリデーションを確認。
     """
-    # 有効なDeletionConfirmation
+    # 有効なDeletionConfirmation（confirmation_textは削除されたため不要）
     valid_confirmation = DeletionConfirmation(
         deletion_request_id="del_req_123456789abc",
-        confirmation_text="削除",
         final_consent=True
     )
     assert valid_confirmation.deletion_request_id == "del_req_123456789abc"
-    assert valid_confirmation.confirmation_text == "削除"
     assert valid_confirmation.final_consent is True
     
-    # 無効な確認文字でのバリデーションエラー
-    with pytest.raises(ValueError, match="確認のため「削除」と入力してください"):
-        invalid_confirmation = DeletionConfirmation(
-            deletion_request_id="del_req_123456789abc",
-            confirmation_text="delete",  # 英語での入力
-            final_consent=True
-        )
+    # final_consentがFalseの場合
+    no_consent_confirmation = DeletionConfirmation(
+        deletion_request_id="del_req_123456789abc", 
+        final_consent=False
+    )
+    assert no_consent_confirmation.deletion_request_id == "del_req_123456789abc"
+    assert no_consent_confirmation.final_consent is False
 
 
 @pytest.mark.asyncio 
@@ -725,23 +733,23 @@ async def test_account_status_model_creation():
         "cancel_at_period_end": False
     }
     
-    data_summary = {
-        "total_chat_messages": 150,
-        "tree_growth_characters": 5420,
-        "total_fruits": 12,
-        "data_size_mb": 2.3
-    }
-    
-    # AccountStatus作成
+    # AccountStatus作成（data_summaryは削除されたため不要）
     account_status = AccountStatus(
         account=account_info,
-        subscription=subscription_info,
-        data_summary=data_summary
+        subscription=subscription_info
     )
     
     assert account_status.account == account_info
     assert account_status.subscription == subscription_info
-    assert account_status.data_summary == data_summary
+    
+    # subscription=None の場合のテスト
+    account_status_no_sub = AccountStatus(
+        account=account_info,
+        subscription=None
+    )
+    
+    assert account_status_no_sub.account == account_info
+    assert account_status_no_sub.subscription is None
 
 
 @pytest.mark.asyncio
@@ -752,12 +760,11 @@ async def test_deletion_type_enum_values():
     削除タイプEnumの正しい値を確認。
     """
     # 各削除タイプの値確認
-    assert DeletionType.ACCOUNT_ONLY == "account_only"
-    assert DeletionType.SUBSCRIPTION_ONLY == "subscription_only"
-    assert DeletionType.ACCOUNT_WITH_SUBSCRIPTION == "account_with_subscription"
+    assert DeletionType.SUBSCRIPTION_CANCEL == "subscription_cancel"
+    assert DeletionType.ACCOUNT_DELETE == "account_delete"
     
     # Enum値の網羅性確認
-    expected_types = {"account_only", "subscription_only", "account_with_subscription"}
+    expected_types = {"subscription_cancel", "account_delete"}
     actual_types = {deletion_type.value for deletion_type in DeletionType}
     assert actual_types == expected_types
     

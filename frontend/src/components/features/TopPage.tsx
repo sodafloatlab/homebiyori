@@ -302,9 +302,17 @@ const TopPage = ({ onNavigate }: TopPageProps) => {
                     initial={{ scale: 0.8, opacity: 0 }}
                     animate={{ scale: 1, opacity: 1 }}
                     transition={{ duration: 0.8 }}
-                    className="w-32 h-32 bg-green-500 rounded-full flex items-center justify-center text-white text-2xl font-bold"
+                    className="flex items-center justify-center"
                   >
-                    Stage {currentTreeStage}
+                    <img 
+                      src={`/images/tree/tree_${currentTreeStage}.png`}
+                      alt={`木のステージ${currentTreeStage}`}
+                      className={`object-contain transition-all duration-500 ${
+                        currentTreeStage === 6 
+                          ? 'w-32 h-32' // tree_6は大きく表示
+                          : 'w-24 h-24'  // tree_1~5は標準サイズ
+                      }`}
+                    />
                   </motion.div>
                   
                   {/* 光る実のエフェクト */}

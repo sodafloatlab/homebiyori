@@ -70,14 +70,22 @@ from homebiyori_common.exceptions import (
 )
 from homebiyori_common.utils.maintenance import check_maintenance_mode
 from homebiyori_common.utils.middleware import maintenance_check_middleware, get_current_user_id
+from homebiyori_common.utils.datetime_utils import get_current_jst
 
 # ローカルモジュール
 from .models import (
     UserProfile,
     AIPreferences,
     UserProfileUpdate,
+    AccountStatus,
+    DeletionRequest,
+    DeletionConfirmation,
+    DeletionType,
 )
 from .database import get_database
+import uuid
+import boto3
+import aiohttp
 
 # 構造化ログ設定
 # CloudWatch統合による高度な監視とデバッグ機能
@@ -86,6 +94,80 @@ logger = get_logger(__name__)
 # データベースクライアント取得
 # UserServiceDatabaseクラスを使用してユーザーサービス固有の操作を提供
 db = get_database()
+
+# AWS SQS クライアント初期化
+sqs = boto3.client('sqs', region_name=os.getenv('AWS_DEFAULT_REGION', 'ap-northeast-1'))
+
+# SQS キューURL設定
+ACCOUNT_DELETION_QUEUE_URL = os.getenv('ACCOUNT_DELETION_QUEUE_URL')
+
+async def get_subscription_info_from_db(user_id: str) -> dict:
+    """
+    DynamoDBからサブスクリプション情報を取得
+    
+    Args:
+        user_id: ユーザーID
+        
+    Returns:
+        サブスクリプション情報辞書（存在しない場合はNone）
+    """
+    try:
+        # prod-homebiyori-subscriptions テーブルから取得
+        subscription = await db.get_subscription_status(user_id)
+        
+        if subscription:
+            return {
+                "status": subscription.get("status", "inactive"),
+                "current_plan": subscription.get("current_plan"),
+                "current_period_end": subscription.get("current_period_end"),
+                "cancel_at_period_end": subscription.get("cancel_at_period_end", False),
+                "monthly_amount": subscription.get("monthly_amount")
+            }
+        else:
+            return None
+            
+    except Exception as e:
+        logger.error(
+            "Error getting subscription info from database",
+            extra={"error": str(e), "user_id": user_id[:8] + "****"}
+        )
+        return None
+
+async def send_deletion_task_to_sqs(user_id: str, deletion_type: str, deletion_request_id: str) -> bool:
+    """
+    SQS経由で非同期削除タスクを送信
+    
+    Args:
+        user_id: ユーザーID
+        deletion_type: 削除タイプ
+        deletion_request_id: 削除要求ID
+        
+    Returns:
+        送信成功可否
+    """
+    try:
+        # TODO: 実際のSQS実装時に置き換え
+        # 現在はスタブ実装
+        logger.info(
+            "SQS deletion task queued (stub implementation)",
+            extra={
+                "user_id": user_id[:8] + "****",
+                "deletion_type": deletion_type,
+                "deletion_request_id": deletion_request_id
+            }
+        )
+        return True
+        
+    except Exception as e:
+        logger.error(
+            "Failed to send deletion task to SQS",
+            extra={
+                "error": str(e),
+                "user_id": user_id[:8] + "****",
+                "deletion_type": deletion_type
+            }
+        )
+        return False
 
 # FastAPIアプリケーション初期化
 # プロダクション環境でのパフォーマンス最適化設定
@@ -275,6 +357,7 @@ async def update_ai_preferences(ai_preferences: AIPreferences, user_id: str = De
                 "user_id": user_id[:8] + "****",
                 "ai_character": ai_preferences.ai_character,
                 "praise_level": ai_preferences.praise_level,
+                "interaction_mode": ai_preferences.interaction_mode,
             },
         )
 
@@ -283,6 +366,7 @@ async def update_ai_preferences(ai_preferences: AIPreferences, user_id: str = De
         if existing_profile:
             existing_profile.ai_character = ai_preferences.ai_character
             existing_profile.praise_level = ai_preferences.praise_level
+            existing_profile.interaction_mode = ai_preferences.interaction_mode
             updated_profile = existing_profile
         else:
             # プロフィール未作成の場合は新規作成
@@ -290,6 +374,7 @@ async def update_ai_preferences(ai_preferences: AIPreferences, user_id: str = De
                 user_id=user_id,
                 ai_character=ai_preferences.ai_character,
                 praise_level=ai_preferences.praise_level,
+                interaction_mode=ai_preferences.interaction_mode,
             )
 
         await db.save_user_profile(updated_profile)
@@ -436,6 +521,237 @@ async def complete_onboarding(
         logger.error(
             "Database error in complete_onboarding",
             extra={"error": str(e), "user_id": user_id[:8] + "****"},
+        )
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+# =====================================
+# アカウント削除管理エンドポイント
+# =====================================
+
+
+@app.get("/users/account-status", response_model=AccountStatus)
+async def get_account_status(user_id: str = Depends(get_current_user_id)):
+    """
+    アカウント・サブスクリプション状態取得
+    
+    ■機能概要■
+    - 現在のアカウント情報、サブスクリプション状態を返却
+    - 削除プロセス開始前の状況確認に使用
+    
+    ■レスポンス■
+    - 200: アカウント・サブスクリプション状態
+    - 401: 認証エラー
+    - 500: 内部エラー
+    """
+    try:
+        logger.info("Getting account status", extra={"user_id": user_id[:8] + "****"})
+        
+        # ユーザープロフィール取得
+        profile = await db.get_user_profile(user_id)
+        if not profile:
+            # プロフィール未作成の場合はデフォルトを作成
+            profile = UserProfile(user_id=user_id)
+        
+        # アカウント情報構築
+        account_info = {
+            "user_id": profile.user_id,
+            "nickname": profile.nickname,
+            "created_at": profile.created_at.isoformat(),
+            "status": "active"
+        }
+        
+        # サブスクリプション情報（DynamoDBから取得）
+        subscription_info = await get_subscription_info_from_db(user_id)
+        
+        return AccountStatus(
+            account=account_info,
+            subscription=subscription_info
+        )
+        
+    except DatabaseError as e:
+        logger.error(
+            "Database error in get_account_status",
+            extra={"error": str(e), "user_id": user_id[:8] + "****"}
+        )
+        raise HTTPException(status_code=500, detail="Internal server error")
+    except Exception as e:
+        logger.error(
+            "Unexpected error in get_account_status", 
+            extra={"error": str(e), "user_id": user_id[:8] + "****"}
+        )
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+
+@app.post("/users/request-deletion")
+async def request_account_deletion(
+    deletion_request: DeletionRequest, 
+    user_id: str = Depends(get_current_user_id)
+):
+    """
+    アカウント削除要求（段階的プロセス開始）
+    
+    ■機能概要■
+    - 3段階削除プロセスの第1段階
+    - 削除タイプに応じた処理ステップ案内
+    - サブスクリプション状態チェック
+    
+    ■削除タイプ■
+    - subscription_cancel: サブスクリプション解約
+    - account_delete: アカウント削除（サブスク解約前提）
+    
+    ■レスポンス■
+    - 200: 削除プロセス案内
+    - 400: 無効な削除タイプ
+    - 401: 認証エラー
+    """
+    try:
+        logger.info(
+            "Starting account deletion request",
+            extra={
+                "user_id": user_id[:8] + "****",
+                "deletion_type": deletion_request.deletion_type,
+                "has_reason": deletion_request.reason is not None
+            }
+        )
+        
+        # 削除要求IDの生成
+        deletion_request_id = f"del_req_{uuid.uuid4().hex[:12]}"
+        
+        # サブスクリプション処理が必要かどうか
+        subscription_action_required = (
+            deletion_request.deletion_type == DeletionType.SUBSCRIPTION_CANCEL
+        )
+        
+        response_data = {
+            "deletion_request_id": deletion_request_id,
+            "subscription_action_required": subscription_action_required
+        }
+        
+        logger.info(
+            "Account deletion request created",
+            extra={
+                "user_id": user_id[:8] + "****",
+                "deletion_request_id": deletion_request_id
+            }
+        )
+        
+        return response_data
+        
+    except ValidationError as e:
+        logger.warning(
+            "Validation error in request_account_deletion",
+            extra={"error": str(e), "user_id": user_id[:8] + "****"}
+        )
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(
+            "Unexpected error in request_account_deletion",
+            extra={"error": str(e), "user_id": user_id[:8] + "****"}
+        )
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+
+@app.post("/users/confirm-deletion")
+async def confirm_account_deletion(
+    confirmation: DeletionConfirmation,
+    user_id: str = Depends(get_current_user_id)
+):
+    """
+    アカウント削除実行（最終確認後）
+    
+    ■機能概要■
+    - 3段階削除プロセスの最終段階
+    - ユーザープロフィールは同期削除（ログイン防止）
+    - その他データ削除は非同期処理（SQS経由）
+    
+    ■処理順序■
+    1. ユーザープロフィール即座削除（ログイン不可にする）
+    2. SQS経由で非同期削除タスクを送信
+       - DynamoDBデータ削除（全テーブル）
+       - Cognitoアカウント削除
+    
+    ■レスポンス■
+    - 200: 削除処理開始通知
+    - 400: 確認文字エラー
+    - 401: 認証エラー
+    - 500: 削除処理エラー
+    """
+    try:
+        logger.info(
+            "Starting account deletion confirmation",
+            extra={
+                "user_id": user_id[:8] + "****",
+                "deletion_request_id": confirmation.deletion_request_id
+            }
+        )
+        
+        # 削除プロセスID生成
+        process_id = f"proc_{uuid.uuid4().hex[:12]}"
+        
+        # 1. ユーザープロフィール同期削除（ログイン防止のため）
+        try:
+            await db.delete_user_profile(user_id)
+            logger.info(
+                "User profile deleted synchronously",
+                extra={"user_id": user_id[:8] + "****"}
+            )
+            profile_deletion_status = "completed"
+        except Exception as e:
+            logger.error(
+                "Failed to delete user profile synchronously",
+                extra={"error": str(e), "user_id": user_id[:8] + "****"}
+            )
+            profile_deletion_status = "failed"
+        
+        # 2. SQS経由で非同期削除タスクを送信
+        try:
+            await send_deletion_task_to_sqs(
+                user_id=user_id,
+                deletion_type="account_delete", 
+                deletion_request_id=confirmation.deletion_request_id
+            )
+            async_deletion_status = "queued"
+        except Exception as e:
+            logger.error(
+                "Failed to queue async deletion tasks",
+                extra={"error": str(e), "user_id": user_id[:8] + "****"}
+            )
+            async_deletion_status = "failed"
+        
+        # 処理完了予定時刻（5分後を想定）
+        current_time = get_current_jst()
+        estimated_completion = current_time.replace(minute=current_time.minute + 5)
+        
+        response_data = {
+            "deletion_started": True,
+            "process_id": process_id,
+            "profile_deleted": profile_deletion_status == "completed",
+            "async_tasks_queued": async_deletion_status == "queued",
+            "estimated_completion": estimated_completion.isoformat()
+        }
+        
+        logger.info(
+            "Account deletion process started successfully",
+            extra={
+                "user_id": user_id[:8] + "****",
+                "process_id": process_id,
+                "profile_deleted": profile_deletion_status == "completed",
+                "async_tasks_queued": async_deletion_status == "queued"
+            }
+        )
+        
+        return response_data
+        
+    except ValidationError as e:
+        logger.warning(
+            "Validation error in confirm_account_deletion",
+            extra={"error": str(e), "user_id": user_id[:8] + "****"}
+        )
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(
+            "Unexpected error in confirm_account_deletion",
+            extra={"error": str(e), "user_id": user_id[:8] + "****"}
         )
         raise HTTPException(status_code=500, detail="Internal server error")
 

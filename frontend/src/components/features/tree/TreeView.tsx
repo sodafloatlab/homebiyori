@@ -284,8 +284,16 @@ const TreeView = ({ onNavigate, previousScreen = 'chat' }: TreeViewProps) => {
               
               {/* メインツリー */}
               <div className="relative z-10">
-                <div className="text-9xl mb-4">
-                  {stageInfo.emoji}
+                <div className="mb-4 flex justify-center">
+                  <img 
+                    src={`/images/tree/tree_${currentStage}.png`}
+                    alt={stageInfo.name}
+                    className={`object-contain transition-all duration-500 ${
+                      currentStage === 6 
+                        ? 'w-40 h-40 md:w-48 md:h-48' // tree_6は大きく表示
+                        : 'w-32 h-32 md:w-36 md:h-36'  // tree_1~5は標準サイズ
+                    }`}
+                  />
                 </div>
                 
                 {/* 実の表示 */}

@@ -80,18 +80,23 @@ class PraiseLevel(str, Enum):
     DEEP = "deep"  # ディープ: 思慮深く詳細な肯定と共感
 
 
+class InteractionMode(str, Enum):
+    """
+    AI対話モード設定
+    
+    ユーザーの今日の気分や必要に応じてAI応答のトーンを調整。
+    chat_serviceでプロンプト生成時に参照される。
+    """
+    
+    PRAISE = "praise"  # 褒めモード: 積極的な肯定・承認・励まし中心
+    LISTEN = "listen"  # 傾聴モード: 共感・理解・寄り添い中心
+
+
 # =======================================
 # 共通バリデーション関数
 # =======================================
 
-
 # JST時刻関数は共通Layerから使用（homebiyori_common.utils.datetime_utils.get_current_jst）
-
-
-
-
-
-
 
 
 # =======================================
@@ -114,6 +119,7 @@ class UserProfile(BaseModel):
     - nickname: 表示名（1-20文字）
     - ai_character: 選択AIキャラクター
     - praise_level: 褒めレベル設定
+    - interaction_mode: AI対話モード（今日の気分設定）
     - onboarding_completed: 初期設定完了フラグ
     - created_at: 作成日時（JST）
     - updated_at: 更新日時（JST）
@@ -141,6 +147,10 @@ class UserProfile(BaseModel):
 
     praise_level: PraiseLevel = Field(
         PraiseLevel.NORMAL, description="AI褒めレベル設定"
+    )
+
+    interaction_mode: InteractionMode = Field(
+        InteractionMode.PRAISE, description="AI対話モード（今日の気分設定）"
     )
 
     onboarding_completed: bool = Field(False, description="オンボーディング完了フラグ")
@@ -172,6 +182,7 @@ class UserProfile(BaseModel):
                 "nickname": "ほめママ",
                 "ai_character": "tama",
                 "praise_level": "standard",
+                "interaction_mode": "praise",
                 "onboarding_completed": True,
             }
         }
@@ -213,21 +224,91 @@ class AIPreferences(BaseModel):
     AI設定情報
 
     ■機能概要■
-    ユーザーのAIキャラクター選択と褒めレベル設定を管理。
+    ユーザーのAIキャラクター選択、褒めレベル設定、対話モードを管理。
     chat-service での AI応答生成時に参照される。
 
     ■バリデーション■
     chat_service の LangChain AI実装と連携し、
-    利用可能なキャラクターと褒めレベルのみ許可。
+    利用可能なキャラクター、褒めレベル、対話モードのみ許可。
     """
 
     ai_character: AICharacter = Field(..., description="選択AIキャラクター")
 
     praise_level: PraiseLevel = Field(..., description="AI褒めレベル設定")
+    
+    interaction_mode: InteractionMode = Field(
+        default=InteractionMode.PRAISE, 
+        description="AI対話モード（今日の気分設定）"
+    )
 
     model_config = ConfigDict(
-        json_schema_extra={"example": {"ai_character": "madoka", "praise_level": "deep"}}
+        json_schema_extra={
+            "example": {
+                "ai_character": "madoka", 
+                "praise_level": "deep",
+                "interaction_mode": "praise"
+            }
+        }
     )
+
+# =======================================
+# アカウント削除関連データモデル
+# =======================================
+
+
+class DeletionType(str, Enum):
+    """
+    削除タイプ選択肢
+    
+    ■削除パターン（2択のみ）■
+    - SUBSCRIPTION_CANCEL: サブスクリプションをキャンセルする
+    - ACCOUNT_DELETE: サブスクリプション解約済みを前提にアカウントを削除する
+    
+    ■設計方針■
+    同時削除は行わず、段階的な処理により安全性を確保。
+    """
+    
+    SUBSCRIPTION_CANCEL = "subscription_cancel"
+    ACCOUNT_DELETE = "account_delete"
+
+
+class AccountStatus(BaseModel):
+    """
+    アカウント・サブスクリプション状態情報
+    
+    ■設計目的■
+    ユーザーが削除プロセス開始前に現状を把握できるよう、
+    アカウント状態とサブスクリプション状態を統合的に提供。
+    """
+    
+    account: dict = Field(..., description="アカウント情報")
+    subscription: Optional[dict] = Field(None, description="サブスクリプション情報")
+
+
+class DeletionRequest(BaseModel):
+    """
+    アカウント削除要求データモデル
+    
+    ■3段階プロセス設計■
+    段階的確認プロセスによる誤操作防止と
+    ユーザー体験向上を両立。
+    """
+    
+    deletion_type: DeletionType = Field(..., description="削除タイプ選択")
+    reason: Optional[str] = Field(None, description="削除理由（任意）", max_length=500)
+    feedback: Optional[str] = Field(None, description="サービス改善フィードバック（任意）", max_length=1000)
+
+
+class DeletionConfirmation(BaseModel):
+    """
+    アカウント削除最終確認データモデル
+    
+    ■誤操作防止設計■
+    フロントエンドでの確認チェックボックスによる意図的な操作確認。
+    """
+    
+    deletion_request_id: str = Field(..., description="削除要求ID")
+    final_consent: bool = Field(..., description="最終同意確認")
 
 
 

@@ -65,7 +65,13 @@
       "Bash(npm test:*)",
       "Bash(npm install)",
       "Bash(npm install:*)",
-      "Bash(npx jest:*)"
+      "Bash(npx jest:*)",
+      "Bash(gh issue create:*)",
+      "Bash(gh issue view:*)",
+      "Bash(npx eslint:*)",
+      "Bash(git rm:*)",
+      "mcp__awslabs_aws-documentation-mcp-server__read_documentation",
+      "mcp__awslabs_aws-documentation-mcp-server__search_documentation"
     ],
     "deny": []
   },

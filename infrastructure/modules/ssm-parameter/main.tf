@@ -119,18 +119,58 @@ resource "aws_ssm_parameter" "feature_flags" {
   # Tags are automatically applied via provider default_tags
 }
 
-# AI configuration parameters
-resource "aws_ssm_parameter" "ai_model_config" {
-  name        = "/${var.environment}/homebiyori/ai/model_config"
-  description = "AI model configuration for Bedrock"
+# AI configuration parameters - Free user LLM settings (Amazon Nova Lite)
+resource "aws_ssm_parameter" "ai_free_user_model_id" {
+  name        = "/${var.environment}/homebiyori/llm/free-user/model-id"
+  description = "Model ID for free tier users (Amazon Nova Lite - latest)"
   type        = "String"
-  value       = jsonencode({
-    model_id            = "anthropic.claude-3-haiku-20240307-v1:0"
-    max_tokens         = 150
-    temperature        = 0.7
-    top_p              = 0.9
-    default_system_prompt = "あなたは育児中の親を優しく褒めるAIアシスタントです。"
-  })
+  value       = "amazon.nova-lite-v1:0"
+  
+  # Tags are automatically applied via provider default_tags
+}
+
+resource "aws_ssm_parameter" "ai_free_user_max_tokens" {
+  name        = "/${var.environment}/homebiyori/llm/free-user/max-tokens"
+  description = "Maximum output tokens for free tier users (Japanese optimized: ~150-200 chars)"
+  type        = "String"
+  value       = "100"
+  
+  # Tags are automatically applied via provider default_tags
+}
+
+resource "aws_ssm_parameter" "ai_free_user_temperature" {
+  name        = "/${var.environment}/homebiyori/llm/free-user/temperature"
+  description = "Temperature setting for free tier users"
+  type        = "String"
+  value       = "0.7"
+  
+  # Tags are automatically applied via provider default_tags
+}
+
+# AI configuration parameters - Premium user LLM settings (Claude 3.5 Haiku)
+resource "aws_ssm_parameter" "ai_premium_user_model_id" {
+  name        = "/${var.environment}/homebiyori/llm/premium-user/model-id"
+  description = "Model ID for premium tier users (Claude 3.5 Haiku - latest)"
+  type        = "String"
+  value       = "anthropic.claude-3-5-haiku-20241022-v1:0"
+  
+  # Tags are automatically applied via provider default_tags
+}
+
+resource "aws_ssm_parameter" "ai_premium_user_max_tokens" {
+  name        = "/${var.environment}/homebiyori/llm/premium-user/max-tokens"
+  description = "Maximum output tokens for premium tier users (Japanese optimized: ~375-500 chars)"
+  type        = "String"
+  value       = "250"
+  
+  # Tags are automatically applied via provider default_tags
+}
+
+resource "aws_ssm_parameter" "ai_premium_user_temperature" {
+  name        = "/${var.environment}/homebiyori/llm/premium-user/temperature"
+  description = "Temperature setting for premium tier users"
+  type        = "String"
+  value       = "0.7"
   
   # Tags are automatically applied via provider default_tags
 }

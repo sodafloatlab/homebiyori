@@ -697,6 +697,73 @@ class ChatServiceDatabase:
                 "status": "active",
                 "expires_at": None
             }
+
+    async def get_user_ai_preferences(self, user_id: str) -> Dict[str, str]:
+        """
+        ユーザーのAI設定情報取得
+        
+        ■取得情報■
+        - ai_character: AIキャラクター（tama, madoka, hide）
+        - praise_level: 褒めレベル（normal, deep）  
+        - interaction_mode: 対話モード（praise, listen）
+        
+        Args:
+            user_id: ユーザーID
+            
+        Returns:
+            Dict: ユーザーAI設定情報
+        """
+        try:
+            self.logger.debug(
+                "Fetching user AI preferences",
+                extra={"user_id": user_id[:8] + "****"}
+            )
+            
+            # ユーザープロフィールからAI設定情報取得
+            pk = f"USER#{user_id}"
+            sk = "PROFILE"
+            
+            profile_data = await self.db_client.get_item(pk, sk)
+            
+            if profile_data:
+                ai_preferences = {
+                    "ai_character": profile_data.get("ai_character", "tama"),
+                    "praise_level": profile_data.get("praise_level", "normal"),
+                    "interaction_mode": profile_data.get("interaction_mode", "praise")
+                }
+            else:
+                # デフォルト設定
+                ai_preferences = {
+                    "ai_character": "tama",
+                    "praise_level": "normal", 
+                    "interaction_mode": "praise"
+                }
+            
+            self.logger.debug(
+                "User AI preferences retrieved successfully",
+                extra={
+                    "user_id": user_id[:8] + "****",
+                    "ai_character": ai_preferences["ai_character"],
+                    "interaction_mode": ai_preferences["interaction_mode"]
+                }
+            )
+            
+            return ai_preferences
+            
+        except Exception as e:
+            self.logger.error(
+                "Failed to get user AI preferences",
+                extra={
+                    "error": str(e),
+                    "user_id": user_id[:8] + "****"
+                }
+            )
+            # エラー時はデフォルト設定返却
+            return {
+                "ai_character": "tama",
+                "praise_level": "normal",
+                "interaction_mode": "praise"
+            }
     
     async def calculate_message_ttl(
         self, 

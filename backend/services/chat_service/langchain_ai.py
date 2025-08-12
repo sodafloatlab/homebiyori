@@ -63,17 +63,29 @@ class HomebiyoriAIChain:
             raise
     
     def _get_llm(self, user_tier: str) -> ChatBedrock:
-        """プラン別LLM取得（キャッシュあり）"""
+        """プラン別LLM取得（Parameter Store統合、キャッシュあり）"""
         if user_tier not in self.llm_cache:
-            max_tokens = 200 if user_tier == "free" else 400
+            # Parameter StoreからLLM設定を取得
+            from homebiyori_common.utils import get_llm_config
+            
+            config = get_llm_config(user_tier)
             
             self.llm_cache[user_tier] = ChatBedrock(
-                model_id="anthropic.claude-3-haiku-20240307-v1:0",
-                region_name=os.getenv('AWS_REGION', 'us-east-1'),
+                model_id=config["model_id"],
+                region_name=config["region_name"],
                 model_kwargs={
-                    "max_tokens": max_tokens,
-                    "temperature": 0.7,
-                    "anthropic_version": "bedrock-2023-05-31"
+                    "max_tokens": config["max_tokens"],
+                    "temperature": config["temperature"],
+                    "anthropic_version": config["anthropic_version"]
+                }
+            )
+            
+            logger.info(
+                f"Initialized LLM for {user_tier} tier",
+                extra={
+                    "user_tier": user_tier,
+                    "model_id": config["model_id"],
+                    "max_tokens": config["max_tokens"]
                 }
             )
         

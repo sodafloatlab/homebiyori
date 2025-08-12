@@ -103,13 +103,19 @@ class HomebiyoriConversationMemory:
         # プラン別設定
         self.config = self._get_plan_config()
         
-        # Claude 3 Haiku LLM初期化（要約用）
+        # 要約用LLM初期化（Parameter Store統合）
+        from homebiyori_common.utils import get_llm_config
+        
+        # 要約用は無料プランのモデルを使用（コスト最適化）
+        summary_config = get_llm_config("free")
+        
         self.llm = ChatBedrock(
-            model_id="anthropic.claude-3-haiku-20240307-v1:0",
-            region_name=os.getenv('AWS_REGION', 'us-east-1'),
+            model_id=summary_config["model_id"],
+            region_name=summary_config["region_name"],
             model_kwargs={
-                "max_tokens": 200,
-                "temperature": 0.3  # 要約は保守的に
+                "max_tokens": 150,  # 要約用のため短め
+                "temperature": 0.3,  # 要約精度重視
+                "anthropic_version": summary_config["anthropic_version"]
             }
         )
         

@@ -8,7 +8,6 @@ DynamoDB操作を統一管理。Lambda Layersとの連携により、
 
 ■アーキテクチャ■
 - homebiyori-common-layer: 共通データベース機能活用
-- DynamoDB Single Table Design: 効率的なデータモデル
 - JST統一: 全日時情報をJSTで管理
 - 型安全性: Pydantic v2モデルとの完全統合
 
@@ -217,6 +216,118 @@ class UserServiceDatabase:
                 extra={"error": str(e), "user_id": profile.user_id[:8] + "****"},
             )
             raise DatabaseError(f"Failed to save user profile: {str(e)}")
+
+    async def delete_user_profile(self, user_id: str) -> bool:
+        """
+        ユーザープロフィール削除
+        
+        ■機能概要■
+        - 指定されたユーザーIDのプロフィールをDynamoDBから完全削除
+        - アカウント削除プロセスで使用
+        - カスケード削除: 関連するすべてのユーザーデータを削除
+        
+        ■削除対象■
+        - PK: USER#{user_id}, SK: PROFILE のアイテム
+        
+        Args:
+            user_id: 削除対象のユーザーID
+            
+        Returns:
+            bool: 削除成功時True、対象が存在しない場合もTrue
+            
+        Raises:
+            DatabaseError: DynamoDB操作エラー時
+        """
+        try:
+            self.logger.info(
+                "Deleting user profile", 
+                extra={"user_id": user_id[:8] + "****"}
+            )
+            
+            # DynamoDB削除操作
+            response = await self.db_client.delete_user_profile(user_id)
+            
+            self.logger.info(
+                "User profile deleted successfully",
+                extra={
+                    "user_id": user_id[:8] + "****",
+                    "deleted": True
+                }
+            )
+            
+            return True
+            
+        except Exception as e:
+            self.logger.error(
+                "Failed to delete user profile",
+                extra={
+                    "error": str(e),
+                    "user_id": user_id[:8] + "****"
+                }
+            )
+            raise DatabaseError(f"ユーザープロフィール削除に失敗しました: {str(e)}")
+
+    async def get_subscription_status(self, user_id: str) -> dict:
+        """
+        ユーザーのサブスクリプション状態を取得
+        
+        Args:
+            user_id: ユーザーID
+            
+        Returns:
+            サブスクリプション情報辞書（存在しない場合はNone）
+            
+        Raises:
+            DatabaseError: データベースアクセス時のエラー
+        """
+        try:
+            self.logger.debug(
+                "Getting subscription status",
+                extra={"user_id": user_id[:8] + "****"}
+            )
+
+            response = await self.db_client.get_item(
+                TableName="prod-homebiyori-subscriptions",
+                Key={
+                    "PK": {"S": f"USER#{user_id}"},
+                    "SK": {"S": "SUBSCRIPTION"}
+                }
+            )
+            
+            if "Item" not in response:
+                self.logger.debug(
+                    "Subscription not found",
+                    extra={"user_id": user_id[:8] + "****"}
+                )
+                return None
+
+            item = response["Item"]
+            subscription_info = {
+                "status": item.get("status", {}).get("S", "inactive"),
+                "current_plan": item.get("current_plan", {}).get("S"),
+                "current_period_end": item.get("current_period_end", {}).get("S"),
+                "cancel_at_period_end": item.get("cancel_at_period_end", {}).get("BOOL", False),
+                "monthly_amount": item.get("monthly_amount", {}).get("N")
+            }
+            
+            # monthly_amountを数値に変換
+            if subscription_info["monthly_amount"]:
+                subscription_info["monthly_amount"] = float(subscription_info["monthly_amount"])
+            
+            self.logger.debug(
+                "Subscription status retrieved successfully",
+                extra={"user_id": user_id[:8] + "****"}
+            )
+            
+            return subscription_info
+
+        except Exception as e:
+            error_msg = f"Failed to get subscription status: {str(e)}"
+            self.logger.error(
+                error_msg,
+                extra={"user_id": user_id[:8] + "****"}
+            )
+            raise DatabaseError(error_msg)
 
 
 

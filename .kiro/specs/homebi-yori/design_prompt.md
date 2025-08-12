@@ -30,8 +30,8 @@
 ### PraiseLevel統合仕様
 | レベル | 応答長 | 生成制御 | 利用対象 |
 |--------|--------|----------|----------|
-| **normal** | 2-3文程度（100トークン） | `max_tokens: 150` | 無料版ユーザー |
-| **deep** | 4-5文程度（150トークン） | `max_tokens: 200` | プレミアム版ユーザー |
+| **normal** | 2-3文程度（約150-200文字） | `max_tokens: 100` | 無料版ユーザー（Amazon Nova Lite） |
+| **deep** | 4-5文程度（約375-500文字） | `max_tokens: 250` | プレミアム版ユーザー（Claude 3.5 Haiku） |
 
 ## LangChain統合プロンプトアーキテクチャ
 
@@ -591,11 +591,14 @@ class LangChainChatHandler:
         """LangChain ConversationChain構築"""
         
         # ChatBedrock LLM初期化（プラン別設定）
+        model_id = "amazon.nova-lite-v1:0" if user_tier == "free" else "anthropic.claude-3-5-haiku-20241022-v1:0"
+        max_tokens = 100 if user_tier == "free" else 250
+        
         llm = ChatBedrock(
-            model_id="anthropic.claude-3-haiku-20240307-v1:0",
+            model_id=model_id,
             region_name="us-east-1",
             model_kwargs={
-                "max_tokens": 200 if user_tier == "free" else 400,
+                "max_tokens": max_tokens,
                 "temperature": 0.7,
                 "anthropic_version": "bedrock-2023-05-31"
             }
