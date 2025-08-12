@@ -503,7 +503,7 @@ class FruitsListResponse(BaseModel):
 
 def calculate_tree_stage(total_characters: int) -> TreeStage:
     """
-    累計文字数から成長段階を計算
+    累計文字数から成長段階を計算（Parameter Store動的閾値使用）
     
     Args:
         total_characters: 累計文字数
@@ -511,16 +511,24 @@ def calculate_tree_stage(total_characters: int) -> TreeStage:
     Returns:
         TreeStage: 成長段階（0-5）
     """
-    for stage in range(5, -1, -1):  # 5から0まで逆順チェック
-        config = TREE_STAGE_CONFIG[stage]
-        if total_characters >= config["min_chars"]:
-            return stage
-    return 0
+    try:
+        from homebiyori_common.utils.parameter_store import get_tree_stage
+        
+        # 新しい動的閾値システムを使用
+        return get_tree_stage(total_characters)
+        
+    except Exception:
+        # フォールバック: 従来のハードコード値を使用
+        for stage in range(5, -1, -1):  # 5から0まで逆順チェック
+            config = TREE_STAGE_CONFIG[stage]
+            if total_characters >= config["min_chars"]:
+                return stage
+        return 0
 
 
 def get_characters_to_next_stage(total_characters: int) -> int:
     """
-    次の成長段階まで必要な文字数を計算
+    次の成長段階まで必要な文字数を計算（Parameter Store動的閾値使用）
     
     Args:
         total_characters: 現在の累計文字数
@@ -528,18 +536,35 @@ def get_characters_to_next_stage(total_characters: int) -> int:
     Returns:
         int: 次段階まで必要な文字数（最大段階の場合は0）
     """
-    current_stage = calculate_tree_stage(total_characters)
-    
-    if current_stage >= 5:
-        return 0  # 最高段階到達
-    
-    next_stage_config = TREE_STAGE_CONFIG[current_stage + 1]
-    return next_stage_config["min_chars"] - total_characters
+    try:
+        from homebiyori_common.utils.parameter_store import get_tree_growth_thresholds
+        
+        # 動的閾値を取得
+        thresholds = get_tree_growth_thresholds()
+        current_stage = calculate_tree_stage(total_characters)
+        
+        if current_stage >= 5:
+            return 0  # 最高段階到達
+        
+        next_stage_key = f"stage_{current_stage + 1}"
+        next_stage_threshold = thresholds.get(next_stage_key, TREE_STAGE_CONFIG[current_stage + 1]["min_chars"])
+        
+        return max(0, next_stage_threshold - total_characters)
+        
+    except Exception:
+        # フォールバック: 従来のハードコード値を使用
+        current_stage = calculate_tree_stage(total_characters)
+        
+        if current_stage >= 5:
+            return 0  # 最高段階到達
+        
+        next_stage_config = TREE_STAGE_CONFIG[current_stage + 1]
+        return next_stage_config["min_chars"] - total_characters
 
 
 def calculate_progress_percentage(total_characters: int) -> float:
     """
-    現在の成長段階内での進捗率を計算
+    現在の成長段階内での進捗率を計算（Parameter Store動的閾値使用）
     
     Args:
         total_characters: 累計文字数
@@ -547,20 +572,44 @@ def calculate_progress_percentage(total_characters: int) -> float:
     Returns:
         float: 进捗率（0.0-100.0%）
     """
-    current_stage = calculate_tree_stage(total_characters)
-    config = TREE_STAGE_CONFIG[current_stage]
-    
-    if current_stage >= 5:
-        return 100.0  # 最高段階は100%
-    
-    stage_min = config["min_chars"]
-    stage_max = config["max_chars"]
-    stage_range = stage_max - stage_min + 1
-    
-    characters_in_stage = total_characters - stage_min
-    progress = (characters_in_stage / stage_range) * 100.0
-    
-    return min(100.0, max(0.0, progress))
+    try:
+        from homebiyori_common.utils.parameter_store import get_tree_growth_thresholds
+        
+        # 動的閾値を取得
+        thresholds = get_tree_growth_thresholds()
+        current_stage = calculate_tree_stage(total_characters)
+        
+        if current_stage >= 5:
+            return 100.0  # 最高段階は100%
+        
+        current_stage_key = f"stage_{current_stage}"
+        next_stage_key = f"stage_{current_stage + 1}"
+        
+        stage_min = thresholds.get(current_stage_key, TREE_STAGE_CONFIG[current_stage]["min_chars"])
+        stage_max = thresholds.get(next_stage_key, TREE_STAGE_CONFIG[current_stage + 1]["min_chars"]) - 1
+        
+        stage_range = stage_max - stage_min + 1
+        characters_in_stage = total_characters - stage_min
+        progress = (characters_in_stage / stage_range) * 100.0
+        
+        return min(100.0, max(0.0, progress))
+        
+    except Exception:
+        # フォールバック: 従来のハードコード値を使用
+        current_stage = calculate_tree_stage(total_characters)
+        config = TREE_STAGE_CONFIG[current_stage]
+        
+        if current_stage >= 5:
+            return 100.0  # 最高段階は100%
+        
+        stage_min = config["min_chars"]
+        stage_max = config["max_chars"]
+        stage_range = stage_max - stage_min + 1
+        
+        characters_in_stage = total_characters - stage_min
+        progress = (characters_in_stage / stage_range) * 100.0
+        
+        return min(100.0, max(0.0, progress))
 
 
 def get_character_theme_color(character: AICharacterType) -> TreeTheme:

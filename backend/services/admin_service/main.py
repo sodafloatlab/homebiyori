@@ -51,7 +51,7 @@ FEEDBACK_TABLE_NAME = os.getenv('FEEDBACK_TABLE_NAME')
 # AWS クライアント初期化
 dynamodb_client = DynamoDBClient()
 cloudwatch = boto3.client('cloudwatch')
-ssm = boto3.client('ssm')
+# SSMクライアントは統一Parameter Store utilsを使用
 
 # ログ設定
 logging.basicConfig(level=logging.INFO)
@@ -584,62 +584,46 @@ async def get_bedrock_api_calls_count(since_time: datetime) -> int:
         return 0
 
 async def get_maintenance_parameters() -> Dict[str, Any]:
-    """Parameter Store からメンテナンス設定取得"""
+    """Parameter Store からメンテナンス設定取得（統一utils使用）"""
     try:
-        parameters = {}
+        from homebiyori_common.utils.parameter_store import get_maintenance_config
         
-        # メンテナンス関連パラメータを取得
-        param_keys = [
-            f'/homebiyori/maintenance/enabled',
-            f'/homebiyori/maintenance/message',
-            f'/homebiyori/maintenance/start_time',
-            f'/homebiyori/maintenance/end_time'
-        ]
+        # 新しい統一Parameter Store機能を使用
+        config = get_maintenance_config()
         
-        for param_key in param_keys:
-            try:
-                response = ssm.get_parameter(Name=param_key)
-                key_name = param_key.split('/')[-1]
-                value = response['Parameter']['Value']
-                
-                # Boolean変換
-                if key_name == 'enabled':
-                    parameters[key_name] = value.lower() == 'true'
-                else:
-                    parameters[key_name] = value if value != 'null' else None
-                    
-            except ssm.exceptions.ParameterNotFound:
-                # パラメータが存在しない場合はデフォルト値
-                if param_key.endswith('enabled'):
-                    parameters['enabled'] = False
-                else:
-                    key_name = param_key.split('/')[-1]
-                    parameters[key_name] = None
-        
-        return parameters
+        return config
         
     except Exception as e:
         logger.error(f"Failed to get maintenance parameters: {str(e)}")
         return {'enabled': False, 'message': None, 'start_time': None, 'end_time': None}
 
 async def set_maintenance_parameters(enabled: bool, message: str, start_time: Optional[str], end_time: Optional[str]):
-    """Parameter Store にメンテナンス設定保存"""
+    """Parameter Store にメンテナンス設定保存（統一utils使用）"""
     try:
-        # メンテナンス設定をParameter Store に保存
+        from homebiyori_common.utils.parameter_store import get_parameter_store_client
+        
+        # 新しい統一Parameter Store機能を使用
+        client = get_parameter_store_client()
+        environment = os.getenv('ENVIRONMENT', 'prod')
+        
+        # 各パラメータを個別に更新
         parameters = {
-            f'/homebiyori/maintenance/enabled': str(enabled).lower(),
-            f'/homebiyori/maintenance/message': message or 'null',
-            f'/homebiyori/maintenance/start_time': start_time or 'null',
-            f'/homebiyori/maintenance/end_time': end_time or 'null'
+            f'/{environment}/homebiyori/maintenance/enabled': str(enabled).lower(),
+            f'/{environment}/homebiyori/maintenance/message': message or '',
+            f'/{environment}/homebiyori/maintenance/start_time': start_time or '',
+            f'/{environment}/homebiyori/maintenance/end_time': end_time or ''
         }
         
         for param_key, param_value in parameters.items():
-            ssm.put_parameter(
+            client.ssm_client.put_parameter(
                 Name=param_key,
                 Value=param_value,
                 Type='String',
                 Overwrite=True
             )
+        
+        # キャッシュをクリアして最新情報を反映
+        client.clear_cache()
         
         logger.info(f"Maintenance parameters updated: enabled={enabled}")
         

@@ -21,9 +21,7 @@ Parameter Store連携によるメンテナンス状態制御
         # メンテナンス中処理
 """
 
-import boto3
 import asyncio
-from botocore.exceptions import ClientError
 from typing import Optional
 import os
 
@@ -32,17 +30,12 @@ from ..exceptions import MaintenanceError
 
 logger = get_logger(__name__)
 
-# Parameter Store設定
-MAINTENANCE_PARAMETER_NAME = f"/{os.getenv('PROJECT_NAME', 'homebiyori')}/{os.getenv('ENVIRONMENT', 'prod')}/maintenance/enabled"
-MAINTENANCE_MESSAGE_PARAMETER_NAME = f"/{os.getenv('PROJECT_NAME', 'homebiyori')}/{os.getenv('ENVIRONMENT', 'prod')}/maintenance/message"
-
-# SSMクライアント初期化
-ssm_client = boto3.client('ssm', region_name=os.getenv('AWS_DEFAULT_REGION', 'ap-northeast-1'))
+# 統一Parameter Store utilsを使用（古い個別実装は削除）
 
 
 def check_maintenance_mode() -> None:
     """
-    メンテナンスモード同期チェック
+    メンテナンスモード同期チェック（統一Parameter Store使用）
     
     Parameter Storeからメンテナンス状態を取得し、
     メンテナンス中の場合はMaintenanceErrorを発生させる。
@@ -53,18 +46,16 @@ def check_maintenance_mode() -> None:
     Notes:
         - フェイルセーフ設計: Parameter Store接続エラー時は処理継続
         - ログ出力による監視対応
+        - 新しい統一Parameter Store utils使用
     """
     try:
-        response = ssm_client.get_parameter(Name=MAINTENANCE_PARAMETER_NAME)
-        maintenance_enabled = response['Parameter']['Value'].lower() in ['true', '1', 'enabled']
+        from .parameter_store import get_maintenance_config
         
-        if maintenance_enabled:
-            # メンテナンスメッセージ取得
-            try:
-                message_response = ssm_client.get_parameter(Name=MAINTENANCE_MESSAGE_PARAMETER_NAME)
-                maintenance_message = message_response['Parameter']['Value']
-            except ClientError:
-                maintenance_message = "システムメンテナンス中です。しばらくお待ちください。"
+        # 新しい統一Parameter Store機能を使用
+        config = get_maintenance_config()
+        
+        if config.get('enabled', False):
+            maintenance_message = config.get('message') or "システムメンテナンス中です。しばらくお待ちください。"
             
             logger.warning(
                 "Maintenance mode is enabled",
@@ -72,28 +63,20 @@ def check_maintenance_mode() -> None:
             )
             raise MaintenanceError(maintenance_message)
             
-    except ClientError as e:
-        error_code = e.response.get('Error', {}).get('Code')
-        if error_code == 'ParameterNotFound':
-            logger.debug("Maintenance parameter not found, assuming service is available")
-            return  # パラメータが存在しない場合は利用可能とみなす
-        else:
-            logger.warning(
-                "Failed to check maintenance mode, allowing request",
-                extra={"error": str(e), "error_code": error_code}
-            )
-            return  # その他のエラーでも利用可能とみなす（フェイルセーフ）
+    except MaintenanceError:
+        # 既にMaintenanceErrorの場合は再発生
+        raise
     except Exception as e:
-        logger.error(
-            "Unexpected error in maintenance check",
+        logger.warning(
+            "Failed to check maintenance mode using unified utils, allowing request",
             extra={"error": str(e)}
         )
-        return  # 予期しないエラーでも利用可能とみなす
+        return  # エラー時も利用可能とみなす（フェイルセーフ）  # 予期しないエラーでも利用可能とみなす
 
 
 async def is_maintenance_mode() -> bool:
     """
-    メンテナンスモード非同期チェック
+    メンテナンスモード非同期チェック（統一Parameter Store使用）
     
     Parameter Storeからメンテナンス状態を非同期で取得する。
     
@@ -102,43 +85,23 @@ async def is_maintenance_mode() -> bool:
         
     Notes:
         - フェイルセーフ設計: エラー時はFalse（利用可能）を返却
-        - 非同期対応によるパフォーマンス最適化
+        - 新しい統一Parameter Store utils使用
     """
     try:
-        # 実行中のイベントループを取得
-        try:
-            loop = asyncio.get_running_loop()
-        except RuntimeError:
-            # イベントループが存在しない場合は新規作成
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
+        from .parameter_store import get_maintenance_config
         
-        # boto3クライアントは同期なので、executorで非同期実行
-        response = await loop.run_in_executor(
-            None, 
-            lambda: ssm_client.get_parameter(Name=MAINTENANCE_PARAMETER_NAME)
-        )
-        
-        maintenance_enabled = response['Parameter']['Value'].lower() in ['true', '1', 'enabled']
+        # 新しい統一Parameter Store機能を使用
+        config = get_maintenance_config()
+        maintenance_enabled = config.get('enabled', False)
         
         if maintenance_enabled:
             logger.warning("Maintenance mode is enabled (async check)")
             
         return maintenance_enabled
         
-    except ClientError as e:
-        error_code = e.response.get('Error', {}).get('Code')
-        if error_code == 'ParameterNotFound':
-            logger.debug("Maintenance parameter not found, assuming service is available")
-        else:
-            logger.warning(
-                "Failed to check maintenance mode, assuming service is available",
-                extra={"error": str(e), "error_code": error_code}
-            )
-        return False
     except Exception as e:
-        logger.error(
-            "Unexpected error in async maintenance check",
+        logger.warning(
+            "Failed to check maintenance mode using unified utils, assuming service is available",
             extra={"error": str(e)}
         )
         return False
@@ -146,23 +109,21 @@ async def is_maintenance_mode() -> bool:
 
 def get_maintenance_message() -> Optional[str]:
     """
-    メンテナンスメッセージ取得
+    メンテナンスメッセージ取得（統一Parameter Store使用）
     
     Returns:
         Optional[str]: メンテナンスメッセージ、取得できない場合はNone
     """
     try:
-        response = ssm_client.get_parameter(Name=MAINTENANCE_MESSAGE_PARAMETER_NAME)
-        return response['Parameter']['Value']
-    except ClientError as e:
-        logger.debug(
-            "Failed to get maintenance message",
-            extra={"error": str(e)}
-        )
-        return None
+        from .parameter_store import get_maintenance_config
+        
+        # 新しい統一Parameter Store機能を使用
+        config = get_maintenance_config()
+        return config.get('message')
+        
     except Exception as e:
-        logger.error(
-            "Unexpected error getting maintenance message",
+        logger.debug(
+            "Failed to get maintenance message using unified utils",
             extra={"error": str(e)}
         )
         return None

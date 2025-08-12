@@ -55,7 +55,7 @@ logger = get_logger(__name__)
 
 def get_parameter_store_value(parameter_name: str) -> str:
     """
-    Parameter Store から値を取得
+    Parameter Store から値を取得（統一utils使用）
     
     Args:
         parameter_name: パラメータ名
@@ -67,9 +67,10 @@ def get_parameter_store_value(parameter_name: str) -> str:
         ValueError: パラメータが見つからない場合
     """
     try:
-        ssm_client = boto3.client('ssm')
-        response = ssm_client.get_parameter(Name=parameter_name, WithDecryption=True)
-        return response['Parameter']['Value']
+        from homebiyori_common.utils.parameter_store import get_parameter_store_client
+        
+        client = get_parameter_store_client()
+        return client.get_parameter(parameter_name)
     except Exception as e:
         logger.error(f"Parameter Store値取得失敗: parameter={parameter_name}, error={str(e)}")
         raise ValueError(f"Failed to retrieve parameter {parameter_name}: {str(e)}")

@@ -67,34 +67,11 @@ resource "aws_ssm_parameter" "maintenance_start_time" {
   # Tags are automatically applied via provider default_tags
 }
 
-# Security parameters - for internal service authentication
-resource "aws_ssm_parameter" "internal_api_key" {
-  name        = "/${var.environment}/homebiyori/internal/api_key"
-  description = "Internal API key for service-to-service authentication"
-  type        = "SecureString"
-  value       = "placeholder-internal-key-must-update-after-deployment"
-  
-  # Ignore changes to value since this should be managed manually for security
-  lifecycle {
-    ignore_changes = [value]
-  }
-  
-  # Tags are automatically applied via provider default_tags
-}
-
-resource "aws_ssm_parameter" "admin_api_key" {
-  name        = "/${var.environment}/homebiyori/admin/api_key"
-  description = "Admin API key for administrative operations"
-  type        = "SecureString"
-  value       = "placeholder-admin-key-must-update-after-deployment"
-  
-  # Ignore changes to value since this should be managed manually for security
-  lifecycle {
-    ignore_changes = [value]
-  }
-  
-  # Tags are automatically applied via provider default_tags
-}
+# セキュリティパラメータ
+# API キーは手動設定方針のため、Terraformでは管理しない
+# 運用時にAWSコンソール/CLIで直接設定:
+# - /${var.environment}/homebiyori/internal/api_key (SecureString)
+# - /${var.environment}/homebiyori/admin/api_key (SecureString)
 
 # Application configuration parameters
 resource "aws_ssm_parameter" "app_version" {
@@ -106,35 +83,31 @@ resource "aws_ssm_parameter" "app_version" {
   # Tags are automatically applied via provider default_tags
 }
 
-resource "aws_ssm_parameter" "feature_flags" {
-  name        = "/${var.environment}/homebiyori/features/flags"
-  description = "JSON object containing feature flags"
-  type        = "String"
-  value       = jsonencode({
-    premium_features_enabled = true
-    group_chat_beta         = false
-    new_ai_characters       = false
-  })
-  
-  # Tags are automatically applied via provider default_tags
-}
+# 機能フラグは削除 - 運用時に必要に応じて手動追加
 
-# AI configuration parameters - Free user LLM settings (Amazon Nova Lite)
+# AI設定 - 無料ユーザー向けLLM設定（Amazon Nova Lite）
+# 無料プランユーザーのチャット機能で使用するLLMモデル設定
 resource "aws_ssm_parameter" "ai_free_user_model_id" {
   name        = "/${var.environment}/homebiyori/llm/free-user/model-id"
-  description = "Model ID for free tier users (Amazon Nova Lite - latest)"
+  description = "LLM model ID for free tier users - Amazon Nova Lite (cost-optimized)"
   type        = "String"
-  value       = "amazon.nova-lite-v1:0"
+  value       = "amazon.nova-lite-v1:0"  # 2025年時点の最新Nova Liteモデル
   
+  # 運用時のモデルバージョン切り替えに備えて値変更を許可
   # Tags are automatically applied via provider default_tags
 }
 
+# 無料ユーザー向け出力トークン制限
+# 用途: コスト制御と適切な応答長バランス
+# 換算: 100トークン = 約150-200日本語文字（1トークン≈1.5-2文字）
+# 目標応答長: 50-150文字（無料プランの制限内）
 resource "aws_ssm_parameter" "ai_free_user_max_tokens" {
   name        = "/${var.environment}/homebiyori/llm/free-user/max-tokens"
-  description = "Maximum output tokens for free tier users (Japanese optimized: ~150-200 chars)"
+  description = "Max output tokens for free users - cost control (100 tokens = ~150-200 JP chars)"
   type        = "String"
   value       = "100"
   
+  # 運用時のコスト調整・応答品質バランスに備えて動的変更を許可
   # Tags are automatically applied via provider default_tags
 }
 
@@ -147,22 +120,29 @@ resource "aws_ssm_parameter" "ai_free_user_temperature" {
   # Tags are automatically applied via provider default_tags
 }
 
-# AI configuration parameters - Premium user LLM settings (Claude 3.5 Haiku)
+# AI設定 - プレミアムユーザー向けLLM設定（Claude 3.5 Haiku）
+# プレミアムプランユーザーのチャット機能で使用する高品質LLMモデル設定
 resource "aws_ssm_parameter" "ai_premium_user_model_id" {
   name        = "/${var.environment}/homebiyori/llm/premium-user/model-id"
-  description = "Model ID for premium tier users (Claude 3.5 Haiku - latest)"
+  description = "LLM model ID for premium users - Claude 3.5 Haiku (high-quality)"
   type        = "String"
-  value       = "anthropic.claude-3-5-haiku-20241022-v1:0"
+  value       = "anthropic.claude-3-5-haiku-20241022-v1:0"  # 2024年10月時点の最新Claude 3.5 Haiku
   
+  # プレミアム体験向上のため、より高性能モデルへの切り替えに備える
   # Tags are automatically applied via provider default_tags
 }
 
+# プレミアムユーザー向け出力トークン制限
+# 用途: 高品質で詳細な応答提供（プレミアム価値創出）
+# 換算: 250トークン = 約375-500日本語文字（1トークン≈1.5-2文字）
+# 目標応答長: 200-400文字（プレミアムプランの豊富な応答）
 resource "aws_ssm_parameter" "ai_premium_user_max_tokens" {
   name        = "/${var.environment}/homebiyori/llm/premium-user/max-tokens"
-  description = "Maximum output tokens for premium tier users (Japanese optimized: ~375-500 chars)"
+  description = "Max output tokens for premium users - quality focus (250 tokens = ~375-500 JP chars)"
   type        = "String"
   value       = "250"
   
+  # プレミアム体験最適化のため応答品質調整を動的変更で対応
   # Tags are automatically applied via provider default_tags
 }
 
@@ -191,16 +171,4 @@ resource "aws_ssm_parameter" "tree_growth_thresholds" {
   # Tags are automatically applied via provider default_tags
 }
 
-# Rate limiting configuration
-resource "aws_ssm_parameter" "rate_limits" {
-  name        = "/${var.environment}/homebiyori/security/rate_limits"
-  description = "API rate limiting configuration"
-  type        = "String"
-  value       = jsonencode({
-    default_requests_per_minute = 100
-    chat_requests_per_minute   = 10
-    admin_requests_per_minute  = 500
-  })
-  
-  # Tags are automatically applied via provider default_tags
-}
+# レート制限設定は削除 - アプリケーションレベルで固定値を使用
