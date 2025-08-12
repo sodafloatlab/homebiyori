@@ -8,6 +8,7 @@ import useMaintenanceStore from '@/stores/maintenanceStore';
 import { AuthService } from '@/lib/auth';
 import { ChatService, TreeService, UserService, NotificationService } from '@/lib/services';
 import { accountSettingsService } from '@/lib/services/AccountSettingsService';
+import { billingService } from '@/lib/services/BillingService';
 import type { 
   AccountStatus, 
   DeletionRequest, 
@@ -15,6 +16,10 @@ import type {
   DeletionResponse,
   DeletionProgressResponse 
 } from '@/lib/services/AccountSettingsService';
+import type {
+  CreateSubscriptionRequest,
+  SubscriptionStatus
+} from '@/lib/services/BillingService';
 
 /**
  * 認証状態管理フック
@@ -521,5 +526,150 @@ export const useSubscriptionCancel = () => {
     error,
     cancelSubscription,
     clearError
+  };
+};
+
+/**
+ * サブスクリプション管理フック
+ */
+export const useSubscription = () => {
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [subscriptionStatus, setSubscriptionStatus] = useState<SubscriptionStatus | null>(null);
+
+  const createSubscription = useCallback(async (request: CreateSubscriptionRequest) => {
+    try {
+      setLoading(true);
+      setError(null);
+      const response = await billingService.createSubscription(request);
+      
+      // Stripe Checkoutにリダイレクト
+      if (response.redirect_url) {
+        window.location.href = response.redirect_url;
+        return response;
+      }
+      
+      // Payment Intentの場合は client_secret を返す
+      return response;
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'サブスクリプション作成に失敗しました';
+      setError(errorMessage);
+      throw error;
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  const loadSubscriptionStatus = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const status = await billingService.getSubscriptionStatus();
+      setSubscriptionStatus(status);
+      return status;
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'サブスクリプション状態の取得に失敗しました';
+      setError(errorMessage);
+      throw error;
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  const getCustomerPortal = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const response = await billingService.getCustomerPortalUrl();
+      
+      // Customer Portalにリダイレクト
+      window.location.href = response.url;
+      return response;
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : '顧客ポータルの取得に失敗しました';
+      setError(errorMessage);
+      throw error;
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  const clearError = useCallback(() => {
+    setError(null);
+  }, []);
+
+  return {
+    loading,
+    error,
+    subscriptionStatus,
+    createSubscription,
+    loadSubscriptionStatus,
+    getCustomerPortal,
+    clearError
+  };
+};
+
+/**
+ * プレミアム機能制限チェック・誘導フック
+ */
+export const usePremiumFeatureGuard = (onPremiumRequired?: () => void) => {
+  const auth = useAuth();
+  const subscription = useSubscription();
+
+  // ユーザーのサブスクリプション状態をチェック
+  const isPremiumUser = useCallback(() => {
+    return auth.profile?.subscription_plan === 'premium' || 
+           auth.profile?.subscription_plan === 'premium_yearly';
+  }, [auth.profile]);
+
+  // プレミアム機能アクセス時のガード
+  const checkPremiumFeature = useCallback((
+    featureName: 'deep_mode' | 'group_chat' | 'long_history',
+    options: {
+      showAlert?: boolean;
+      customMessage?: string;
+    } = {}
+  ) => {
+    if (isPremiumUser()) {
+      return true;
+    }
+
+    const { showAlert = true, customMessage } = options;
+    
+    if (showAlert) {
+      const messages = {
+        deep_mode: 'ディープモードはプレミアム限定機能です。より深い褒めと共感を体験してみませんか？',
+        group_chat: 'グループチャットはプレミアム限定機能です。3人のAIキャラクターと同時にお話しできます。',
+        long_history: 'チャット履歴長期保存はプレミアム限定機能です。大切な会話を180日間保存できます。'
+      };
+      
+      const message = customMessage || messages[featureName];
+      
+      if (window.confirm(`${message}\n\nプレミアムプランの詳細を確認しますか？`)) {
+        onPremiumRequired?.();
+      }
+    } else {
+      onPremiumRequired?.();
+    }
+
+    return false;
+  }, [isPremiumUser, onPremiumRequired]);
+
+  // プレミアムプランへのサブスクリプション開始
+  const startPremiumSubscription = useCallback(async (plan: 'monthly' | 'yearly') => {
+    try {
+      await subscription.createSubscription({ plan });
+    } catch (error) {
+      console.error('Premium subscription error:', error);
+      throw error;
+    }
+  }, [subscription]);
+
+  return {
+    isPremiumUser: isPremiumUser(),
+    checkPremiumFeature,
+    startPremiumSubscription,
+    subscriptionLoading: subscription.loading,
+    subscriptionError: subscription.error
   };
 };

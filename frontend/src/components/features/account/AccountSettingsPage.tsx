@@ -329,18 +329,28 @@ export function AccountSettingsPage({
               </span>
             </div>
             
-            <div className="flex gap-2 pt-2">
-              <Button variant="secondary" className="flex-1">
-                プラン変更
-              </Button>
-              {hasActiveSubscription && (
+            <div className="space-y-2 pt-2">
+              {!hasActiveSubscription ? (
                 <Button 
-                  variant="secondary" 
-                  className="flex-1" 
-                  onClick={() => setShowCancelConfirm(true)}
+                  variant="primary" 
+                  className="w-full"
+                  onClick={() => window.location.href = '/premium'}
                 >
-                  解約
+                  プレミアムプランに登録
                 </Button>
+              ) : (
+                <div className="flex gap-2">
+                  <Button variant="secondary" className="flex-1">
+                    プラン変更
+                  </Button>
+                  <Button 
+                    variant="secondary" 
+                    className="flex-1" 
+                    onClick={() => setShowCancelConfirm(true)}
+                  >
+                    解約
+                  </Button>
+                </div>
               )}
             </div>
 
@@ -470,7 +480,7 @@ ${formatDate(subscriptionStatus.currentPeriodEnd!)}まではプレミアム機�
         onConfirm={() => {
           setShowPremiumUpgrade(false);
           // プレミアムプラン画面への遷移処理を追加
-          // onPremiumUpgrade(); // プロップで渡される場合
+          window.location.href = '/premium';
         }}
         onCancel={() => setShowPremiumUpgrade(false)}
         variant="info"

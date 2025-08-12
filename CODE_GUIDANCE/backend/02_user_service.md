@@ -11,7 +11,7 @@
 
 1.  **`models.py`**: 扱うデータ（ユーザー情報など）の構造をPydanticで定義します。
 2.  **`main.py`**: FastAPIを使い、ユーザー情報を操作するためのAPIエンドポイント（`/users`, `/users/{user_id}`など）を定義します。
-3.  **`database.py`**: データベース（DynamoDB）との実際のやり取り（データの保存、取得など）を行うロジックを記述します。（今後解説）
+3.  **`database.py`**: データベース（DynamoDB）との実際のやり取り（データの保存、取得など）を行うロジックを記述します。
 4.  **`handler.py`**: `health_check_service`と同様に、LambdaとFastAPIを連携させます。
 
 ---
@@ -75,3 +75,28 @@
 3.  **既存プロフィールの取得と更新**: `update_user_profile`と同様に、まず`db.get_user_profile(user_id)`で既存のユーザープロフィールを取得します。もしプロフィールが存在すれば、その`existing_profile`オブジェクトの`ai_character`と`praise_level`を、リクエストで受け取った`ai_preferences`の値で直接上書きします。プロフィールが存在しない場合は、`UserProfile`モデルを使って新しいプロフィールオブジェクトを作成し、`user_id`と受け取ったAI設定を初期値として設定します。
 4.  **データベースへの保存**: 更新または新規作成した`updated_profile`オブジェクトを`db.save_user_profile(updated_profile)`でデータベースに保存します。
 5.  **レスポンス**: `return ai_preferences`として、更新に成功したAI設定をそのままクライアントに返します。`response_model=AIPreferences`が指定されているため、FastAPIがこれをJSONに変換して返します。
+
+### 3. `database.py` - データベースとの対話役
+
+このファイルは、`user_service`における**データ永続化**の責務をすべて担っています。`main.py`がAPIの「受付窓口」だとすれば、`database.py`は、受け付けた注文を実際に記録・参照する「台帳管理者」や「書庫の番人」のような存在です。
+
+**主な役割:**
+
+1.  **データベースへの接続**: AWSのSDK（Boto3）を使い、DynamoDBへの接続を確立します。
+2.  **データのマッピング**: `main.py`で扱っているPydanticモデル（例: `UserProfile`）と、DynamoDBのテーブルに保存されるデータ形式との間の変換を行います。
+3.  **CRUD操作の実装**: `main.py`からの指示を受け、それをDynamoDBが理解できる具体的なコマンド（`get_item`, `put_item`など）に翻訳して実行します。
+4.  **エラーハンドリング**: データベースとの通信中に発生したエラーを捕捉し、`main.py`が処理できるように、独自のエラー（例: `DatabaseError`）として再送出します。
+
+この役割分担により、`main.py`はデータベースの具体的な実装詳細（例: DynamoDBのキー構造）から切り離され、コードの保守性が向上します。
+
+#### `UserServiceDatabase` クラス
+
+このクラスは、`user_service`に関連するすべてのデータベース操作をメソッドとしてまとめたものです。
+
+- **`__init__(self)`**: 初期化メソッド。共通レイヤーの`DynamoDBClient`を準備します。これは、低レベルなDB操作をラップした、使いやすい高機能なクライアントです。
+- **`async def get_user_profile(...)`**: `user_id`を基にDynamoDBからユーザー情報を取得します。データ取得後、Pydanticモデル(`UserProfile`)に変換して返すことで、型安全性を保証します。
+- **`async def save_user_profile(...)`**: `UserProfile`オブジェクトを受け取り、DynamoDBに保存できる形式（辞書）に変換してから書き込みます。更新日時の自動更新や、PK/SKといったDB用のキーの付与もここで行います。
+
+#### `get_database()` 関数とシングルトンパターン
+
+ファイルの末尾にあるこの関数は、**シングルトンパターン**を実装しています。これは、`UserServiceDatabase`のインスタンスがプログラム全体で一つしか作られないことを保証する仕組みです。Lambda環境では、一度作成したDB接続を後続のリクエストで再利用することで、パフォーマンスを向上させる効果があります。

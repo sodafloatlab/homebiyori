@@ -11,9 +11,11 @@ import TreeView from './TreeView';
 import GroupChatScreen from './chat/GroupChatScreen';
 import NotificationsPage from './notifications/NotificationsPage';
 import StaticPages from './StaticPages';
+import { PremiumLandingPage } from './premium/PremiumLandingPage';
 import ErrorBoundary from '@/components/error/ErrorBoundary';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import Toast from '@/components/ui/Toast';
+import { useSubscription } from '@/lib/hooks';
 
 const MainApp = () => {
   // 初期状態は常にlandingでSSR/クライアント間の一貫性を保つ
@@ -29,6 +31,7 @@ const MainApp = () => {
   const tree = useTree();
   const notifications = useNotifications();
   const maintenance = useMaintenance();
+  const subscription = useSubscription();
 
   // 初期化処理
   useEffect(() => {
@@ -313,58 +316,28 @@ const MainApp = () => {
 
       case 'premium':
         return (
-          <div className="min-h-screen bg-gradient-to-br from-amber-50 to-yellow-50 flex items-center justify-center">
-            <div className="text-center max-w-lg mx-auto p-6">
-              <div className="text-6xl mb-4">👑</div>
-              <h2 className="text-2xl font-bold text-amber-800 mb-4">プレミアムプラン</h2>
-              
-              {/* グループチャット機能アクセス時の特別メッセージ */}
-              {previousScreen === 'group-chat' && (
-                <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-6">
-                  <div className="flex items-center mb-2">
-                    <span className="text-2xl mr-2">👥</span>
-                    <h3 className="font-bold text-blue-800">グループチャット機能をお試しいただきありがとうございます！</h3>
-                  </div>
-                  <p className="text-blue-700 text-sm">
-                    3つのAIキャラクターと同時にお話しできる特別な機能です。プレミアムプランでご利用いただけます。
-                  </p>
-                </div>
-              )}
-
-              <div className="bg-white/90 backdrop-blur-sm rounded-2xl p-6 shadow-lg mb-6">
-                <div className="space-y-3 text-left mb-6">
-                  <div className="flex items-center">
-                    <span className="text-green-500 mr-2">✓</span>
-                    <span className={previousScreen === 'group-chat' ? 'font-bold text-amber-600' : ''}>
-                      グループチャット機能
-                    </span>
-                  </div>
-                  <div className="flex items-center">
-                    <span className="text-green-500 mr-2">✓</span>
-                    <span>チャット履歴180日保存</span>
-                  </div>
-                  <div className="flex items-center">
-                    <span className="text-green-500 mr-2">✓</span>
-                    <span>ディープモード</span>
-                  </div>
-                  <div className="flex items-center">
-                    <span className="text-green-500 mr-2">✓</span>
-                    <span>優先サポート</span>
-                  </div>
-                </div>
-                <div className="text-center">
-                  <p className="text-2xl font-bold text-amber-600 mb-2">月額 980円（税込）</p>
-                  <p className="text-sm text-gray-500">※決済システム実装予定</p>
-                </div>
-              </div>
-              <button
-                onClick={() => handleNavigate('chat')}
-                className="px-6 py-3 bg-amber-500 text-white rounded-xl hover:bg-amber-600 transition-colors"
-              >
-                チャットに戻る
-              </button>
-            </div>
-          </div>
+          <PremiumLandingPage
+            onClose={() => handleNavigate(previousScreen || 'character-selection')}
+            onSubscribe={async (plan) => {
+              try {
+                setToastMessage({
+                  type: 'info',
+                  title: 'プレミアムプラン登録',
+                  message: `${plan === 'monthly' ? '月額' : '年額'}プランの登録処理を開始します。`
+                });
+                setShowToast(true);
+                
+                await subscription.createSubscription({ plan });
+              } catch (error) {
+                setToastMessage({
+                  type: 'error',
+                  title: '登録エラー',
+                  message: 'プレミアムプランの登録に失敗しました。しばらく時間をおいてから再度お試しください。'
+                });
+                setShowToast(true);
+              }
+            }}
+          />
         );
 
       case 'subscription-cancel':

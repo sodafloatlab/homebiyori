@@ -10,7 +10,7 @@ import Button from '@/components/ui/Button';
 import TouchTarget from '@/components/ui/TouchTarget';
 import Toast from '@/components/ui/Toast';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
-import { useAuth, useChat, useTree, useMaintenance } from '@/lib/hooks';
+import { useAuth, useChat, useTree, useMaintenance, usePremiumFeatureGuard } from '@/lib/hooks';
 import { useChatService } from '@/lib/api/chatService';
 import { useTreeService } from '@/lib/api/treeService';
 
@@ -33,6 +33,7 @@ const ChatScreen = ({
   const [isTyping, setIsTyping] = useState(false);
   const [showToast, setShowToast] = useState(false);
   const [toastMessage, setToastMessage] = useState({ type: 'success' as const, title: '', message: '' });
+  const [currentPraiseLevel, setCurrentPraiseLevel] = useState<'normal' | 'deep'>('normal');
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const auth = useAuth();
@@ -41,6 +42,7 @@ const ChatScreen = ({
   const maintenance = useMaintenance();
   const chatService = useChatService();
   const treeService = useTreeService();
+  const premiumGuard = usePremiumFeatureGuard(() => onNavigate('premium' as AppScreen));
 
   // AIキャラクター情報
   const characters = {
@@ -124,8 +126,8 @@ const ChatScreen = ({
       };
 
       const praiseLevelMap: Record<MoodType, PraiseLevel> = {
-        'praise': 'normal',
-        'listen': 'normal'
+        'praise': currentPraiseLevel as PraiseLevel,
+        'listen': currentPraiseLevel as PraiseLevel
       };
 
       const response = await chatService.sendMessage({
@@ -507,8 +509,56 @@ const ChatScreen = ({
               </Button>
             </div>
 
+            {/* ディープモード切り替え */}
+            <div className="bg-white/90 backdrop-blur-sm rounded-2xl shadow-lg p-6 border border-white/20">
+              <Typography variant="h4" color="primary" className="mb-3 flex items-center">
+                <MessageCircle className="w-5 h-5 mr-2" />
+                褒めレベル設定
+              </Typography>
+              <div className="space-y-3">
+                <div className="flex items-center space-x-4">
+                  <TouchTarget
+                    onClick={() => setCurrentPraiseLevel('normal')}
+                    className={`flex-1 p-3 rounded-lg border-2 text-center transition-all ${
+                      currentPraiseLevel === 'normal'
+                        ? 'border-emerald-500 bg-emerald-50 text-emerald-700'
+                        : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300'
+                    }`}
+                  >
+                    <div className="font-semibold text-sm">ノーマル</div>
+                    <div className="text-xs opacity-75">優しく簡潔に</div>
+                  </TouchTarget>
+                  <TouchTarget
+                    onClick={() => {
+                      if (premiumGuard.checkPremiumFeature('deep_mode')) {
+                        setCurrentPraiseLevel('deep');
+                      }
+                    }}
+                    className={`flex-1 p-3 rounded-lg border-2 text-center transition-all relative ${
+                      currentPraiseLevel === 'deep' && premiumGuard.isPremiumUser
+                        ? 'border-amber-500 bg-amber-50 text-amber-700'
+                        : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300'
+                    }`}
+                  >
+                    <div className="font-semibold text-sm flex items-center justify-center">
+                      ディープ
+                      {!premiumGuard.isPremiumUser && (
+                        <Crown className="w-3 h-3 ml-1 text-amber-500" />
+                      )}
+                    </div>
+                    <div className="text-xs opacity-75">深く共感して</div>
+                  </TouchTarget>
+                </div>
+                {!premiumGuard.isPremiumUser && (
+                  <Typography variant="small" color="secondary" className="text-center">
+                    ディープモードはプレミアム限定機能です
+                  </Typography>
+                )}
+              </div>
+            </div>
+
             {/* グループチャット案内 */}
-            {auth.profile?.subscription_plan === 'premium' && (
+            {premiumGuard.isPremiumUser ? (
               <div className="bg-gradient-to-r from-blue-100/90 to-indigo-100/90 backdrop-blur-sm rounded-2xl p-6 shadow-lg border border-white/20">
                 <Typography variant="h4" color="primary" className="mb-3 flex items-center">
                   <Users className="w-5 h-5 mr-2" />
@@ -526,10 +576,29 @@ const ChatScreen = ({
                   グループチャットを始める
                 </Button>
               </div>
+            ) : (
+              <div className="bg-gradient-to-r from-blue-100/90 to-indigo-100/90 backdrop-blur-sm rounded-2xl p-6 shadow-lg border border-white/20">
+                <Typography variant="h4" color="primary" className="mb-3 flex items-center">
+                  <Users className="w-5 h-5 mr-2" />
+                  グループチャット
+                  <Crown className="w-4 h-4 ml-2 text-amber-500" />
+                </Typography>
+                <Typography variant="small" color="secondary" className="mb-4">
+                  3人のAIキャラクターと同時にお話しできるプレミアム限定機能です
+                </Typography>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  fullWidth
+                  onClick={() => premiumGuard.checkPremiumFeature('group_chat')}
+                >
+                  プレミアムで解除
+                </Button>
+              </div>
             )}
 
             {/* プレミアム案内 */}
-            {auth.profile?.subscription_plan === 'free' && (
+            {!premiumGuard.isPremiumUser && (
               <div className="bg-gradient-to-r from-amber-100/90 to-yellow-100/90 backdrop-blur-sm rounded-2xl p-6 shadow-lg border border-white/20">
                 <Typography variant="h4" color="primary" className="mb-3 flex items-center">
                   <Crown className="w-5 h-5 mr-2" />

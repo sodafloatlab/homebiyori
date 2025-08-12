@@ -71,7 +71,13 @@
       "Bash(npx eslint:*)",
       "Bash(git rm:*)",
       "mcp__awslabs_aws-documentation-mcp-server__read_documentation",
-      "mcp__awslabs_aws-documentation-mcp-server__search_documentation"
+      "mcp__awslabs_aws-documentation-mcp-server__search_documentation",
+      "Bash(PYTHONPATH=backend/layers/common/python python -m pytest tests/backend/services/chat_service/test_parameter_store_integration.py -v --tb=short)",
+      "Bash(PYTHONPATH=backend/layers/common/python python -m pytest tests/backend/services/chat_service/test_parameter_store_integration.py::TestParameterStoreNewFeatures -v --tb=short)",
+      "Bash(PYTHONPATH=backend/layers/common/python python -m pytest tests/backend/services/chat_service/test_parameter_store_integration.py -v)",
+      "Bash(PYTHONPATH=backend/layers/common/python python -m pytest tests/backend/services/tree_service/ -v --tb=short -k \"test_tree_stage or test_growth\")",
+      "Bash(PYTHONPATH=backend/layers/common/python python -m pytest tests/backend/services/tree_service/ -v --tb=short)",
+      "Bash(PYTHONPATH=backend/layers/common/python python -m pytest tests/backend/services/billing_service/ -v --tb=short -x)"
     ],
     "deny": []
   },

@@ -8,6 +8,9 @@
     "start": "next start",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
     "test:api": "echo 'API統合テスト: http://localhost:3000/test にアクセスしてください'",
     "analyze": "cross-env ANALYZE=true next build",
     "clean": "rm -rf .next out coverage"
@@ -26,10 +29,17 @@
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
+    "@testing-library/jest-dom": "^6.6.4",
+    "@testing-library/react": "^16.3.0",
+    "@testing-library/user-event": "^14.6.1",
+    "@types/jest": "^30.0.0",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "jest": "^30.0.5",
+    "jest-environment-jsdom": "^30.0.5",
     "tailwindcss": "^4",
+    "ts-jest": "^29.4.1",
     "typescript": "^5"
   }
 }
