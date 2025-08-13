@@ -373,7 +373,7 @@ async def test_chat_service_ai_preferences_integration():
         "subscription_plan": "monthly"  # プレミアムユーザー
     }
     
-    with patch.object(chat_db.db_client, 'get_item', new_callable=AsyncMock) as mock_get_item:
+    with patch.object(chat_db.core_client, 'get_item', new_callable=AsyncMock) as mock_get_item:
         mock_get_item.return_value = mock_profile_data
         
         # AI設定情報取得テスト
@@ -416,7 +416,7 @@ async def test_free_user_praise_level_restriction():
         "subscription_plan": "free"  # 無料ユーザー
     }
     
-    with patch.object(chat_db.db_client, 'get_item', new_callable=AsyncMock) as mock_get_item:
+    with patch.object(chat_db.core_client, 'get_item', new_callable=AsyncMock) as mock_get_item:
         mock_get_item.return_value = mock_profile_data
         
         # AI設定情報とサブスクリプション情報を取得
@@ -461,7 +461,7 @@ async def test_ai_character_fallback_logic():
         "subscription_plan": "yearly"
     }
     
-    with patch.object(chat_db.db_client, 'get_item', new_callable=AsyncMock) as mock_get_item:
+    with patch.object(chat_db.core_client, 'get_item', new_callable=AsyncMock) as mock_get_item:
         mock_get_item.return_value = mock_profile_data
         
         # AI設定情報取得
@@ -617,8 +617,8 @@ async def test_delete_user_profile_success(database_client, sample_user_profile)
     retrieved_profile = await db.get_user_profile(user_id)
     assert retrieved_profile is not None
     
-    # db_clientのdelete_user_profileメソッドをモック
-    with patch.object(db.db_client, 'delete_user_profile', new_callable=AsyncMock) as mock_delete:
+    # core_clientのdelete_user_profileメソッドをモック
+    with patch.object(db.core_client, 'delete_user_profile', new_callable=AsyncMock) as mock_delete:
         mock_delete.return_value = {"ResponseMetadata": {"HTTPStatusCode": 200}}
         
         # プロフィール削除
@@ -639,8 +639,8 @@ async def test_delete_nonexistent_user_profile(database_client):
     db, test_data = database_client
     non_existent_user_id = "00000000-0000-0000-0000-000000000000"
     
-    # db_clientのdelete_user_profileメソッドをモック
-    with patch.object(db.db_client, 'delete_user_profile', new_callable=AsyncMock) as mock_delete:
+    # core_clientのdelete_user_profileメソッドをモック
+    with patch.object(db.core_client, 'delete_user_profile', new_callable=AsyncMock) as mock_delete:
         mock_delete.return_value = {"ResponseMetadata": {"HTTPStatusCode": 200}}
         
         # 存在しないユーザーの削除

@@ -1,12 +1,12 @@
-# DynamoDB Table Outputs
-output "users_table_name" {
-  description = "Name of the users table"
-  value       = module.dynamodb_tables["users"].table_name
+# DynamoDB Table Outputs - 4テーブル構成
+output "core_table_name" {
+  description = "Name of the core table (統合テーブル)"
+  value       = module.dynamodb_tables["core"].table_name
 }
 
-output "users_table_arn" {
-  description = "ARN of the users table"
-  value       = module.dynamodb_tables["users"].table_arn
+output "core_table_arn" {
+  description = "ARN of the core table (統合テーブル)"
+  value       = module.dynamodb_tables["core"].table_arn
 }
 
 output "chats_table_name" {
@@ -19,16 +19,6 @@ output "chats_table_arn" {
   value       = module.dynamodb_tables["chats"].table_arn
 }
 
-output "trees_table_name" {
-  description = "Name of the trees table"
-  value       = module.dynamodb_tables["trees"].table_name
-}
-
-output "trees_table_arn" {
-  description = "ARN of the trees table"
-  value       = module.dynamodb_tables["trees"].table_arn
-}
-
 output "fruits_table_name" {
   description = "Name of the fruits table"
   value       = module.dynamodb_tables["fruits"].table_name
@@ -37,26 +27,6 @@ output "fruits_table_name" {
 output "fruits_table_arn" {
   description = "ARN of the fruits table"
   value       = module.dynamodb_tables["fruits"].table_arn
-}
-
-output "subscriptions_table_name" {
-  description = "Name of the subscriptions table"
-  value       = module.dynamodb_tables["subscriptions"].table_name
-}
-
-output "subscriptions_table_arn" {
-  description = "ARN of the subscriptions table"
-  value       = module.dynamodb_tables["subscriptions"].table_arn
-}
-
-output "notifications_table_name" {
-  description = "Name of the notifications table"
-  value       = module.dynamodb_tables["notifications"].table_name
-}
-
-output "notifications_table_arn" {
-  description = "ARN of the notifications table"
-  value       = module.dynamodb_tables["notifications"].table_arn
 }
 
 output "feedback_table_name" {

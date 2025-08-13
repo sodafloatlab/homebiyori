@@ -60,7 +60,10 @@ class DynamoDBClient:
         """
         import os
         
-        self.table_name = table_name or os.getenv("DYNAMODB_TABLE_NAME", "homebiyori-data")
+        # 4テーブル構成対応：table_name必須、デフォルト値なし
+        if not table_name:
+            raise ValueError("table_name is required for 4-table architecture")
+        self.table_name = table_name
         self.region_name = region_name
         self.logger = get_logger(__name__)
         

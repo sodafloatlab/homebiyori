@@ -68,15 +68,21 @@ class TreeDatabase:
     4. テーマカラー管理
     """
     
-    def __init__(self, table_name: str = "homebiyori-data"):
+    def __init__(self):
         """
-        データベースクライアント初期化
-        
-        Args:
-            table_name: DynamoDBテーブル名
-        """
-        self.table_name = table_name
-        self.db_client = DynamoDBClient(table_name)
+    データベースクライアント初期化
+    
+    ■4テーブル統合対応■
+    - core: 木の統計（TREE）を保存
+    - fruits: 実の情報を独立保存  
+    - chats: チャット履歴（TTL管理）
+    - feedback: フィードバック（分析用）
+    """
+        # 4つのテーブル用のクライアントを初期化：環境変数からテーブル名取得
+        self.core_client = DynamoDBClient(os.environ["CORE_TABLE_NAME"])
+        self.fruits_client = DynamoDBClient(os.environ["FRUITS_TABLE_NAME"]) 
+        self.chats_client = DynamoDBClient(os.environ["CHATS_TABLE_NAME"])
+        self.feedback_client = DynamoDBClient(os.environ["FEEDBACK_TABLE_NAME"])
         self.logger = get_logger(__name__)
     
     # =====================================
@@ -85,19 +91,22 @@ class TreeDatabase:
     
     async def get_user_tree_stats(self, user_id: str) -> Optional[Dict[str, Any]]:
         """
-        ユーザーの木統計を取得
+    ユーザーの木統計を取得（4テーブル統合対応）
+    
+    ■coreテーブル対応■
+    - PK: USER#{user_id}, SK: TREE
+    
+    Args:
+        user_id: ユーザーID
         
-        Args:
-            user_id: ユーザーID
-            
-        Returns:
-            Dict: 木統計データ（存在しない場合はNone）
-        """
+    Returns:
+        Dict: 木統計データ（存在しない場合はNone）
+    """
         try:
             pk = f"USER#{user_id}"
-            sk = "TREE_STATS"
+            sk = "TREE"
             
-            item = await self.db_client.get_item(pk, sk)
+            item = await self.core_client.get_item(pk, sk)
             
             if item:
                 # JST時刻に変換
@@ -134,20 +143,19 @@ class TreeDatabase:
             
             initial_stats = {
                 "PK": f"USER#{user_id}",
-                "SK": "TREE_STATS",
+                "SK": "TREE",
                 "user_id": user_id,
                 "current_stage": 0,
                 "total_characters": 0,
                 "total_messages": 0,
                 "total_fruits": 0,
-                "theme_color": "warm_pink",
                 "created_at": to_jst_string(now),
                 "updated_at": to_jst_string(now),
                 "last_message_date": None,
                 "last_fruit_date": None
             }
             
-            await self.db_client.put_item(initial_stats)
+            await self.core_client.put_item(initial_stats)
             
             # レスポンス用にdatetime型に変換
             initial_stats["created_at"] = now
@@ -179,7 +187,7 @@ class TreeDatabase:
             new_stage = calculate_tree_stage(new_total_characters)
             
             pk = f"USER#{user_id}"
-            sk = "TREE_STATS"
+            sk = "TREE"
             
             # 更新式でアトミックに更新
             update_expression = """
@@ -198,7 +206,7 @@ class TreeDatabase:
                 ":now": to_jst_string(now)
             }
             
-            await self.db_client.update_item(
+            await self.core_client.update_item(
                 pk, sk, 
                 update_expression, 
                 expression_values
@@ -224,7 +232,7 @@ class TreeDatabase:
         try:
             now = get_current_jst()
             pk = f"USER#{user_id}"
-            sk = "TREE_STATS"
+            sk = "TREE"
             
             update_expression = "SET theme_color = :theme, updated_at = :now"
             expression_values = {
@@ -232,7 +240,7 @@ class TreeDatabase:
                 ":now": to_jst_string(now)
             }
             
-            await self.db_client.update_item(
+            await self.core_client.update_item(
                 pk, sk,
                 update_expression,
                 expression_values
@@ -250,36 +258,34 @@ class TreeDatabase:
     
     async def save_fruit(self, fruit_info: FruitInfo) -> None:
         """
-        実（褒めメッセージ）を保存
+        実（褒めメッセージ）を保存（4テーブル統合対応）
+        
+        ■fruitsテーブル対応■
+        - PK: USER#{user_id}, SK: FRUIT#{timestamp}
         
         Args:
             fruit_info: 実の情報
         """
         try:
             now = get_current_jst()
-            timestamp_str = now.strftime("%Y%m%d%H%M%S")
+            timestamp_str = now.strftime("%Y-%m-%dT%H:%M:%S+09:00")
             
             item = {
                 "PK": f"USER#{fruit_info.user_id}",
-                "SK": f"FRUIT#{timestamp_str}#{fruit_info.fruit_id}",
+                "SK": f"FRUIT#{timestamp_str}",
                 "fruit_id": fruit_info.fruit_id,
                 "user_id": fruit_info.user_id,
-                "message": fruit_info.message,
-                "emotion_trigger": fruit_info.emotion_trigger,
-                "emotion_score": fruit_info.emotion_score,
+                "user_message": fruit_info.message,
+                "ai_response": fruit_info.message,  # 実際の褒めメッセージ
                 "ai_character": fruit_info.ai_character,
-                "character_color": fruit_info.character_color.value,
-                "trigger_message_id": fruit_info.trigger_message_id,
-                "created_at": to_jst_string(fruit_info.created_at),
-                "viewed_at": None,
-                "view_count": 0,
-                # GSI1用（実の検索・フィルタリング）
-                "GSI1PK": f"FRUIT#{fruit_info.user_id}",
-                "GSI1SK": f"{fruit_info.ai_character}#{fruit_info.emotion_trigger}#{timestamp_str}",
-                # TTL設定なし（実は永続保存）
+                "detected_emotion": fruit_info.emotion_trigger,
+                "fruit_color": fruit_info.character_color.value,
+                "created_at": timestamp_str,
+                # fruitsテーブルはTTL設定なし（永続保存）
             }
             
-            await self.db_client.put_item(item)
+            # fruitsテーブルに保存
+            await self.fruits_client.put_item(item)
             
             self.logger.info(f"実保存完了: user_id={fruit_info.user_id}, fruit_id={fruit_info.fruit_id}")
             
@@ -303,10 +309,10 @@ class TreeDatabase:
             pk = f"USER#{user_id}"
             
             # Query with begins_with for SK
-            result = await self.db_client.query(
+            result = await self.fruits_client.query(
                 pk,
                 sk_condition="begins_with(SK, :sk_prefix)",
-                expression_values={":sk_prefix": "FRUIT#"},
+                expression_values={":sk_prefix": "FRUIT#", ":fruit_id": fruit_id},
                 filter_expression="fruit_id = :fruit_id"
             )
             items = result.get("items", [])
@@ -393,10 +399,10 @@ class TreeDatabase:
                 query_params["filter_expression"] = " AND ".join(filter_conditions)
             
             if next_token:
-                query_params["exclusive_start_key"] = self.db_client._decode_pagination_token(next_token)
+                query_params["exclusive_start_key"] = self.fruits_client._decode_pagination_token(next_token)
             
             # クエリ実行
-            result = await self.db_client.query(**query_params)
+            result = await self.fruits_client.query(**query_params)
             
             # FruitInfoオブジェクトに変換
             fruits = []
@@ -453,10 +459,10 @@ class TreeDatabase:
             
             # fruit_idから該当アイテムを検索
             pk = f"USER#{user_id}"
-            result = await self.db_client.query(
+            result = await self.fruits_client.query(
                 pk,
                 sk_condition="begins_with(SK, :sk_prefix)",
-                expression_values={":sk_prefix": "FRUIT#"},
+                expression_values={":sk_prefix": "FRUIT#", ":fruit_id": fruit_id},
                 filter_expression="fruit_id = :fruit_id"
             )
             items = result.get("items", [])
@@ -479,7 +485,7 @@ class TreeDatabase:
                 ":now": to_jst_string(now)
             }
             
-            await self.db_client.update_item(
+            await self.fruits_client.update_item(
                 pk, sk,
                 update_expression,
                 expression_values
@@ -501,7 +507,7 @@ class TreeDatabase:
         try:
             now = get_current_jst()
             pk = f"USER#{user_id}"
-            sk = "TREE_STATS"
+            sk = "TREE"
             
             update_expression = """
                 SET 
@@ -515,7 +521,7 @@ class TreeDatabase:
                 ":now": to_jst_string(now)
             }
             
-            await self.db_client.update_item(
+            await self.core_client.update_item(
                 pk, sk,
                 update_expression,
                 expression_values
@@ -563,7 +569,7 @@ class TreeDatabase:
                 "milestone_fruit_id": None  # 将来的に特別な実のID
             }
             
-            await self.db_client.put_item(item)
+            await self.core_client.put_item(item)
             
             self.logger.info(f"成長履歴記録完了: user_id={user_id}, stage={new_stage}")
             
@@ -584,7 +590,7 @@ class TreeDatabase:
         try:
             pk = f"USER#{user_id}"
             
-            result = await self.db_client.query(
+            result = await self.core_client.query(
                 pk,
                 sk_condition="begins_with(SK, :sk_prefix)",
                 expression_values={":sk_prefix": "GROWTH#"},
@@ -623,8 +629,8 @@ class TreeDatabase:
             bool: 接続が正常かどうか
         """
         try:
-            # テーブル存在確認
-            await self.db_client.describe_table()
+            # テーブル存在確認（coreテーブル）
+            await self.core_client.describe_table()
             return True
             
         except Exception as e:
@@ -643,5 +649,4 @@ def get_tree_database() -> TreeDatabase:
     Returns:
         TreeDatabase: データベースクライアント
     """
-    table_name = os.getenv("DYNAMODB_TABLE_NAME", "homebiyori-data")
-    return TreeDatabase(table_name)
+    return TreeDatabase()

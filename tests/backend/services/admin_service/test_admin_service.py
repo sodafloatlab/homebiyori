@@ -384,9 +384,10 @@ class TestAdminServiceIntegration:
         'ENVIRONMENT': 'test',
         'PROJECT_NAME': 'homebiyori',
         'SERVICE_TYPE': 'admin_service',
-        'USERS_TABLE_NAME': 'test-users',
-        'SUBSCRIPTIONS_TABLE_NAME': 'test-subscriptions',
-        'CHATS_TABLE_NAME': 'test-chats'
+        'CORE_TABLE_NAME': 'test-homebiyori-core',
+        'CHATS_TABLE_NAME': 'test-homebiyori-chats',
+        'FRUITS_TABLE_NAME': 'test-homebiyori-fruits',
+        'FEEDBACK_TABLE_NAME': 'test-homebiyori-feedback'
     })
     def test_lambda_handler_integration(self):
         """Lambda handler 統合テスト"""

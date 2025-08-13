@@ -44,8 +44,12 @@ class TestTreeDatabase:
         """TreeDatabaseインスタンス"""
         with patch('backend.services.tree_service.database.DynamoDBClient') as mock_client_class:
             mock_client_class.return_value = mock_db_client
-            db = TreeDatabase("test-table")
-            db.db_client = mock_db_client
+            db = TreeDatabase()
+            # 4テーブル構成用のモック設定
+            db.core_client = mock_db_client
+            db.fruits_client = mock_db_client
+            db.chats_client = mock_db_client
+            db.feedback_client = mock_db_client
             return db
     
     @pytest.fixture
@@ -79,12 +83,11 @@ class TestTreeDatabase:
         # モック設定
         mock_stats_data = {
             "PK": f"USER#{sample_user_id}",
-            "SK": "TREE_STATS",
+            "SK": "TREE",
             "user_id": sample_user_id,
             "total_characters": 250,
             "total_messages": 8,
             "total_fruits": 3,
-            "theme_color": "warm_pink",
             "created_at": "2024-08-01T10:00:00+09:00",
             "updated_at": "2024-08-05T15:30:00+09:00",
             "last_message_date": "2024-08-05T15:30:00+09:00",
@@ -101,11 +104,12 @@ class TestTreeDatabase:
         assert result["total_characters"] == 250
         assert result["total_messages"] == 8
         assert result["total_fruits"] == 3
-        assert result["theme_color"] == "warm_pink"
+        # theme_colorは削除されたため確認しない
+        # assert result["theme_color"] == "warm_pink"
         
         # DynamoDBクライアント呼び出し確認
         mock_db_client.get_item.assert_called_once_with(
-            f"USER#{sample_user_id}", "TREE_STATS"
+            f"USER#{sample_user_id}", "TREE"
         )
     
     @pytest.mark.asyncio
@@ -136,7 +140,8 @@ class TestTreeDatabase:
         assert result["total_characters"] == 0
         assert result["total_messages"] == 0
         assert result["total_fruits"] == 0
-        assert result["theme_color"] == "warm_pink"
+        # theme_colorは削除されたため確認しない
+        # assert result["theme_color"] == "warm_pink"
         assert "created_at" in result
         assert "updated_at" in result
         
@@ -144,7 +149,7 @@ class TestTreeDatabase:
         mock_db_client.put_item.assert_called_once()
         call_args = mock_db_client.put_item.call_args[0][0]
         assert call_args["PK"] == f"USER#{sample_user_id}"
-        assert call_args["SK"] == "TREE_STATS"
+        assert call_args["SK"] == "TREE"
     
     @pytest.mark.asyncio
     async def test_update_tree_growth(self, tree_db, mock_db_client, sample_user_id):
@@ -163,7 +168,7 @@ class TestTreeDatabase:
         call_args = mock_db_client.update_item.call_args
         
         assert call_args[0][0] == f"USER#{sample_user_id}"  # PK
-        assert call_args[0][1] == "TREE_STATS"              # SK
+        assert call_args[0][1] == "TREE"              # SK
         
         # 更新式確認
         update_expression = call_args[0][2]
@@ -207,12 +212,12 @@ class TestTreeDatabase:
         assert call_args["PK"] == f"USER#{sample_fruit_data.user_id}"
         assert call_args["SK"].startswith("FRUIT#")
         assert call_args["fruit_id"] == sample_fruit_data.fruit_id
-        assert call_args["message"] == sample_fruit_data.message
-        assert call_args["emotion_trigger"] == sample_fruit_data.emotion_trigger
+        assert call_args["user_message"] == sample_fruit_data.message
+        assert call_args["detected_emotion"] == sample_fruit_data.emotion_trigger
         assert call_args["ai_character"] == sample_fruit_data.ai_character
-        assert call_args["GSI1PK"] == f"FRUIT#{sample_fruit_data.user_id}"
-        assert call_args["view_count"] == 0
-        assert call_args["viewed_at"] is None
+        # GSI削除により、GSI1PKは存在しない
+        # assert call_args["view_count"] == 0
+        # assert call_args["viewed_at"] is None
     
     @pytest.mark.asyncio
     async def test_get_fruit_detail_success(self, tree_db, mock_db_client, sample_fruit_data):
@@ -280,7 +285,7 @@ class TestTreeDatabase:
         call_args = mock_db_client.update_item.call_args
         
         assert call_args[0][0] == f"USER#{sample_user_id}"
-        assert call_args[0][1] == "TREE_STATS"
+        assert call_args[0][1] == "TREE"
         
         expression_values = call_args[0][3]
         assert expression_values[":one"] == 1

@@ -42,6 +42,7 @@ homebiyori-common-layer から以下機能を活用:
 """
 
 from typing import List, Optional
+import os
 import uuid
 
 # Lambda Layers からの共通機能インポート
@@ -81,13 +82,16 @@ class UserServiceDatabase:
 
     def __init__(self):
         """
-        データベースクライアント初期化
-
-        homebiyori-common-layer の DynamoDBClient を使用し、
-        高レベルなデータベース操作機能を活用。
-        """
-        self.db_client = DynamoDBClient()
-        self.logger = logger
+    UserServiceDatabaseクラスの初期化
+    
+    ■4テーブル統合対応■
+    - core: users + subscriptions + trees + notifications統合
+    - chats: チャット履歴（TTL管理）
+    - fruits: 実の情報（永続保存）
+    - feedback: フィードバック（分析用）
+    """
+        self.core_client = DynamoDBClient(os.environ["CORE_TABLE_NAME"])
+        self.logger = get_logger(__name__)
 
     # =====================================
     # ユーザープロフィール管理
@@ -126,7 +130,7 @@ class UserServiceDatabase:
             sk = "PROFILE"
 
             # データ取得
-            item_data = await self.db_client.get_item(pk, sk)
+            item_data = await self.core_client.get_item(pk, sk)
 
             if not item_data:
                 self.logger.debug(
@@ -201,7 +205,7 @@ class UserServiceDatabase:
             item_data["updated_at"] = profile.updated_at.isoformat()
 
             # DynamoDB保存
-            await self.db_client.put_item(item_data)
+            await self.core_client.put_item(item_data)
 
             self.logger.debug(
                 "User profile saved successfully",
@@ -245,7 +249,7 @@ class UserServiceDatabase:
             )
             
             # DynamoDB削除操作
-            response = await self.db_client.delete_user_profile(user_id)
+            response = await self.core_client.delete_user_profile(user_id)
             
             self.logger.info(
                 "User profile deleted successfully",
@@ -271,6 +275,10 @@ class UserServiceDatabase:
         """
         ユーザーのサブスクリプション状態を取得
         
+        ■4テーブル統合対応■
+        - 統合テーブル: homebiyori-core (旧subscriptionsテーブル統合)
+        - PK: USER#{user_id}, SK: SUBSCRIPTION
+        
         Args:
             user_id: ユーザーID
             
@@ -286,28 +294,24 @@ class UserServiceDatabase:
                 extra={"user_id": user_id[:8] + "****"}
             )
 
-            response = await self.db_client.get_item(
-                TableName="prod-homebiyori-subscriptions",
-                Key={
-                    "PK": {"S": f"USER#{user_id}"},
-                    "SK": {"S": "SUBSCRIPTION"}
-                }
-            )
+            # 統合テーブルから取得
+            pk = f"USER#{user_id}"
+            sk = "SUBSCRIPTION"
+            item_data = await self.core_client.get_item(pk, sk)
             
-            if "Item" not in response:
+            if not item_data:
                 self.logger.debug(
                     "Subscription not found",
                     extra={"user_id": user_id[:8] + "****"}
                 )
                 return None
 
-            item = response["Item"]
             subscription_info = {
-                "status": item.get("status", {}).get("S", "inactive"),
-                "current_plan": item.get("current_plan", {}).get("S"),
-                "current_period_end": item.get("current_period_end", {}).get("S"),
-                "cancel_at_period_end": item.get("cancel_at_period_end", {}).get("BOOL", False),
-                "monthly_amount": item.get("monthly_amount", {}).get("N")
+                "status": item_data.get("status", "inactive"),
+                "current_plan": item_data.get("current_plan"),
+                "current_period_end": item_data.get("current_period_end"),
+                "cancel_at_period_end": item_data.get("cancel_at_period_end", False),
+                "monthly_amount": item_data.get("monthly_amount")
             }
             
             # monthly_amountを数値に変換

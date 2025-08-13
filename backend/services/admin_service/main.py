@@ -41,15 +41,11 @@ ENVIRONMENT = os.getenv('ENVIRONMENT', 'prod')
 PROJECT_NAME = os.getenv('PROJECT_NAME', 'homebiyori')
 SERVICE_TYPE = os.getenv('SERVICE_TYPE', 'admin_service')
 
-# DynamoDB テーブル名
-USERS_TABLE_NAME = os.getenv('USERS_TABLE_NAME')
-SUBSCRIPTIONS_TABLE_NAME = os.getenv('SUBSCRIPTIONS_TABLE_NAME')
-CHATS_TABLE_NAME = os.getenv('CHATS_TABLE_NAME')
-NOTIFICATIONS_TABLE_NAME = os.getenv('NOTIFICATIONS_TABLE_NAME')
-FEEDBACK_TABLE_NAME = os.getenv('FEEDBACK_TABLE_NAME')
+# Database layer import
+from .database import AdminServiceDatabase
 
-# AWS クライアント初期化
-dynamodb_client = DynamoDBClient()
+# データベース接続初期化
+db = AdminServiceDatabase()
 cloudwatch = boto3.client('cloudwatch')
 # SSMクライアントは統一Parameter Store utilsを使用
 
@@ -166,8 +162,8 @@ async def get_system_metrics(admin_id: str = Depends(verify_admin_token)):
         
         # 並行してメトリクス取得
         metrics_tasks = [
-            get_user_metrics(today_start, week_start),
-            get_chat_metrics(today_start, week_start),
+            db.get_user_metrics(today_start, week_start),
+            db.get_chat_metrics(today_start, week_start),
             get_lambda_metrics(),
             get_bedrock_metrics(today_start)
         ]
@@ -204,10 +200,10 @@ async def get_user_statistics(admin_id: str = Depends(verify_admin_token)):
         
         # ユーザー統計を並行取得
         stats_tasks = [
-            get_total_user_count(),
-            get_new_users_count(today_start, week_start),
-            get_premium_conversion_metrics(),
-            get_user_retention_metrics(week_start, month_start)
+            db.get_total_user_count(),
+            db.get_new_users_count(today_start, week_start),
+            db.get_premium_conversion_metrics(),
+            db.get_user_retention_metrics(week_start, month_start)
         ]
         
         total_count, new_users, premium_metrics, retention_metrics = await asyncio.gather(*stats_tasks)
@@ -276,45 +272,7 @@ async def control_maintenance(
 
 # ヘルパー関数
 
-async def get_user_metrics(today_start: datetime, week_start: datetime) -> Dict[str, int]:
-    """ユーザーメトリクス取得"""
-    try:
-        # 総ユーザー数取得
-        total_users = await get_total_user_count()
-        
-        # プレミアムユーザー数取得
-        premium_users = await get_premium_user_count()
-        
-        # アクティブユーザー数取得（チャット履歴から推定）
-        active_today = await get_active_users_count(today_start)
-        active_weekly = await get_active_users_count(week_start)
-        
-        return {
-            'total': total_users,
-            'premium': premium_users,
-            'active_today': active_today,
-            'active_weekly': active_weekly
-        }
-        
-    except Exception as e:
-        logger.error(f"Failed to get user metrics: {str(e)}")
-        return {'total': 0, 'premium': 0, 'active_today': 0, 'active_weekly': 0}
-
-async def get_chat_metrics(today_start: datetime, week_start: datetime) -> Dict[str, int]:
-    """チャットメトリクス取得"""
-    try:
-        # DynamoDB Scanでチャット数をカウント（本番では効率的なクエリに変更）
-        today_chats = await count_chats_since(today_start)
-        weekly_chats = await count_chats_since(week_start)
-        
-        return {
-            'today': today_chats,
-            'weekly': weekly_chats
-        }
-        
-    except Exception as e:
-        logger.error(f"Failed to get chat metrics: {str(e)}")
-        return {'today': 0, 'weekly': 0}
+# ヘルパー関数をdatabase.pyに移動済み
 
 async def get_lambda_metrics() -> Dict[str, Any]:
     """Lambda メトリクス取得"""
@@ -358,153 +316,7 @@ async def get_bedrock_metrics(today_start: datetime) -> Dict[str, int]:
         logger.error(f"Failed to get bedrock metrics: {str(e)}")
         return {'calls_today': 0}
 
-async def get_total_user_count() -> int:
-    """総ユーザー数取得"""
-    try:
-        # usersテーブルからユーザー数をカウント
-        response = await dynamodb_client.scan_table(
-            table_name=USERS_TABLE_NAME,
-            select='COUNT'
-        )
-        return response.get('Count', 0)
-        
-    except Exception as e:
-        logger.error(f"Failed to get total user count: {str(e)}")
-        return 0
-
-async def get_premium_user_count() -> int:
-    """プレミアムユーザー数取得"""
-    try:
-        # subscriptionsテーブルからアクティブなサブスクリプション数をカウント
-        response = await dynamodb_client.scan_table(
-            table_name=SUBSCRIPTIONS_TABLE_NAME,
-            filter_expression="subscription_status = :status",
-            expression_attribute_values={':status': 'active'},
-            select='COUNT'
-        )
-        return response.get('Count', 0)
-        
-    except Exception as e:
-        logger.error(f"Failed to get premium user count: {str(e)}")
-        return 0
-
-async def get_active_users_count(since_time: datetime) -> int:
-    """指定時刻以降のアクティブユーザー数取得"""
-    try:
-        # chatsテーブルから指定時刻以降のユニークユーザー数をカウント
-        # 実装注意: 本番では効率的なクエリパターンを使用
-        timestamp_str = since_time.isoformat()
-        
-        # GSI1を使用してタイムスタンプ範囲でクエリ
-        response = await dynamodb_client.query_gsi(
-            table_name=CHATS_TABLE_NAME,
-            index_name='TimestampIndex',  # タイムスタンプ用GSI
-            key_condition_expression="SK = :sk_prefix AND created_at >= :timestamp",
-            expression_attribute_values={
-                ':sk_prefix': 'CHAT#',
-                ':timestamp': timestamp_str
-            }
-        )
-        
-        # ユニークユーザーIDを抽出
-        unique_users = set()
-        for item in response.get('Items', []):
-            user_id = item['PK'].replace('USER#', '')
-            unique_users.add(user_id)
-        
-        return len(unique_users)
-        
-    except Exception as e:
-        logger.error(f"Failed to get active users count: {str(e)}")
-        return 0
-
-async def count_chats_since(since_time: datetime) -> int:
-    """指定時刻以降のチャット数カウント"""
-    try:
-        timestamp_str = since_time.isoformat()
-        
-        response = await dynamodb_client.scan_table(
-            table_name=CHATS_TABLE_NAME,
-            filter_expression="created_at >= :timestamp",
-            expression_attribute_values={':timestamp': timestamp_str},
-            select='COUNT'
-        )
-        
-        return response.get('Count', 0)
-        
-    except Exception as e:
-        logger.error(f"Failed to count chats: {str(e)}")
-        return 0
-
-async def get_new_users_count(today_start: datetime, week_start: datetime) -> Dict[str, int]:
-    """新規ユーザー数取得"""
-    try:
-        today_str = today_start.isoformat()
-        week_str = week_start.isoformat()
-        
-        # 本日の新規ユーザー
-        today_response = await dynamodb_client.scan_table(
-            table_name=USERS_TABLE_NAME,
-            filter_expression="created_at >= :timestamp",
-            expression_attribute_values={':timestamp': today_str},
-            select='COUNT'
-        )
-        
-        # 週間の新規ユーザー
-        weekly_response = await dynamodb_client.scan_table(
-            table_name=USERS_TABLE_NAME,
-            filter_expression="created_at >= :timestamp",
-            expression_attribute_values={':timestamp': week_str},
-            select='COUNT'
-        )
-        
-        return {
-            'today': today_response.get('Count', 0),
-            'weekly': weekly_response.get('Count', 0)
-        }
-        
-    except Exception as e:
-        logger.error(f"Failed to get new users count: {str(e)}")
-        return {'today': 0, 'weekly': 0}
-
-async def get_premium_conversion_metrics() -> Dict[str, float]:
-    """プレミアム転換率メトリクス取得"""
-    try:
-        total_users = await get_total_user_count()
-        premium_users = await get_premium_user_count()
-        
-        conversion_rate = (premium_users / total_users * 100) if total_users > 0 else 0.0
-        
-        return {
-            'conversion_rate': round(conversion_rate, 2)
-        }
-        
-    except Exception as e:
-        logger.error(f"Failed to get premium conversion metrics: {str(e)}")
-        return {'conversion_rate': 0.0}
-
-async def get_user_retention_metrics(week_start: datetime, month_start: datetime) -> Dict[str, Any]:
-    """ユーザー継続率メトリクス取得"""
-    try:
-        # 簡易実装: アクティブユーザー数をベースに継続率を推定
-        active_today = await get_active_users_count(datetime.now().replace(hour=0, minute=0, second=0, microsecond=0))
-        active_7d = await get_active_users_count(week_start)
-        active_30d = await get_active_users_count(month_start)
-        
-        total_users = await get_total_user_count()
-        
-        retention_7d = (active_7d / total_users * 100) if total_users > 0 else 0.0
-        retention_30d = (active_30d / total_users * 100) if total_users > 0 else 0.0
-        
-        return {
-            'active_today': active_today,
-            'retention_7d': round(retention_7d, 2),
-            'retention_30d': round(retention_30d, 2)
-        }
-        
-    except Exception as e:
-        logger.error(f"Failed to get user retention metrics: {str(e)}")
-        return {'active_today': 0, 'retention_7d': 0.0, 'retention_30d': 0.0}
+# DynamoDB関連の関数はdatabase.pyに移動済み
 
 async def get_lambda_invocation_count(function_name: str) -> int:
     """Lambda関数の呼び出し数取得"""

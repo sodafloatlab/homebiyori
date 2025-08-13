@@ -6,7 +6,8 @@ Runtime: Python 3.11
 Memory: 512MB
 Timeout: 30秒
 Environment Variables:
-- DYNAMODB_TABLE_NAME: homebiyori-data
+- CORE_TABLE_NAME: prod-homebiyori-core
+- FRUITS_TABLE_NAME: prod-homebiyori-fruits
 - LOG_LEVEL: INFO
 - ENVIRONMENT: prod
 

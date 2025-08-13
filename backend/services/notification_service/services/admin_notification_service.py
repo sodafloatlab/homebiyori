@@ -12,7 +12,6 @@ from typing import List, Optional, Dict, Any
 from datetime import datetime
 
 from homebiyori_common import get_logger
-from homebiyori_common.database import DynamoDBClient
 from homebiyori_common.utils.datetime_utils import get_current_jst, to_jst_string
 
 from ..models.notification_models import (
@@ -20,6 +19,7 @@ from ..models.notification_models import (
     NotificationScope, UserNotification, NotificationStatus
 )
 from ..core.config import NotificationSettings
+from ..database import NotificationServiceDatabase
 from .notification_service import NotificationService
 
 logger = get_logger(__name__)
@@ -30,10 +30,8 @@ class AdminNotificationService:
     
     def __init__(self, settings: NotificationSettings):
         self.settings = settings
-        self.db_client = DynamoDBClient(
-            table_name=settings.dynamodb_table,
-            region_name=settings.dynamodb_region
-        )
+        # Database layer initialization
+        self.db = NotificationServiceDatabase()
         self.notification_service = NotificationService(settings)
     
     async def create_admin_notification(
@@ -107,7 +105,7 @@ class AdminNotificationService:
             if admin_notification.expires_at:
                 item_data["ttl"] = int(admin_notification.expires_at.timestamp())
             
-            await self.db_client.put_item(item_data)
+            await self.db.create_admin_notification(item_data)
             
             logger.info("Admin notification created", extra={
                 "admin_id": admin_id,
@@ -150,13 +148,8 @@ class AdminNotificationService:
         """
         try:
             # GSIで管理者通知を取得
-            items = await self.db_client.query_gsi(
-                gsi_name="GSI1",
-                gsi_pk="ADMIN_NOTIFICATIONS",
-                gsi_sk_prefix="CREATED#",
-                limit=page_size * 2,  # 余裕を持って取得
-                scan_index_forward=False  # 新しい順
-            )
+            result = await self.db.get_admin_notifications(page_size * 2)
+            items = result.get('items', [])
             
             # フィルタリング
             filtered_items = []
@@ -232,10 +225,7 @@ class AdminNotificationService:
         """
         try:
             # 管理者通知取得
-            admin_notification_item = await self.db_client.get_item(
-                pk=f"ADMIN_NOTIFICATION#{notification_id}",
-                sk="METADATA"
-            )
+            admin_notification_item = await self.db.get_admin_notification(notification_id)
             
             if not admin_notification_item:
                 return None
@@ -294,12 +284,12 @@ class AdminNotificationService:
             
             # 管理者通知を配信済みにマーク
             sent_at_str = to_jst_string(current_time)
-            await self.db_client.update_item(
-                pk=f"ADMIN_NOTIFICATION#{notification_id}",
-                sk="METADATA",
-                update_data={
-                    "sent_at": sent_at_str,
-                    "recipient_count": successful_count
+            await self.db.update_admin_notification(
+                notification_id,
+                "SET sent_at = :sent_at, recipient_count = :count",
+                {
+                    ":sent_at": sent_at_str,
+                    ":count": successful_count
                 }
             )
             
@@ -334,10 +324,7 @@ class AdminNotificationService:
         """
         try:
             # 配信済みの場合は削除不可
-            admin_notification_item = await self.db_client.get_item(
-                pk=f"ADMIN_NOTIFICATION#{notification_id}",
-                sk="METADATA"
-            )
+            admin_notification_item = await self.db.get_admin_notification(notification_id)
             
             if not admin_notification_item:
                 return False
@@ -348,10 +335,7 @@ class AdminNotificationService:
                 })
                 return False
             
-            success = await self.db_client.delete_item(
-                pk=f"ADMIN_NOTIFICATION#{notification_id}",
-                sk="METADATA"
-            )
+            success = await self.db.delete_admin_notification(notification_id)
             
             if success:
                 logger.info("Admin notification deleted", extra={
@@ -377,11 +361,8 @@ class AdminNotificationService:
         """
         try:
             # 全管理者通知取得
-            items = await self.db_client.query_gsi(
-                gsi_name="GSI1",
-                gsi_pk="ADMIN_NOTIFICATIONS",
-                gsi_sk_prefix="CREATED#"
-            )
+            result = await self.db.get_admin_notifications()
+            items = result.get('items', [])
             
             # 統計計算
             total_notifications = len(items)
@@ -436,21 +417,14 @@ class AdminNotificationService:
         """
         try:
             if scope == NotificationScope.ALL_USERS:
-                # 全ユーザー取得
-                items = await self.db_client.query_by_prefix(
-                    pk="USER#",
-                    sk_prefix="PROFILE"
-                )
+                # 全ユーザー取得（coreテーブルのPROFILE）
+                items = await self.db.get_all_user_profiles()
                 return [item["user_id"] for item in items if item.get("user_id")]
             
             elif scope == NotificationScope.PLAN_USERS and target_plan:
-                # 特定プランユーザー取得
-                subscription_items = await self.db_client.query_gsi(
-                    gsi_name="GSI1",
-                    gsi_pk="SUBSCRIPTIONS",
-                    gsi_sk_prefix=f"PLAN#{target_plan}#"
-                )
-                return [item["user_id"] for item in subscription_items if item.get("user_id")]
+                # 特定プランユーザー取得（coreテーブルのSUBSCRIPTION）
+                items = await self.db.get_users_by_plan(target_plan)
+                return [item["user_id"] for item in items if item.get("user_id")]
             
             else:
                 logger.warning("Invalid target scope configuration", extra={

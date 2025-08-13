@@ -3,127 +3,84 @@ locals {
   project_name = var.project_name
   environment  = var.environment
   
-  # DynamoDB table configurations - design_database.md準拠
+  # DynamoDB table configurations - 最適化された4テーブル構成
   dynamodb_tables = {
-    # 1. ユーザープロフィール（永続保存）
-    users = {
-      table_type   = "users"
-      hash_key     = "PK"     # USER#user_id
-      range_key    = "SK"     # PROFILE
-      billing_mode = "PAY_PER_REQUEST"
-      attributes = [
-        { name = "PK", type = "S" },
-        { name = "SK", type = "S" }
-      ]
-    }
-    
-    # 2. サブスクリプション管理（永続保存）
-    subscriptions = {
-      table_type   = "subscriptions"
-      hash_key     = "PK"     # USER#user_id
-      range_key    = "SK"     # SUBSCRIPTION
-      billing_mode = "PAY_PER_REQUEST"
-      attributes = [
-        { name = "PK", type = "S" },
-        { name = "SK", type = "S" }
-      ]
-    }
-    
-    # 3. 木の状態管理（永続保存）
-    trees = {
-      table_type   = "trees"
-      hash_key     = "PK"     # USER#user_id
-      range_key    = "SK"     # TREE
-      billing_mode = "PAY_PER_REQUEST"
-      attributes = [
-        { name = "PK", type = "S" },
-        { name = "SK", type = "S" }
-      ]
-    }
-    
-    # 4. 実の情報（永続保存）- GSI必要
-    fruits = {
-      table_type   = "fruits"
-      hash_key     = "PK"     # USER#user_id
-      range_key    = "SK"     # FRUIT#2024-01-01T12:00:00Z
-      billing_mode = "PAY_PER_REQUEST"
+    # 1. 統合テーブル（core）- users + subscriptions + trees + notifications統合
+    core = {
+      table_type         = "core"
+      hash_key           = "PK"     # USER#user_id
+      range_key          = "SK"     # PROFILE | AI_SETTINGS | TREE | SUBSCRIPTION | NOTIFICATION#timestamp
+      billing_mode       = "PAY_PER_REQUEST"
+      ttl_enabled        = true
+      ttl_attribute_name = "expires_at"  # 通知の90日後自動削除（エポック秒）
       attributes = [
         { name = "PK", type = "S" },
         { name = "SK", type = "S" },
-        { name = "GSI1PK", type = "S" },  # FRUIT#user_id
-        { name = "GSI1SK", type = "S" }   # 2024-01-01T12:00:00Z（日時降順ソート用）
+        { name = "current_plan", type = "S" },  # GSI1PK用
+        { name = "status", type = "S" }         # GSI1SK用
       ]
       global_secondary_indexes = {
+        # サブスクリプション検索GSI（プレミアムユーザー管理用）
         GSI1 = {
-          hash_key        = "GSI1PK"
-          range_key       = "GSI1SK"
+          hash_key        = "current_plan"    # free|monthly|yearly
+          range_key       = "status"          # active|canceled|cancel_scheduled|past_due
           projection_type = "ALL"
         }
       }
     }
     
-    # 5. チャット履歴（TTL管理）- GSI必要
+    # 2. チャット履歴（独立保持）- TTL管理と大容量データ特性
     chats = {
       table_type         = "chats"
       hash_key           = "PK"     # USER#user_id
-      range_key          = "SK"     # CHAT#2024-01-01T12:00:00Z
+      range_key          = "SK"     # CHAT#2024-01-01T12:00:00+09:00
       billing_mode       = "PAY_PER_REQUEST"
       ttl_enabled        = true
-      ttl_attribute_name = "TTL"    # プラン別TTL（30日/180日）
+      ttl_attribute_name = "expires_at"  # プラン別TTL（30日/180日）
       attributes = [
         { name = "PK", type = "S" },
-        { name = "SK", type = "S" },
-        { name = "GSI1PK", type = "S" },  # CHAT#user_id
-        { name = "GSI1SK", type = "S" }   # 2024-01-01T12:00:00Z（時系列クエリ用）
+        { name = "SK", type = "S" }
       ]
-      global_secondary_indexes = {
-        GSI1 = {
-          hash_key        = "GSI1PK"
-          range_key       = "GSI1SK"
-          projection_type = "ALL"
-        }
-      }
+      # GSI削除（コスト削減）
     }
     
-    # 6. アプリ内通知（TTL管理）- GSI必要
-    notifications = {
-      table_type         = "notifications"
-      hash_key           = "PK"     # USER#user_id
-      range_key          = "SK"     # NOTIFICATION#2024-01-01T12:00:00Z
-      billing_mode       = "PAY_PER_REQUEST"
-      ttl_enabled        = true
-      ttl_attribute_name = "expires_at"  # 90日後自動削除（エポック秒）
+    # 3. 実の情報（独立保持）- 永続保存の特別なライフサイクル
+    fruits = {
+      table_type   = "fruits"
+      hash_key     = "PK"     # USER#user_id
+      range_key    = "SK"     # FRUIT#2024-01-01T12:00:00+09:00
+      billing_mode = "PAY_PER_REQUEST"
       attributes = [
         { name = "PK", type = "S" },
-        { name = "SK", type = "S" },
-        { name = "GSI1PK", type = "S" },  # NOTIFICATION#user_id
-        { name = "GSI1SK", type = "S" }   # 2024-01-01T12:00:00Z（時系列クエリ用）
+        { name = "SK", type = "S" }
       ]
-      global_secondary_indexes = {
-        GSI1 = {
-          hash_key        = "GSI1PK"
-          range_key       = "GSI1SK"
-          projection_type = "ALL"
-        }
-      }
+      # GSI削除（コスト削減）
     }
     
-    # 7. 解約理由アンケート（永続保存）- GSI必要
+    # 4. フィードバック（分析最適化）- 完全に異なる用途とアクセス権限
     feedback = {
       table_type   = "feedback"
-      hash_key     = "PK"     # FEEDBACK#2024-01（月次集計用）
-      range_key    = "SK"     # CANCELLATION#user_id#timestamp
+      hash_key     = "PK"     # FEEDBACK#subscription_cancellation | FEEDBACK#account_deletion
+      range_key    = "SK"     # 2024-01-01T12:00:00+09:00
       billing_mode = "PAY_PER_REQUEST"
       attributes = [
         { name = "PK", type = "S" },
         { name = "SK", type = "S" },
-        { name = "GSI1PK", type = "S" },  # FEEDBACK#cancellation
-        { name = "GSI1SK", type = "S" }   # 2024-01-01T12:00:00Z（分析用）
+        { name = "GSI1PK", type = "S" },  # FEEDBACK#{feedback_type}#{reason_category}
+        { name = "GSI2PK", type = "S" },  # FEEDBACK#{feedback_type}#{satisfaction_score}
+        { name = "created_at", type = "S" }   # GSI1SK、GSI2SKで共通使用
       ]
       global_secondary_indexes = {
+        # カテゴリー別分析GSI
         GSI1 = {
-          hash_key        = "GSI1PK"
-          range_key       = "GSI1SK"
+          hash_key        = "GSI1PK"      # FEEDBACK#{feedback_type}#{reason_category}
+          range_key       = "created_at"  # 時系列分析
+          projection_type = "ALL"
+        }
+        # 満足度別分析GSI
+        GSI2 = {
+          hash_key        = "GSI2PK"      # FEEDBACK#{feedback_type}#{satisfaction_score}
+          range_key       = "created_at"  # 時系列分析
           projection_type = "ALL"
         }
       }

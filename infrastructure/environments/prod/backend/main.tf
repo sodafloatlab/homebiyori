@@ -16,7 +16,7 @@ locals {
       timeout     = 30
       layers      = ["common"]
       environment_variables = {
-        USERS_TABLE_NAME = data.terraform_remote_state.datastore.outputs.users_table_name
+        CORE_TABLE_NAME = data.terraform_remote_state.datastore.outputs.core_table_name
       }
       iam_policy_document = jsonencode({
         Version = "2012-10-17"
@@ -29,7 +29,10 @@ locals {
               "dynamodb:UpdateItem",
               "dynamodb:Query"
             ]
-            Resource = [data.terraform_remote_state.datastore.outputs.users_table_arn]
+            Resource = [
+              data.terraform_remote_state.datastore.outputs.core_table_arn,
+              "${data.terraform_remote_state.datastore.outputs.core_table_arn}/index/*"
+            ]
             Condition = {
               "ForAllValues:StringLike" = {
                 "dynamodb:LeadingKeys" = ["USER#*"]
@@ -52,7 +55,7 @@ locals {
       timeout     = 60
       layers      = ["common", "ai"]
       environment_variables = {
-        USERS_TABLE_NAME    = data.terraform_remote_state.datastore.outputs.users_table_name
+        CORE_TABLE_NAME     = data.terraform_remote_state.datastore.outputs.core_table_name
         CHATS_TABLE_NAME    = data.terraform_remote_state.datastore.outputs.chats_table_name
         FRUITS_TABLE_NAME   = data.terraform_remote_state.datastore.outputs.fruits_table_name
         BEDROCK_MODEL_ID    = var.bedrock_model_id
@@ -68,11 +71,10 @@ locals {
               "dynamodb:Query"
             ]
             Resource = [
-              data.terraform_remote_state.datastore.outputs.users_table_arn,
+              data.terraform_remote_state.datastore.outputs.core_table_arn,
+              "${data.terraform_remote_state.datastore.outputs.core_table_arn}/index/*",
               data.terraform_remote_state.datastore.outputs.chats_table_arn,
-              "${data.terraform_remote_state.datastore.outputs.chats_table_arn}/index/*",
-              data.terraform_remote_state.datastore.outputs.fruits_table_arn,
-              "${data.terraform_remote_state.datastore.outputs.fruits_table_arn}/index/*"
+              data.terraform_remote_state.datastore.outputs.fruits_table_arn
             ]
             Condition = {
               "ForAllValues:StringLike" = {
@@ -103,8 +105,7 @@ locals {
       timeout     = 30
       layers      = ["common"]
       environment_variables = {
-        USERS_TABLE_NAME = data.terraform_remote_state.datastore.outputs.users_table_name
-        TREES_TABLE_NAME = data.terraform_remote_state.datastore.outputs.trees_table_name
+        CORE_TABLE_NAME   = data.terraform_remote_state.datastore.outputs.core_table_name
         FRUITS_TABLE_NAME = data.terraform_remote_state.datastore.outputs.fruits_table_name
       }
       iam_policy_document = jsonencode({
@@ -119,10 +120,9 @@ locals {
               "dynamodb:Query"
             ]
             Resource = [
-              data.terraform_remote_state.datastore.outputs.users_table_arn,
-              data.terraform_remote_state.datastore.outputs.trees_table_arn,
-              data.terraform_remote_state.datastore.outputs.fruits_table_arn,
-              "${data.terraform_remote_state.datastore.outputs.fruits_table_arn}/index/*"
+              data.terraform_remote_state.datastore.outputs.core_table_arn,
+              "${data.terraform_remote_state.datastore.outputs.core_table_arn}/index/*",
+              data.terraform_remote_state.datastore.outputs.fruits_table_arn
             ]
             Condition = {
               "ForAllValues:StringLike" = {
@@ -165,7 +165,7 @@ locals {
       timeout     = 30
       layers      = ["common"]
       environment_variables = {
-        SUBSCRIPTIONS_TABLE_NAME        = data.terraform_remote_state.datastore.outputs.subscriptions_table_name
+        CORE_TABLE_NAME                 = data.terraform_remote_state.datastore.outputs.core_table_name
         TTL_UPDATES_QUEUE_URL          = data.terraform_remote_state.datastore.outputs.ttl_updates_queue_url
         WEBHOOK_EVENTS_QUEUE_URL       = data.terraform_remote_state.datastore.outputs.webhook_events_queue_url
         STRIPE_API_KEY_PARAMETER       = data.aws_ssm_parameter.stripe_api_key.name
@@ -182,7 +182,10 @@ locals {
               "dynamodb:PutItem",
               "dynamodb:UpdateItem"
             ]
-            Resource = [data.terraform_remote_state.datastore.outputs.subscriptions_table_arn]
+            Resource = [
+              data.terraform_remote_state.datastore.outputs.core_table_arn,
+              "${data.terraform_remote_state.datastore.outputs.core_table_arn}/index/*"
+            ]
           },
           {
             Effect = "Allow"
@@ -208,7 +211,7 @@ locals {
       timeout     = 30
       layers      = ["common"]
       environment_variables = {
-        NOTIFICATIONS_TABLE_NAME = data.terraform_remote_state.datastore.outputs.notifications_table_name
+        CORE_TABLE_NAME = data.terraform_remote_state.datastore.outputs.core_table_name
       }
       iam_policy_document = jsonencode({
         Version = "2012-10-17"
@@ -222,8 +225,8 @@ locals {
               "dynamodb:Query"
             ]
             Resource = [
-              data.terraform_remote_state.datastore.outputs.notifications_table_arn,
-              "${data.terraform_remote_state.datastore.outputs.notifications_table_arn}/index/*"
+              data.terraform_remote_state.datastore.outputs.core_table_arn,
+              "${data.terraform_remote_state.datastore.outputs.core_table_arn}/index/*"
             ]
           },
           {
@@ -242,8 +245,8 @@ locals {
       timeout     = 300
       layers      = ["common"]
       environment_variables = {
-        CHATS_TABLE_NAME         = data.terraform_remote_state.datastore.outputs.chats_table_name
-        SUBSCRIPTIONS_TABLE_NAME = data.terraform_remote_state.datastore.outputs.subscriptions_table_name
+        CORE_TABLE_NAME   = data.terraform_remote_state.datastore.outputs.core_table_name
+        CHATS_TABLE_NAME  = data.terraform_remote_state.datastore.outputs.chats_table_name
       }
       event_source_mappings = {
         ttl_updates = {
@@ -266,9 +269,9 @@ locals {
               "dynamodb:BatchWriteItem"
             ]
             Resource = [
-              data.terraform_remote_state.datastore.outputs.chats_table_arn,
-              "${data.terraform_remote_state.datastore.outputs.chats_table_arn}/index/*",
-              data.terraform_remote_state.datastore.outputs.subscriptions_table_arn
+              data.terraform_remote_state.datastore.outputs.core_table_arn,
+              "${data.terraform_remote_state.datastore.outputs.core_table_arn}/index/*",
+              data.terraform_remote_state.datastore.outputs.chats_table_arn
             ]
           },
           {
@@ -296,8 +299,7 @@ locals {
       timeout     = 30
       layers      = ["common"]
       environment_variables = {
-        SUBSCRIPTIONS_TABLE_NAME = data.terraform_remote_state.datastore.outputs.subscriptions_table_name
-        USERS_TABLE_NAME         = data.terraform_remote_state.datastore.outputs.users_table_name
+        CORE_TABLE_NAME          = data.terraform_remote_state.datastore.outputs.core_table_name
         STRIPE_API_KEY_PARAMETER = data.aws_ssm_parameter.stripe_api_key.name
       }
       iam_policy_document = jsonencode({
@@ -312,8 +314,8 @@ locals {
               "dynamodb:Query"
             ]
             Resource = [
-              data.terraform_remote_state.datastore.outputs.subscriptions_table_arn,
-              data.terraform_remote_state.datastore.outputs.users_table_arn
+              data.terraform_remote_state.datastore.outputs.core_table_arn,
+              "${data.terraform_remote_state.datastore.outputs.core_table_arn}/index/*"
             ]
           },
           {
@@ -332,11 +334,10 @@ locals {
       timeout     = 30
       layers      = ["common"]
       environment_variables = {
-        USERS_TABLE_NAME         = data.terraform_remote_state.datastore.outputs.users_table_name
-        SUBSCRIPTIONS_TABLE_NAME = data.terraform_remote_state.datastore.outputs.subscriptions_table_name
-        CHATS_TABLE_NAME         = data.terraform_remote_state.datastore.outputs.chats_table_name
-        NOTIFICATIONS_TABLE_NAME = data.terraform_remote_state.datastore.outputs.notifications_table_name
-        FEEDBACK_TABLE_NAME      = data.terraform_remote_state.datastore.outputs.feedback_table_name
+        CORE_TABLE_NAME     = data.terraform_remote_state.datastore.outputs.core_table_name
+        CHATS_TABLE_NAME    = data.terraform_remote_state.datastore.outputs.chats_table_name
+        FRUITS_TABLE_NAME   = data.terraform_remote_state.datastore.outputs.fruits_table_name
+        FEEDBACK_TABLE_NAME = data.terraform_remote_state.datastore.outputs.feedback_table_name
       }
       iam_policy_document = jsonencode({
         Version = "2012-10-17"
@@ -349,13 +350,12 @@ locals {
               "dynamodb:Scan"
             ]
             Resource = [
-              data.terraform_remote_state.datastore.outputs.users_table_arn,
-              data.terraform_remote_state.datastore.outputs.subscriptions_table_arn,
+              data.terraform_remote_state.datastore.outputs.core_table_arn,
+              "${data.terraform_remote_state.datastore.outputs.core_table_arn}/index/*",
               data.terraform_remote_state.datastore.outputs.chats_table_arn,
-              "${data.terraform_remote_state.datastore.outputs.chats_table_arn}/index/*",
-              data.terraform_remote_state.datastore.outputs.notifications_table_arn,
-              "${data.terraform_remote_state.datastore.outputs.notifications_table_arn}/index/*",
-              data.terraform_remote_state.datastore.outputs.feedback_table_arn
+              data.terraform_remote_state.datastore.outputs.fruits_table_arn,
+              data.terraform_remote_state.datastore.outputs.feedback_table_arn,
+              "${data.terraform_remote_state.datastore.outputs.feedback_table_arn}/index/*"
             ]
           },
           {

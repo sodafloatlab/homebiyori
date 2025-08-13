@@ -33,6 +33,7 @@ homebiyori-common-layer:
 """
 
 from typing import List, Optional, Dict, Any, Tuple
+import os
 import uuid
 from datetime import datetime, timezone, timedelta
 import json
@@ -79,13 +80,20 @@ class ChatServiceDatabase:
     
     def __init__(self):
         """
-        データベースクライアント初期化
-        
-        homebiyori-common-layer の DynamoDBClient を使用し、
-        高レベルなデータベース操作機能を活用。
-        """
-        self.db_client = DynamoDBClient()
-        self.logger = logger
+    チャットサービス用データベースクライアント初期化
+    
+    ■4テーブル統合対応■
+    - core: ユーザープロフィール、サブスクリプション、木統計、通知
+    - chats: チャット履歴（TTL管理）
+    - fruits: 実の情報（永続保存）
+    - feedback: フィードバック（分析用）
+    """
+        # 4テーブル構成対応：環境変数からテーブル名取得
+        # chat_serviceが実際に使用するテーブルのみ初期化
+        self.core_client = DynamoDBClient(os.environ["CORE_TABLE_NAME"])      # ユーザープロフィール、AI設定、木統計
+        self.chats_client = DynamoDBClient(os.environ["CHATS_TABLE_NAME"])    # チャット履歴
+        self.fruits_client = DynamoDBClient(os.environ["FRUITS_TABLE_NAME"])  # 実の情報
+        self.logger = get_logger(__name__)
     
     # =====================================
     # チャットメッセージ管理
@@ -137,8 +145,8 @@ class ChatServiceDatabase:
             # 日時をISO8601文字列に変換
             item_data["created_at"] = chat_message.created_at.isoformat()
             
-            # DynamoDB保存実行
-            await self.db_client.put_item(item_data)
+            # DynamoDB保存実行（chatsテーブル）
+            await self.chats_client.put_item(item_data)
             
             self.logger.info(
                 "Chat message saved successfully",
@@ -227,9 +235,9 @@ class ChatServiceDatabase:
                 elif request.end_date:
                     sk_condition = {"<=": f"CHAT#{request.end_date}T23:59:59.999Z"}
             
-            # DynamoDB Query実行
+            # DynamoDB Query実行（chatsテーブル）
             if use_gsi:
-                items = await self.db_client.query_gsi(
+                items = await self.chats_client.query_gsi(
                     gsi_name="GSI1",
                     pk=pk,
                     sk_prefix=sk_prefix,
@@ -239,7 +247,7 @@ class ChatServiceDatabase:
                     scan_index_forward=False  # 新しい順
                 )
             else:
-                items = await self.db_client.query_by_prefix(
+                items = await self.chats_client.query_by_prefix(
                     pk=pk,
                     sk_prefix=sk_prefix,
                     sk_condition=sk_condition,
@@ -342,7 +350,7 @@ class ChatServiceDatabase:
             pk = f"USER#{user_id}"
             sk_prefix = "CHAT#"
             
-            items = await self.db_client.query_by_prefix(
+            items = await self.chats_client.query_by_prefix(
                 pk=pk,
                 sk_prefix=sk_prefix,
                 limit=limit,
@@ -388,37 +396,40 @@ class ChatServiceDatabase:
     
     async def get_user_tree_stats(self, user_id: str) -> Dict[str, int]:
         """
-        ユーザーの木の成長統計取得
+    ユーザーの木の成長統計取得（4テーブル統合対応）
+    
+    ■coreテーブル対応■
+    - PK: USER#{user_id}, SK: TREE
+    
+    ■統計項目■
+    - total_characters: 累計文字数
+    - current_stage: 現在の成長段階
+    - message_count: 総メッセージ数
+    - last_message_date: 最終メッセージ日
+    
+    Args:
+        user_id: ユーザーID
         
-        ■統計項目■
-        - total_characters: 累計文字数
-        - current_stage: 現在の成長段階
-        - message_count: 総メッセージ数
-        - last_message_date: 最終メッセージ日
-        
-        Args:
-            user_id: ユーザーID
-            
-        Returns:
-            Dict: 木の成長統計データ
-        """
+    Returns:
+        Dict: 木の成長統計データ
+    """
         try:
             self.logger.debug(
                 "Fetching user tree stats",
                 extra={"user_id": user_id[:8] + "****"}
             )
             
-            # 統計データ取得（専用アイテム）
+            # coreテーブルから統計データ取得
             pk = f"USER#{user_id}"
-            sk = "TREE_STATS"
+            sk = "TREE"
             
-            item_data = await self.db_client.get_item(pk, sk)
+            item_data = await self.core_client.get_item(pk, sk)
             
             if item_data:
                 stats = {
                     "total_characters": item_data.get("total_characters", 0),
                     "current_stage": item_data.get("current_stage", 0),
-                    "message_count": item_data.get("message_count", 0),
+                    "message_count": item_data.get("total_messages", 0),
                     "last_message_date": item_data.get("last_message_date")
                 }
             else:
@@ -480,7 +491,7 @@ class ChatServiceDatabase:
             
             # 統計データ更新
             pk = f"USER#{user_id}"
-            sk = "TREE_STATS"
+            sk = "TREE"
             
             # 現在の統計取得
             current_stats = await self.get_user_tree_stats(user_id)
@@ -496,8 +507,8 @@ class ChatServiceDatabase:
                 "updated_at": get_current_jst().isoformat()
             }
             
-            # DynamoDB更新実行
-            await self.db_client.put_item(updated_stats)
+            # DynamoDB更新実行（coreテーブル）
+            await self.core_client.put_item(updated_stats)
             
             self.logger.info(
                 "Tree stats updated successfully",
@@ -563,8 +574,8 @@ class ChatServiceDatabase:
             # 実生成日付（1日1回制限用）
             item_data["fruit_date"] = fruit_info.created_at.strftime("%Y-%m-%d")
             
-            # DynamoDB保存実行
-            await self.db_client.put_item(item_data)
+            # DynamoDB保存実行（fruitsテーブル）
+            await self.fruits_client.put_item(item_data)
             
             self.logger.info(
                 "Fruit info saved successfully",
@@ -608,7 +619,7 @@ class ChatServiceDatabase:
             pk = f"USER#{user_id}"
             sk_prefix = "FRUIT#"
             
-            items = await self.db_client.query_by_prefix(
+            items = await self.fruits_client.query_by_prefix(
                 pk=pk,
                 sk_prefix=sk_prefix,
                 limit=1,
@@ -641,7 +652,10 @@ class ChatServiceDatabase:
     
     async def get_user_subscription_info(self, user_id: str) -> Dict[str, str]:
         """
-        ユーザーのサブスクリプション情報取得
+        ユーザーのサブスクリプション情報取得（4テーブル統合対応）
+        
+        ■coreテーブル対応■
+        - PK: USER#{user_id}, SK: SUBSCRIPTION
         
         ■取得情報■
         - plan: サブスクリプションプラン（free, monthly, yearly）
@@ -660,12 +674,11 @@ class ChatServiceDatabase:
                 extra={"user_id": user_id[:8] + "****"}
             )
             
-            # ユーザープロフィールからサブスクリプションプラン取得
-            # user-service との連携を想定
+            # coreテーブルからサブスクリプション情報取得
             pk = f"USER#{user_id}"
-            sk = "PROFILE"
+            sk = "SUBSCRIPTION"
             
-            profile_data = await self.db_client.get_item(pk, sk)
+            profile_data = await self.core_client.get_item(pk, sk)
             
             if profile_data:
                 subscription_info = {
@@ -723,7 +736,7 @@ class ChatServiceDatabase:
             pk = f"USER#{user_id}"
             sk = "PROFILE"
             
-            profile_data = await self.db_client.get_item(pk, sk)
+            profile_data = await self.core_client.get_item(pk, sk)
             
             if profile_data:
                 ai_preferences = {
@@ -851,7 +864,7 @@ class ChatServiceDatabase:
                 "updated_at": get_current_jst().isoformat()
             }
             
-            await self.db_client.put_item(settings_data)
+            await self.core_client.put_item(settings_data)
             
             self.logger.info(
                 "User mood updated successfully",
@@ -913,7 +926,7 @@ class ChatServiceDatabase:
                 "stamp_date": timestamp.strftime("%Y-%m-%d")
             }
             
-            await self.db_client.put_item(item_data)
+            await self.core_client.put_item(item_data)
             
             self.logger.info(
                 "Emotion stamp saved successfully",
@@ -957,7 +970,7 @@ class ChatServiceDatabase:
             sk = f"CHAR_STATS#{character}"
             
             # 現在の使用回数取得
-            current_stats = await self.db_client.get_item(pk, sk) or {}
+            current_stats = await self.core_client.get_item(pk, sk) or {}
             current_count = current_stats.get("usage_count", 0)
             
             # 使用回数インクリメント
@@ -970,7 +983,7 @@ class ChatServiceDatabase:
                 "updated_at": get_current_jst().isoformat()
             }
             
-            await self.db_client.put_item(updated_stats)
+            await self.core_client.put_item(updated_stats)
             
         except Exception as e:
             self.logger.error(
@@ -981,6 +994,7 @@ class ChatServiceDatabase:
                     "character": character
                 }
             )
+            # 統計更新失敗は致命的でないため、処理継続
             # 統計更新失敗は致命的でないため、処理継続
     
     async def increment_emotion_detection(
@@ -1001,7 +1015,7 @@ class ChatServiceDatabase:
             sk = f"EMOTION_STATS#{emotion}"
             
             # 現在の検出回数取得
-            current_stats = await self.db_client.get_item(pk, sk) or {}
+            current_stats = await self.core_client.get_item(pk, sk) or {}
             current_count = current_stats.get("detection_count", 0)
             
             # 検出回数インクリメント
@@ -1014,7 +1028,7 @@ class ChatServiceDatabase:
                 "updated_at": get_current_jst().isoformat()
             }
             
-            await self.db_client.put_item(updated_stats)
+            await self.core_client.put_item(updated_stats)
             
         except Exception as e:
             self.logger.error(
@@ -1025,6 +1039,7 @@ class ChatServiceDatabase:
                     "emotion": emotion
                 }
             )
+            # 統計更新失敗は致命的でないため、処理継続
             # 統計更新失敗は致命的でないため、処理継続
     
     async def record_stage_change(self, user_id: str, timestamp: datetime) -> None:
@@ -1045,7 +1060,7 @@ class ChatServiceDatabase:
                 "change_date": timestamp.strftime("%Y-%m-%d")
             }
             
-            await self.db_client.put_item(item_data)
+            await self.core_client.put_item(item_data)
             
         except Exception as e:
             self.logger.error(

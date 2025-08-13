@@ -12,7 +12,6 @@ from typing import List, Optional, Dict, Any
 from datetime import datetime, timedelta, timezone
 
 from homebiyori_common import get_logger
-from homebiyori_common.database import DynamoDBClient
 from homebiyori_common.utils.datetime_utils import get_current_jst, to_jst_string
 
 from ..models.notification_models import (
@@ -21,6 +20,7 @@ from ..models.notification_models import (
     NotificationStatus, NotificationPriority, NotificationType
 )
 from ..core.config import NotificationSettings
+from ..database import NotificationServiceDatabase
 
 logger = get_logger(__name__)
 
@@ -30,10 +30,8 @@ class NotificationService:
     
     def __init__(self, settings: NotificationSettings):
         self.settings = settings
-        self.db_client = DynamoDBClient(
-            table_name=settings.dynamodb_table,
-            region_name=settings.dynamodb_region
-        )
+        # Database layer initialization
+        self.db = NotificationServiceDatabase()
     
     async def create_notification(
         self,
@@ -95,7 +93,7 @@ class NotificationService:
             if notification.expires_at:
                 item_data["ttl"] = int(notification.expires_at.timestamp())
             
-            await self.db_client.put_item(item_data)
+            await self.db.create_user_notification(item_data)
             
             logger.info("Notification created", extra={
                 "user_id": user_id,
@@ -142,23 +140,19 @@ class NotificationService:
             # クエリ条件構築
             if unread_only or status == NotificationStatus.UNREAD:
                 # 未読通知のみ取得（GSI使用）
-                gsi_sk_prefix = f"STATUS#{NotificationStatus.UNREAD}#"
-                
-                items = await self.db_client.query_gsi(
-                    gsi_name="GSI1",
-                    gsi_pk=f"USER#{user_id}",
-                    gsi_sk_prefix=gsi_sk_prefix,
-                    limit=page_size * 2,  # 余裕を持って取得
-                    scan_index_forward=False  # 新しい順
+                result = await self.db.get_user_notifications_by_status(
+                    user_id, 
+                    NotificationStatus.UNREAD, 
+                    page_size * 2
                 )
+                items = result.get('items', [])
             else:
                 # 全通知取得
-                items = await self.db_client.query_by_prefix(
-                    pk=f"USER#{user_id}",
-                    sk_prefix="NOTIFICATION#",
-                    limit=page_size * 2,
-                    scan_index_forward=False
+                result = await self.db.get_user_notifications_all(
+                    user_id, 
+                    page_size * 2
                 )
+                items = result.get('items', [])
             
             # フィルタリング
             filtered_items = []
@@ -241,10 +235,7 @@ class NotificationService:
             Optional[UserNotification]: 通知詳細
         """
         try:
-            item = await self.db_client.get_item(
-                pk=f"USER#{user_id}",
-                sk=f"NOTIFICATION#{notification_id}"
-            )
+            item = await self.db.get_user_notification(user_id, notification_id)
             
             if not item:
                 return None
@@ -312,10 +303,16 @@ class NotificationService:
                 "GSI1SK": f"STATUS#{NotificationStatus.READ}#{notification.created_at.isoformat()}"
             }
             
-            success = await self.db_client.update_item(
-                pk=f"USER#{user_id}",
-                sk=f"NOTIFICATION#{notification_id}",
-                update_data=update_data
+            success = await self.db.update_user_notification(
+                user_id,
+                notification_id,
+                "SET #status = :status, read_at = :read_at, GSI1SK = :gsi1sk",
+                {"#status": "status"},
+                {
+                    ":status": update_data["status"],
+                    ":read_at": update_data["read_at"], 
+                    ":gsi1sk": update_data["GSI1SK"]
+                }
             )
             
             if success:
@@ -365,10 +362,16 @@ class NotificationService:
             if notification.status == NotificationStatus.UNREAD:
                 update_data["read_at"] = to_jst_string(current_time)
             
-            success = await self.db_client.update_item(
-                pk=f"USER#{user_id}",
-                sk=f"NOTIFICATION#{notification_id}",
-                update_data=update_data
+            success = await self.db.update_user_notification(
+                user_id,
+                notification_id,
+                "SET #status = :status, read_at = :read_at, GSI1SK = :gsi1sk",
+                {"#status": "status"},
+                {
+                    ":status": update_data["status"],
+                    ":read_at": update_data["read_at"], 
+                    ":gsi1sk": update_data["GSI1SK"]
+                }
             )
             
             if success:
@@ -400,11 +403,11 @@ class NotificationService:
         """
         try:
             # 未読通知取得
-            items = await self.db_client.query_gsi(
-                gsi_name="GSI1",
-                gsi_pk=f"USER#{user_id}",
-                gsi_sk_prefix=f"STATUS#{NotificationStatus.UNREAD}#"
+            result = await self.db.get_user_notifications_by_status(
+                user_id, 
+                NotificationStatus.UNREAD
             )
+            items = result.get('items', [])
             
             current_time = get_current_jst()
             update_count = 0
@@ -420,10 +423,16 @@ class NotificationService:
                     "GSI1SK": f"STATUS#{NotificationStatus.READ}#{created_at}"
                 }
                 
-                success = await self.db_client.update_item(
-                    pk=f"USER#{user_id}",
-                    sk=f"NOTIFICATION#{notification_id}",
-                    update_data=update_data
+                success = await self.db.update_user_notification(
+                    user_id,
+                    notification_id,
+                    "SET #status = :status, read_at = :read_at, GSI1SK = :gsi1sk",
+                    {"#status": "status"},
+                    {
+                        ":status": update_data["status"],
+                        ":read_at": update_data["read_at"],
+                        ":gsi1sk": update_data["GSI1SK"]
+                    }
                 )
                 
                 if success:
@@ -456,10 +465,7 @@ class NotificationService:
             bool: 削除成功フラグ
         """
         try:
-            success = await self.db_client.delete_item(
-                pk=f"USER#{user_id}",
-                sk=f"NOTIFICATION#{notification_id}"
-            )
+            success = await self.db.delete_user_notification(user_id, notification_id)
             
             if success:
                 logger.info("Notification deleted", extra={
@@ -541,10 +547,8 @@ class NotificationService:
         """
         try:
             # 全通知取得
-            items = await self.db_client.query_by_prefix(
-                pk=f"USER#{user_id}",
-                sk_prefix="NOTIFICATION#"
-            )
+            result = await self.db.get_user_notifications_all(user_id)
+            items = result.get('items', [])
             
             # 期限切れ除外
             valid_items = []
@@ -601,27 +605,8 @@ class NotificationService:
             Optional[Dict[str, Any]]: ヘルス状態
         """
         try:
-            # DynamoDB疎通確認（テーブル存在確認）
-            test_pk = "HEALTH_CHECK"
-            test_sk = "TEST"
-            current_time = get_current_jst()
-            
-            # テストアイテム書き込み・削除
-            await self.db_client.put_item({
-                "PK": test_pk,
-                "SK": test_sk,
-                "timestamp": to_jst_string(current_time),
-                "ttl": int((current_time + timedelta(minutes=1)).timestamp())
-            })
-            
-            item = await self.db_client.get_item(pk=test_pk, sk=test_sk)
-            if item:
-                await self.db_client.delete_item(pk=test_pk, sk=test_sk)
-            
-            return {
-                "timestamp": to_jst_string(current_time),
-                "database_connected": True
-            }
+            # Database layer health check
+            return await self.db.health_check()
             
         except Exception as e:
             logger.error("Health check failed", extra={

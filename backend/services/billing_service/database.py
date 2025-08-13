@@ -27,6 +27,7 @@ homebiyori-common-layer:
 """
 
 from typing import List, Optional, Dict, Any, Tuple
+import os
 import uuid
 from datetime import datetime, timezone, timedelta
 import json
@@ -64,15 +65,21 @@ class BillingDatabase:
     4. キャンセル理由記録
     """
     
-    def __init__(self, table_name: str = "homebiyori-data"):
+    def __init__(self):
         """
-        データベースクライアント初期化
-        
-        Args:
-            table_name: DynamoDBテーブル名
+        データベースクライアント初期化（4テーブル統合対応）
+    
+        ■4テーブル統合対応■
+        - core: サブスクリプション情報（SUBSCRIPTION）、通知（NOTIFICATION#timestamp）
+        - chats: チャット履歴（TTL管理）
+        - fruits: 実の情報（永続保存）
+        - feedback: フィードバック（分析用）
         """
-        self.table_name = table_name
-        self.db_client = DynamoDBClient(table_name)
+        # 4つのテーブル用のクライアントを初期化：環境変数からテーブル名取得
+        self.core_client = DynamoDBClient(os.environ["CORE_TABLE_NAME"])
+        self.chats_client = DynamoDBClient(os.environ["CHATS_TABLE_NAME"])
+        self.fruits_client = DynamoDBClient(os.environ["FRUITS_TABLE_NAME"])
+        self.feedback_client = DynamoDBClient(os.environ["FEEDBACK_TABLE_NAME"])
         self.logger = get_logger(__name__)
     
     # =====================================
@@ -93,7 +100,7 @@ class BillingDatabase:
             pk = f"USER#{user_id}"
             sk = "SUBSCRIPTION"
             
-            item = await self.db_client.get_item(pk, sk)
+            item = await self.core_client.get_item(pk, sk)
             
             if item:
                 # JST時刻に変換
@@ -153,7 +160,7 @@ class BillingDatabase:
                 # TTL設定なし（課金データは永続保存）
             }
             
-            await self.db_client.put_item(item)
+            await self.core_client.put_item(item)
             
             # 更新時刻を反映
             subscription.updated_at = now
@@ -202,7 +209,7 @@ class BillingDatabase:
                 "GSI1SK": f"{payment.status.value}#{timestamp_str}",
             }
             
-            await self.db_client.put_item(item)
+            await self.core_client.put_item(item)
             
             self.logger.info(f"支払い履歴保存完了: user_id={payment.user_id}, payment_id={payment.payment_id}")
             
@@ -243,7 +250,7 @@ class BillingDatabase:
                 query_params["next_token"] = next_token
             
             # クエリ実行
-            result = await self.db_client.query_with_pagination(**query_params)
+            result = await self.core_client.query_with_pagination(**query_params)
             
             # PaymentHistoryオブジェクトに変換
             payments = []
@@ -286,7 +293,11 @@ class BillingDatabase:
     
     async def record_cancellation_reason(self, user_id: str, reason: str) -> None:
         """
-        キャンセル理由を記録
+        キャンセル理由を記録（4テーブル統合対応）
+    
+    ■feedbackテーブル対応■
+    - PK: FEEDBACK#subscription_cancellation
+        - SK: {timestamp}
         
         Args:
             user_id: ユーザーID
@@ -294,20 +305,24 @@ class BillingDatabase:
         """
         try:
             now = get_current_jst()
-            timestamp_str = now.strftime("%Y%m%d%H%M%S")
+            timestamp_str = now.strftime("%Y-%m-%dT%H:%M:%S+09:00")
             
             item = {
-                "PK": f"USER#{user_id}",
-                "SK": f"CANCELLATION#{timestamp_str}",
+                "PK": "FEEDBACK#subscription_cancellation",
+                "SK": timestamp_str,
                 "user_id": user_id,
-                "reason": reason,
-                "canceled_at": to_jst_string(now),
-                # GSI1用（キャンセル理由分析）
-                "GSI1PK": "CANCELLATION_ANALYTICS",
-                "GSI1SK": timestamp_str,
+                "feedback_type": "cancellation_reason",
+                "reason_category": "other",  # デフォルト値
+                "reason_text": reason,
+                "satisfaction_score": None,
+                "improvement_suggestions": None,
+                "created_at": timestamp_str,
+                # feedbackテーブルGSI用
+                "GSI1PK": "FEEDBACK#cancellation#other",
+                "GSI2PK": "FEEDBACK#cancellation#unknown"
             }
             
-            await self.db_client.put_item(item)
+            await self.feedback_client.put_item(item)
             
             self.logger.info(f"キャンセル理由記録完了: user_id={user_id}")
             
@@ -338,7 +353,7 @@ class BillingDatabase:
                 "analyzed_at": to_jst_string(analytics.analyzed_at),
             }
             
-            await self.db_client.put_item(item)
+            await self.core_client.put_item(item)
             
             self.logger.info(f"分析データ保存完了: user_id={analytics.user_id}, period={analytics.analysis_period}")
             
@@ -359,11 +374,10 @@ class BillingDatabase:
         """
         try:
             # GSI1を使用してアクティブサブスクリプションを検索
-            result = await self.db_client.query_gsi(
+            result = await self.core_client.query_gsi(
                 "GSI1",
-                gsi_pk="SUBSCRIPTION#monthly",
-                gsi_sk_condition="begins_with(GSI1SK, :status)",
-                expression_values={":status": "active"}
+                pk="monthly",
+                sk_prefix="active"
             )
             
             active_count = len(result.get("items", []))
@@ -395,16 +409,10 @@ class BillingDatabase:
             else:
                 end_date = f"{year:04d}-{month+1:02d}-01"
             
-            # GSI1を使用して支払い履歴を検索
-            result = await self.db_client.query_gsi(
-                "GSI1",
-                gsi_pk="PAYMENT_ANALYTICS",
-                gsi_sk_condition="between GSI1SK :start_date and :end_date",
-                expression_values={
-                    ":start_date": start_date,
-                    ":end_date": end_date
-                }
-            )
+            # 新しいテーブル構成ではGSI削除のため、基本クエリに変更
+            # 月次統計は別途実装が必要
+            result = {"items": []}
+            self.logger.warning(f"月次収益統計は新テーブル構成では未実装: {year_month}")
             
             # 統計計算
             payments = result.get("items", [])
@@ -440,8 +448,8 @@ class BillingDatabase:
             bool: 接続が正常かどうか
         """
         try:
-            # テーブル存在確認
-            await self.db_client.describe_table()
+            # テーブル存在確認（coreテーブル）
+            await self.core_client.describe_table()
             return True
             
         except Exception as e:
@@ -489,6 +497,4 @@ def get_billing_database() -> BillingDatabase:
     Returns:
         BillingDatabase: データベースクライアント
     """
-    import os
-    table_name = os.getenv("DYNAMODB_TABLE_NAME", "homebiyori-data")
-    return BillingDatabase(table_name)
+    return BillingDatabase()

@@ -6,7 +6,7 @@ Runtime: Python 3.11
 Memory: 512MB
 Timeout: 30秒
 Environment Variables:
-- DYNAMODB_TABLE_NAME: homebiyori-data
+- CORE_TABLE_NAME: prod-homebiyori-core
 - STRIPE_SECRET_KEY: Stripe APIキー
 - STRIPE_WEBHOOK_SECRET: Webhook署名検証用
 - LOG_LEVEL: INFO

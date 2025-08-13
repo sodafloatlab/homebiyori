@@ -12,11 +12,11 @@ from typing import Dict, Any, Optional
 from datetime import datetime
 
 from homebiyori_common import get_logger
-from homebiyori_common.database import DynamoDBClient
 from homebiyori_common.utils.datetime_utils import get_current_jst, to_jst_string
 from homebiyori_common.exceptions import DatabaseError
 
 from ..models.stripe_models import StripeSubscription, SubscriptionStatus, PlanType
+from ..database import WebhookServiceDatabase
 
 logger = get_logger(__name__)
 
@@ -25,8 +25,8 @@ class SubscriptionSyncService:
     """サブスクリプション同期サービス"""
     
     def __init__(self):
-        # DynamoDBClientが内部で環境変数からテーブル名を取得する
-        self.db_client = DynamoDBClient()
+        # Database layer initialization
+        self.db = WebhookServiceDatabase()
     
     async def create_subscription(
         self,
@@ -67,7 +67,7 @@ class SubscriptionSyncService:
                 "GSI1SK": f"USER#{user_id}"
             }
             
-            await self.db_client.put_item(subscription_item)
+            await self.db.create_subscription(subscription_item)
             
             # ユーザープロフィールのプラン情報も更新
             await self._update_user_plan_status(user_id, subscription.plan_type, subscription.status)
@@ -114,10 +114,7 @@ class SubscriptionSyncService:
             current_time = get_current_jst()
             
             # 既存のサブスクリプション情報を取得
-            existing_item = await self.db_client.get_item(
-                pk=f"USER#{user_id}",
-                sk="SUBSCRIPTION"
-            )
+            existing_item = await self.db.get_subscription(user_id)
             
             if not existing_item:
                 logger.warning("Subscription not found for update, creating new", extra={
@@ -143,11 +140,7 @@ class SubscriptionSyncService:
             }
             
             # 条件付き更新実行
-            updated_item = await self.db_client.update_item(
-                pk=f"USER#{user_id}",
-                sk="SUBSCRIPTION",
-                update_data=update_data
-            )
+            updated_item = await self.db.update_subscription(user_id, update_data)
             
             # ユーザープロフィールのプラン情報も更新
             await self._update_user_plan_status(user_id, subscription.plan_type, subscription.status)
@@ -208,11 +201,7 @@ class SubscriptionSyncService:
                 "deleted_at": to_jst_string(current_time)
             }
             
-            await self.db_client.update_item(
-                pk=f"USER#{user_id}",
-                sk="SUBSCRIPTION",
-                update_data=update_data
-            )
+            await self.db.update_subscription(user_id, update_data)
             
             # ユーザープロフィールをフリープランに戻す
             await self._update_user_plan_status(user_id, PlanType.FREE, SubscriptionStatus.CANCELED)
@@ -250,10 +239,7 @@ class SubscriptionSyncService:
             Optional[Dict[str, Any]]: サブスクリプション情報
         """
         try:
-            subscription_item = await self.db_client.get_item(
-                pk=f"USER#{user_id}",
-                sk="SUBSCRIPTION"
-            )
+            subscription_item = await self.db.get_subscription(user_id)
             
             return subscription_item
             
@@ -277,16 +263,7 @@ class SubscriptionSyncService:
         """
         try:
             # GSI1を使用してStripe IDから検索
-            result = await self.db_client.query_gsi(
-                gsi_name="GSI1",
-                pk_value=f"STRIPE_SUB#{stripe_subscription_id}",
-                limit=1
-            )
-            
-            if result.items:
-                return result.items[0]
-            
-            return None
+            return await self.db.get_subscription_by_stripe_id(stripe_subscription_id)
             
         except Exception as e:
             logger.error("Failed to get subscription by Stripe ID", extra={
@@ -320,11 +297,7 @@ class SubscriptionSyncService:
                 "plan_updated_at": to_jst_string(current_time)
             }
             
-            await self.db_client.update_item(
-                pk=f"USER#{user_id}",
-                sk="PROFILE",
-                update_data=profile_update
-            )
+            await self.db.update_user_profile_plan(user_id, profile_update)
             
             logger.debug("User plan status updated", extra={
                 "user_id": user_id,

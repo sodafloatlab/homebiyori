@@ -77,7 +77,21 @@
       "Bash(PYTHONPATH=backend/layers/common/python python -m pytest tests/backend/services/chat_service/test_parameter_store_integration.py -v)",
       "Bash(PYTHONPATH=backend/layers/common/python python -m pytest tests/backend/services/tree_service/ -v --tb=short -k \"test_tree_stage or test_growth\")",
       "Bash(PYTHONPATH=backend/layers/common/python python -m pytest tests/backend/services/tree_service/ -v --tb=short)",
-      "Bash(PYTHONPATH=backend/layers/common/python python -m pytest tests/backend/services/billing_service/ -v --tb=short -x)"
+      "Bash(PYTHONPATH=backend/layers/common/python python -m pytest tests/backend/services/billing_service/ -v --tb=short -x)",
+      "Bash(PYTHONPATH=backend/layers/common/python python -m pytest tests/backend/services/user_service/ -v --tb=short -x)",
+      "Bash(PYTHONPATH=backend/layers/common/python python -m pytest tests/backend/services/user_service/ -v --tb=short)",
+      "Bash(PYTHONPATH=backend/layers/common/python python -m pytest tests/backend/services/tree_service/test_tree_database.py::TestTreeDatabase::test_get_user_tree_stats_existing -v --tb=short)",
+      "Bash(PYTHONPATH=backend/layers/common/python python -m pytest tests/backend/services/chat_service/ -v --tb=short -x)",
+      "Bash(set CORE_TABLE_NAME=test-homebiyori-core)",
+      "Bash(set CHATS_TABLE_NAME=test-homebiyori-chats)",
+      "Bash(set FRUITS_TABLE_NAME=test-homebiyori-fruits)",
+      "Bash(set FEEDBACK_TABLE_NAME=test-homebiyori-feedback)",
+      "Bash(export CORE_TABLE_NAME=test-homebiyori-core)",
+      "Bash(export CHATS_TABLE_NAME=test-homebiyori-chats)",
+      "Bash(export FRUITS_TABLE_NAME=test-homebiyori-fruits)",
+      "Bash(export FEEDBACK_TABLE_NAME=test-homebiyori-feedback)",
+      "Bash(export AWS_DEFAULT_REGION=ap-northeast-1)",
+      "Bash(PYTHONPATH=backend/layers/common/python python -m pytest tests/backend/services/tree_service/ -v --tb=short -x)"
     ],
     "deny": []
   },

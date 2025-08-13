@@ -10,9 +10,8 @@ from unittest.mock import AsyncMock, patch, MagicMock
 from datetime import datetime
 import os
 
-# 環境変数を事前に設定（インポート前に必要）
-os.environ['DYNAMODB_TABLE_NAME'] = 'test-homebiyori'  # 正しい環境変数名
-os.environ['DYNAMODB_TABLE'] = 'test-homebiyori'       # 既存互換性
+# 環境変数を事前に設定（インポート前に必要）- 4テーブル構成対応
+os.environ['CORE_TABLE_NAME'] = 'test-homebiyori-core'
 os.environ['STRIPE_WEBHOOK_SECRET'] = 'whsec_test_secret'
 os.environ['TTL_UPDATE_QUEUE_URL'] = 'https://sqs.ap-northeast-1.amazonaws.com/123456789012/test-ttl-update-queue'
 os.environ['INTERNAL_API_BASE_URL'] = 'https://api.test.homebiyori.jp'
