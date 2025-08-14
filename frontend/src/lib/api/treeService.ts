@@ -32,14 +32,48 @@ export interface TreeStatsResponse {
 export class TreeService {
   /**
    * 木の状態と実の一覧を取得
+   * 木が初期化されていない場合は自動で初期化を試行
    */
   async getTreeStatus(): Promise<TreeStatusResponse> {
     try {
       const response = await apiClient.get('/tree/status');
       return response.data;
-    } catch (error) {
+    } catch (error: any) {
+      // 404エラー（木が未初期化）の場合は自動初期化を試行
+      if (error?.response?.status === 404) {
+        console.log('Tree not initialized, attempting to initialize...');
+        try {
+          await this.initializeTree();
+          // 初期化後に再度状態を取得
+          const response = await apiClient.get('/tree/status');
+          return response.data;
+        } catch (initError) {
+          console.error('Tree initialization error:', initError);
+          throw new Error('木の初期化に失敗しました。');
+        }
+      }
       console.error('Get tree status error:', error);
       throw new Error('木の状態の取得に失敗しました。');
+    }
+  }
+
+  /**
+   * 木を初期化
+   */
+  async initializeTree(): Promise<TreeStatusResponse> {
+    try {
+      const response = await apiClient.put('/tree/status');
+      return response.data;
+    } catch (error: any) {
+      // 409エラー（既に初期化済み）の場合は正常とみなす
+      if (error?.response?.status === 409) {
+        console.log('Tree already initialized');
+        // 既存の状態を取得して返す
+        const response = await apiClient.get('/tree/status');
+        return response.data;
+      }
+      console.error('Initialize tree error:', error);
+      throw new Error('木の初期化に失敗しました。');
     }
   }
 

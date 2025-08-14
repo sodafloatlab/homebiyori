@@ -46,7 +46,7 @@ from homebiyori_common.exceptions import (
     ExternalServiceError
 )
 from homebiyori_common.utils.maintenance import is_maintenance_mode
-from homebiyori_common.utils.middleware import maintenance_check_middleware, get_current_user_id
+from homebiyori_common.utils.middleware import maintenance_check_middleware, get_current_user_id, error_handling_middleware
 
 # ローカルモジュール
 from .models import (
@@ -100,59 +100,8 @@ stripe_client = get_stripe_client()
 # =====================================
 
 # 共通ミドルウェアをLambda Layerから適用
+app.middleware("http")(error_handling_middleware)
 app.middleware("http")(maintenance_check_middleware)
-
-@app.middleware("http")
-async def error_handling_middleware(request: Request, call_next):
-    """統一エラーハンドリング"""
-    try:
-        response = await call_next(request)
-        return response
-    except ValidationError as e:
-        logger.warning(f"バリデーションエラー: {e}")
-        return JSONResponse(
-            status_code=400,
-            content={
-                "error": "validation_error",
-                "message": str(e)
-            }
-        )
-    except StripeAPIError as e:
-        logger.error(f"Stripe APIエラー: {e}")
-        return JSONResponse(
-            status_code=502,
-            content={
-                "error": "stripe_api_error",
-                "message": "決済サービスでエラーが発生しました"
-            }
-        )
-    except PaymentFailedError as e:
-        logger.warning(f"支払い失敗: {e}")
-        return JSONResponse(
-            status_code=402,
-            content={
-                "error": "payment_failed",
-                "message": str(e)
-            }
-        )
-    except DatabaseError as e:
-        logger.error(f"データベースエラー: {e}")
-        return JSONResponse(
-            status_code=500,
-            content={
-                "error": "database_error",
-                "message": "データベース処理でエラーが発生しました"
-            }
-        )
-    except Exception as e:
-        logger.error(f"予期しないエラー: {e}")
-        return JSONResponse(
-            status_code=500,
-            content={
-                "error": "internal_server_error",
-                "message": "内部サーバーエラーが発生しました"
-            }
-        )
 
 # =====================================
 # サブスクリプション管理エンドポイント
@@ -532,7 +481,7 @@ async def schedule_ttl_update_on_cancellation(user_id: str, cancellation_date: d
 # ヘルスチェック
 # =====================================
 
-@app.get("/health")
+@app.get("/api/billing/health")
 async def health_check():
     """ヘルスチェック"""
     try:
@@ -544,7 +493,7 @@ async def health_check():
         
         return {
             "status": "healthy",
-            "service": "billing-service",
+            "service": "billing_service",
             "timestamp": get_current_jst().isoformat(),
             "version": "1.0.0"
         }

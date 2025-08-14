@@ -1070,26 +1070,45 @@ class ChatServiceDatabase:
                     "user_id": user_id[:8] + "****"
                 }
             )
+
+    async def health_check(self) -> Dict[str, Any]:
+        """
+        データベース接続ヘルスチェック
+        
+        Returns:
+            Dict: ヘルスチェック結果
+        """
+        try:
+            # メインテーブル（core）の存在確認
+            await self.core_client.describe_table()
+            
+            self.logger.info("チャットサービス ヘルスチェック成功")
+            return {
+                "status": "healthy",
+                "service": "chat_service",
+                "database": "connected"
+            }
+            
+        except Exception as e:
+            self.logger.error(f"チャットサービス ヘルスチェック失敗: {e}")
+            raise DatabaseError(f"ヘルスチェックに失敗しました: {e}")
             # 記録失敗は致命的でないため、処理継続
 
 
 # =====================================
-# データベースクライアント取得関数
+# ファクトリー関数
 # =====================================
+
+_chat_database_instance = None
 
 def get_chat_database() -> ChatServiceDatabase:
     """
-    チャットサービス専用データベースクライアント取得
-    
-    ■シングルトンパターン■
-    Lambda実行環境での効率的なリソース利用のため、
-    データベースクライアントはシングルトンとして管理。
+    ChatServiceDatabaseインスタンスを取得（シングルトンパターン）
     
     Returns:
         ChatServiceDatabase: データベース操作クライアント
     """
-    # Lambda実行環境でのグローバル変数活用
-    if not hasattr(get_chat_database, "_instance"):
-        get_chat_database._instance = ChatServiceDatabase()
-    
-    return get_chat_database._instance
+    global _chat_database_instance
+    if _chat_database_instance is None:
+        _chat_database_instance = ChatServiceDatabase()
+    return _chat_database_instance

@@ -15,8 +15,8 @@ from .response_utils import (
     not_found_error_response,
     rate_limit_error_response
 )
-from .maintenance import check_maintenance_mode, is_maintenance_mode, get_maintenance_message, maintenance_required
-from .middleware import maintenance_check_middleware, get_current_user_id
+from .maintenance import check_maintenance_mode, is_maintenance_mode, get_maintenance_message
+from .middleware import maintenance_check_middleware, get_current_user_id, error_handling_middleware
 from .parameter_store import (
     get_llm_config, 
     get_parameter_store_client,
@@ -50,9 +50,9 @@ __all__ = [
     "check_maintenance_mode",
     "is_maintenance_mode", 
     "get_maintenance_message",
-    "maintenance_required",
     "maintenance_check_middleware",
     "get_current_user_id",
+    "error_handling_middleware",
     # Parameter Store機能
     "get_llm_config",
     "get_parameter_store_client",

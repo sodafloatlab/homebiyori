@@ -16,6 +16,7 @@ from mangum import Mangum
 # 共通Layer機能インポート
 from homebiyori_common import get_logger, success_response, error_response
 from homebiyori_common import maintenance_check_middleware
+from homebiyori_common.utils.middleware import error_handling_middleware
 
 from .handlers.notifications import router as notification_router
 from .handlers.internal import router as internal_router
@@ -38,39 +39,40 @@ app = FastAPI(
 # CORS設定
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # 本番環境では制限
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# 共通ミドルウェアをLambda Layerから適用
-app.middleware("http")(maintenance_check_middleware)
-
-# ルーターの登録
+# ルーター登録
 app.include_router(
     notification_router,
-    prefix="/api/notifications",
+    prefix="/api/notification",
     tags=["notifications"]
 )
 
 app.include_router(
     internal_router,
-    prefix="/internal/notifications",
+    prefix="/internal/notification",
     tags=["internal-api"]
 )
 
 app.include_router(
     admin_router,
-    prefix="/admin/notifications",
+    prefix="/admin/notification",
     tags=["admin-notifications"]
 )
 
 app.include_router(
     health_router,
-    prefix="/health",
+    prefix="/api/notification",
     tags=["health"]
 )
+
+# 共通ミドルウェアをLambda Layerから適用
+app.middleware("http")(error_handling_middleware)
+app.middleware("http")(maintenance_check_middleware)
 
 
 @app.on_event("startup")

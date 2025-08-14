@@ -340,11 +340,33 @@ class UserServiceDatabase:
             )
             raise DatabaseError(error_msg)
 
+    async def health_check(self) -> Dict[str, Any]:
+        """
+        データベース接続ヘルスチェック
+        
+        Returns:
+            Dict: ヘルスチェック結果
+        """
+        try:
+            # テーブル存在確認
+            await self.core_client.describe_table()
+            
+            self.logger.info("ユーザーサービス ヘルスチェック成功")
+            return {
+                "status": "healthy",
+                "service": "user_service",
+                "database": "connected"
+            }
+            
+        except Exception as e:
+            self.logger.error(f"ユーザーサービス ヘルスチェック失敗: {e}")
+            raise DatabaseError(f"ヘルスチェックに失敗しました: {e}")
+
 
 
 
 # =====================================
-# グローバルインスタンス
+# ファクトリー関数
 # =====================================
 
 # シングルトンパターンでデータベースクライアント提供

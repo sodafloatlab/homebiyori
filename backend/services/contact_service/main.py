@@ -61,7 +61,7 @@ app.include_router(
 
 app.include_router(
     health_router,
-    prefix="/health",
+    prefix="/api/contact",
     tags=["health"]
 )
 

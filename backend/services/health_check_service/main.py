@@ -6,6 +6,7 @@ import logging
 
 # Lambda Layer共通ライブラリ
 from homebiyori_common.utils.datetime_utils import get_current_jst
+from homebiyori_common.utils.middleware import error_handling_middleware
 
 # ログ設定 - CloudWatch統合対応
 logging.basicConfig(level=logging.INFO)
@@ -22,6 +23,9 @@ app = FastAPI(
     description="基本的な死活監視API（認証なし）",
     version="1.0.0"
 )
+
+# 共通ミドルウェアをLambda Layerから適用
+app.middleware("http")(error_handling_middleware)
 
 @app.get("/api/health")
 async def basic_health_check() -> Dict[str, Any]:

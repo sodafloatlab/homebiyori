@@ -144,3 +144,22 @@ class WebhookServiceDatabase:
                 "database_status": "unhealthy",
                 "error": str(e)
             }
+
+
+# =====================================
+# ファクトリー関数
+# =====================================
+
+_webhook_database_instance = None
+
+def get_webhook_database() -> WebhookServiceDatabase:
+    """
+    WebhookServiceDatabaseインスタンスを取得（シングルトンパターン）
+    
+    Returns:
+        WebhookServiceDatabase: データベース操作クライアント
+    """
+    global _webhook_database_instance
+    if _webhook_database_instance is None:
+        _webhook_database_instance = WebhookServiceDatabase()
+    return _webhook_database_instance

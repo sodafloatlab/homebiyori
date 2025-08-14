@@ -271,3 +271,22 @@ class NotificationServiceDatabase:
                 "database_status": "unhealthy",
                 "error": str(e)
             }
+
+
+# =====================================
+# ファクトリー関数
+# =====================================
+
+_notification_database_instance = None
+
+def get_notification_database() -> NotificationServiceDatabase:
+    """
+    NotificationServiceDatabaseインスタンスを取得（シングルトンパターン）
+    
+    Returns:
+        NotificationServiceDatabase: データベース操作クライアント
+    """
+    global _notification_database_instance
+    if _notification_database_instance is None:
+        _notification_database_instance = NotificationServiceDatabase()
+    return _notification_database_instance

@@ -56,7 +56,7 @@ from homebiyori_common.exceptions import (
     ExternalServiceError
 )
 from homebiyori_common.utils.maintenance import is_maintenance_mode
-from homebiyori_common.utils.middleware import maintenance_check_middleware, get_current_user_id
+from homebiyori_common.utils.middleware import maintenance_check_middleware, get_current_user_id, error_handling_middleware
 
 # ローカルモジュール
 from .models import (
@@ -115,6 +115,7 @@ app = FastAPI(
 
 # 共通ミドルウェアをLambda Layerから適用
 app.middleware("http")(maintenance_check_middleware)
+app.middleware("http")(error_handling_middleware)
 
 
 # =====================================
@@ -916,4 +917,27 @@ async def update_chat_analytics(
                 "user_id": user_id[:8] + "****"
             }
         )
+
+# =====================================
+# ヘルスチェック
+# =====================================
+
+@app.get("/api/chat/health")
+async def health_check():
+    """
+    ヘルスチェック
+    """
+    try:
+        # データベース接続確認
+        await chat_db.health_check()
+        
+        return {
+            "status": "healthy",
+            "service": "chat_service",
+            "timestamp": get_current_jst().isoformat()
+        }
+    except Exception as e:
+        logger.error(f"Health check failed: {e}")
+        from fastapi import HTTPException
+        raise HTTPException(status_code=500, detail="Health check failed")
         # バックグラウンド処理のエラーはメイン処理に影響しない

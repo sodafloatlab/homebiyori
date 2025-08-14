@@ -63,7 +63,7 @@ from homebiyori_common.exceptions import (
     ValidationError,
     DatabaseError,
 )
-from homebiyori_common.utils.middleware import maintenance_check_middleware, get_current_user_id
+from homebiyori_common.utils.middleware import maintenance_check_middleware, get_current_user_id, error_handling_middleware
 from homebiyori_common.utils.datetime_utils import get_current_jst
 
 # ローカルモジュール
@@ -114,6 +114,7 @@ app = FastAPI(
 
 # 共通ミドルウェアをLambda Layerから適用
 app.middleware("http")(maintenance_check_middleware)
+app.middleware("http")(error_handling_middleware)
 
 
 # =====================================
@@ -201,7 +202,7 @@ async def send_deletion_task_to_sqs(user_id: str, deletion_type: str, deletion_r
 # =====================================
 
 
-@app.get("/users/profile", response_model=UserProfile)
+@app.get("/api/user/profile", response_model=UserProfile)
 async def get_user_profile(user_id: str = Depends(get_current_user_id)):
     """
     現在認証されているユーザーのプロフィール情報取得
@@ -256,7 +257,7 @@ async def get_user_profile(user_id: str = Depends(get_current_user_id)):
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
-@app.put("/users/profile", response_model=UserProfile)
+@app.put("/api/user/profile", response_model=UserProfile)
 async def update_user_profile(profile_update: UserProfileUpdate, user_id: str = Depends(get_current_user_id)):
     """
     ユーザープロフィール更新
@@ -334,7 +335,7 @@ async def update_user_profile(profile_update: UserProfileUpdate, user_id: str = 
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
-@app.put("/users/ai-preferences", response_model=AIPreferences)
+@app.put("/api/user/ai-preferences", response_model=AIPreferences)
 async def update_ai_preferences(ai_preferences: AIPreferences, user_id: str = Depends(get_current_user_id)):
     """
     AI設定（キャラクター・褒めレベル）更新
@@ -413,7 +414,7 @@ async def update_ai_preferences(ai_preferences: AIPreferences, user_id: str = De
 # =====================================
 
 
-@app.get("/users/onboarding-status")
+@app.get("/api/user/onboarding-status")
 async def get_onboarding_status(user_id: str = Depends(get_current_user_id)):
     """
     オンボーディング状態確認
@@ -455,7 +456,7 @@ async def get_onboarding_status(user_id: str = Depends(get_current_user_id)):
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
-@app.post("/users/complete-onboarding")
+@app.post("/api/user/complete-onboarding")
 async def complete_onboarding(
     onboarding_data: dict, user_id: str = Depends(get_current_user_id)
 ):
@@ -538,7 +539,7 @@ async def complete_onboarding(
 # =====================================
 
 
-@app.get("/users/account-status", response_model=AccountStatus)
+@app.get("/api/user/account-status", response_model=AccountStatus)
 async def get_account_status(user_id: str = Depends(get_current_user_id)):
     """
     アカウント・サブスクリプション状態取得
@@ -591,7 +592,7 @@ async def get_account_status(user_id: str = Depends(get_current_user_id)):
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
-@app.post("/users/request-deletion")
+@app.post("/api/user/request-deletion")
 async def request_account_deletion(
     deletion_request: DeletionRequest, 
     user_id: str = Depends(get_current_user_id)
@@ -660,7 +661,7 @@ async def request_account_deletion(
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
-@app.post("/users/confirm-deletion")
+@app.post("/api/user/confirm-deletion")
 async def confirm_account_deletion(
     confirmation: DeletionConfirmation,
     user_id: str = Depends(get_current_user_id)
@@ -763,6 +764,29 @@ async def confirm_account_deletion(
             extra={"error": str(e), "user_id": user_id[:8] + "****"}
         )
         raise HTTPException(status_code=500, detail="Internal server error")
+
+# =====================================
+# ヘルスチェック
+# =====================================
+
+@app.get("/api/user/health")
+async def health_check():
+    """
+    ヘルスチェック
+    """
+    try:
+        # データベース接続確認
+        await db.health_check()
+        
+        return {
+            "status": "healthy",
+            "service": "user_service",
+            "timestamp": get_current_jst().isoformat()
+        }
+    except Exception as e:
+        logger.error(f"Health check failed: {e}")
+        from fastapi import HTTPException
+        raise HTTPException(status_code=500, detail="Health check failed")
 
 
 

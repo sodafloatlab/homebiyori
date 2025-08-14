@@ -490,11 +490,16 @@ class BillingDatabase:
 # ファクトリー関数
 # =====================================
 
+_billing_database_instance = None
+
 def get_billing_database() -> BillingDatabase:
     """
-    BillingDatabaseインスタンスを取得
+    BillingDatabaseインスタンスを取得（シングルトンパターン）
     
     Returns:
         BillingDatabase: データベースクライアント
     """
-    return BillingDatabase()
+    global _billing_database_instance
+    if _billing_database_instance is None:
+        _billing_database_instance = BillingDatabase()
+    return _billing_database_instance

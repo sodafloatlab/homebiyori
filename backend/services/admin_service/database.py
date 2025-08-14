@@ -256,3 +256,22 @@ class AdminServiceDatabase:
                 "database_status": "unhealthy",
                 "error": str(e)
             }
+
+
+# =====================================
+# ファクトリー関数
+# =====================================
+
+_admin_database_instance = None
+
+def get_admin_database() -> AdminServiceDatabase:
+    """
+    AdminServiceDatabaseインスタンスを取得（シングルトンパターン）
+    
+    Returns:
+        AdminServiceDatabase: データベース操作クライアント
+    """
+    global _admin_database_instance
+    if _admin_database_instance is None:
+        _admin_database_instance = AdminServiceDatabase()
+    return _admin_database_instance

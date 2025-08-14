@@ -26,7 +26,7 @@ import os
 from ..logger import get_logger
 from ..auth import get_user_id_from_event
 from .maintenance import is_maintenance_mode, check_maintenance_mode
-from ..exceptions import MaintenanceError
+from ..exceptions import MaintenanceError, ValidationError, DatabaseError, AuthenticationError
 
 logger = get_logger(__name__)
 
@@ -157,3 +157,87 @@ def get_current_user_id(request: Request) -> str:
             }
         )
         raise HTTPException(status_code=401, detail="User authentication failed")
+
+
+async def error_handling_middleware(request: Request, call_next: Callable[[Request], Awaitable]) -> JSONResponse:
+    """
+    統一エラーハンドリングミドルウェア
+    
+    全サービス共通のエラーレスポンス処理を提供：
+    - ValidationError: 400 Bad Request
+    - DatabaseError: 500 Internal Server Error
+    - AuthenticationError: 401 Unauthorized
+    - 予期しないエラー: 500 Internal Server Error
+    
+    Features:
+    - 構造化ログ出力
+    - ユーザーフレンドリーなエラーメッセージ
+    - セキュリティを考慮した情報制限
+    """
+    try:
+        response = await call_next(request)
+        return response
+    except ValidationError as e:
+        logger.warning(
+            "Validation error occurred",
+            extra={
+                "error": str(e),
+                "request_path": request.url.path,
+                "request_method": request.method
+            }
+        )
+        return JSONResponse(
+            status_code=400,
+            content={
+                "error": "validation_error",
+                "message": str(e)
+            }
+        )
+    except AuthenticationError as e:
+        logger.warning(
+            "Authentication error occurred", 
+            extra={
+                "error": str(e),
+                "request_path": request.url.path,
+                "request_method": request.method
+            }
+        )
+        return JSONResponse(
+            status_code=401,
+            content={
+                "error": "authentication_error",
+                "message": "認証に失敗しました"
+            }
+        )
+    except DatabaseError as e:
+        logger.error(
+            "Database error occurred",
+            extra={
+                "error": str(e),
+                "request_path": request.url.path,
+                "request_method": request.method
+            }
+        )
+        return JSONResponse(
+            status_code=500,
+            content={
+                "error": "database_error",
+                "message": "データベース処理でエラーが発生しました"
+            }
+        )
+    except Exception as e:
+        logger.error(
+            "Unexpected error occurred",
+            extra={
+                "error": str(e),
+                "request_path": request.url.path,
+                "request_method": request.method
+            }
+        )
+        return JSONResponse(
+            status_code=500,
+            content={
+                "error": "internal_server_error",
+                "message": "内部サーバーエラーが発生しました"
+            }
+        )

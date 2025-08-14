@@ -11,9 +11,43 @@ import { AICharacter } from '@/types';
 export class TreeService {
   /**
    * 木の状態を取得
+   * 木が初期化されていない場合は自動で初期化を試行
    */
   static async getTreeStatus(): Promise<GetTreeStatusResponse> {
-    return await apiClient.get('/tree/status');
+    try {
+      return await apiClient.get('/tree/status');
+    } catch (error: any) {
+      // 404エラー（木が未初期化）の場合は自動初期化を試行
+      if (error?.response?.status === 404) {
+        console.log('Tree not initialized, attempting to initialize...');
+        try {
+          await TreeService.initializeTree();
+          // 初期化後に再度状態を取得
+          return await apiClient.get('/tree/status');
+        } catch (initError) {
+          console.error('Tree initialization error:', initError);
+          throw new Error('木の初期化に失敗しました。');
+        }
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * 木を初期化
+   */
+  static async initializeTree(): Promise<GetTreeStatusResponse> {
+    try {
+      return await apiClient.put('/tree/status');
+    } catch (error: any) {
+      // 409エラー（既に初期化済み）の場合は正常とみなす
+      if (error?.response?.status === 409) {
+        console.log('Tree already initialized');
+        // 既存の状態を取得して返す
+        return await apiClient.get('/tree/status');
+      }
+      throw error;
+    }
   }
 
   /**

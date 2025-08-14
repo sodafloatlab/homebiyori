@@ -145,9 +145,3 @@ def get_jst_date_range(days_back: int = 7) -> tuple[datetime, datetime]:
     return start_dt, end_dt
 
 
-# 既存コードとの互換性維持用エイリアス
-def get_current_utc() -> datetime:
-    """
-    @deprecated 既存コードとの互換性のため。get_current_jst()を使用してください。
-    """
-    return get_current_jst().astimezone(timezone.utc)

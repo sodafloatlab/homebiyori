@@ -210,3 +210,22 @@ class TTLUpdaterServiceDatabase:
                 "timestamp": to_jst_string(get_current_jst()),
                 "error": str(e)
             }
+
+
+# =====================================
+# ファクトリー関数
+# =====================================
+
+_ttl_updater_database_instance = None
+
+def get_ttl_updater_database() -> TTLUpdaterServiceDatabase:
+    """
+    TTLUpdaterServiceDatabaseインスタンスを取得（シングルトンパターン）
+    
+    Returns:
+        TTLUpdaterServiceDatabase: データベース操作クライアント
+    """
+    global _ttl_updater_database_instance
+    if _ttl_updater_database_instance is None:
+        _ttl_updater_database_instance = TTLUpdaterServiceDatabase()
+    return _ttl_updater_database_instance

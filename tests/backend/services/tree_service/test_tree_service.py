@@ -102,7 +102,7 @@ class TestTreeService:
         [T001-1] 既存ユーザーの木の状態取得成功
         """
         # モック設定
-        mock_tree_database.get_user_tree_stats.return_value = sample_tree_stats
+        mock_tree_database.get_user_tree_status.return_value = sample_tree_stats
         
         # FastAPI依存性オーバーライド（推奨方式）
         app.dependency_overrides[get_current_user_id] = lambda: "test-user-123"
@@ -129,24 +129,13 @@ class TestTreeService:
         assert 0 <= data["progress_percentage"] <= 100
     
     @patch('backend.services.tree_service.main.get_tree_database')
-    def test_get_tree_status_new_user(self, mock_get_db, client, mock_tree_database, mock_cognito_event):
+    def test_get_tree_status_not_initialized(self, mock_get_db, client, mock_tree_database, mock_cognito_event):
         """
-        [T001-2] 新規ユーザーの初期木作成
+        [T001-2] 新規ユーザー（未初期化）のGETリクエスト - 404エラー
         """
-        # モック設定（既存統計なし）
+        # モック設定（既存データなし）
         mock_get_db.return_value = mock_tree_database
-        mock_tree_database.get_user_tree_stats.return_value = None
-        
-        initial_stats = {
-            "user_id": "new-user-456",
-            "total_characters": 0,
-            "total_messages": 0,
-            "total_fruits": 0,
-            "theme_color": "warm_pink",
-            "created_at": get_current_jst(),
-            "updated_at": get_current_jst()
-        }
-        mock_tree_database.create_initial_tree.return_value = initial_stats
+        mock_tree_database.get_user_tree_status.return_value = None
         
         # FastAPI依存性オーバーライド
         app.dependency_overrides[get_current_user_id] = lambda: "new-user-456"
@@ -156,19 +145,70 @@ class TestTreeService:
         finally:
             app.dependency_overrides.clear()
         
+        # レスポンス検証（404エラーが期待される）
+        assert response.status_code == 404
+        data = response.json()
+        assert "初期化" in data["detail"]
+    
+    def test_initialize_tree_status_new_user(self, client, mock_tree_database):
+        """
+        [T001-3] 新規ユーザーの木初期化（PUT API）
+        """
+        # モック設定
+        mock_tree_database.get_user_tree_status.return_value = None  # 未初期化
+        
+        initial_stats = {
+            "user_id": "new-user-456",
+            "current_stage": 0,
+            "total_characters": 0,
+            "total_messages": 0,
+            "total_fruits": 0,
+            "last_message_date": None,
+            "last_fruit_date": None,
+            "created_at": "2024-08-14T12:00:00+09:00",
+            "updated_at": "2024-08-14T12:00:00+09:00"
+        }
+        mock_tree_database.create_initial_tree.return_value = initial_stats
+        
+        # FastAPI依存性オーバーライド
+        app.dependency_overrides[get_current_user_id] = lambda: "new-user-456"
+        
+        try:
+            with patch('backend.services.tree_service.main.db', mock_tree_database):
+                response = client.put("/api/tree/status")
+        finally:
+            app.dependency_overrides.clear()
+        
         # レスポンス検証
         assert response.status_code == 200
         data = response.json()
         
         assert data["user_id"] == "new-user-456"
         assert data["current_stage"] == 0  # 初期段階
-        assert data["stage_name"] == "種"
         assert data["total_characters"] == 0
         assert data["total_messages"] == 0
         assert data["total_fruits"] == 0
+    
+    def test_initialize_tree_status_already_exists(self, client, mock_tree_database, sample_tree_stats):
+        """
+        [T001-4] 既に初期化済みユーザーの木初期化（PUT API） - 409エラー
+        """
+        # モック設定（既に存在する）
+        mock_tree_database.get_user_tree_status.return_value = sample_tree_stats
         
-        # 初期木作成が呼ばれたことを確認
-        mock_tree_database.create_initial_tree.assert_called_once_with("new-user-456")
+        # FastAPI依存性オーバーライド
+        app.dependency_overrides[get_current_user_id] = lambda: "test-user-123"
+        
+        try:
+            with patch('backend.services.tree_service.main.db', mock_tree_database):
+                response = client.put("/api/tree/status")
+        finally:
+            app.dependency_overrides.clear()
+        
+        # レスポンス検証（409エラーが期待される）
+        assert response.status_code == 409
+        data = response.json()
+        assert "既に初期化" in data["detail"]
 
     # =====================================
     # T002: 木の成長更新テスト
@@ -181,7 +221,7 @@ class TestTreeService:
         """
         # モック設定
         mock_get_db.return_value = mock_tree_database
-        mock_tree_database.get_user_tree_stats.return_value = sample_tree_stats
+        mock_tree_database.get_user_tree_status.return_value = sample_tree_stats
         
         # FastAPI依存性オーバーライド
         app.dependency_overrides[get_current_user_id] = lambda: "test-user-123"
@@ -278,7 +318,7 @@ class TestTreeService:
         sample_tree_stats["last_fruit_date"] = get_current_jst() - timedelta(hours=25)
         
         mock_get_db.return_value = mock_tree_database
-        mock_tree_database.get_user_tree_stats.return_value = sample_tree_stats
+        mock_tree_database.get_user_tree_status.return_value = sample_tree_stats
         
         request_data = {
             "message": "今日は子供と公園で楽しく遊びました",
@@ -320,7 +360,7 @@ class TestTreeService:
         sample_tree_stats["last_fruit_date"] = get_current_jst() - timedelta(hours=1)
         
         mock_get_db.return_value = mock_tree_database
-        mock_tree_database.get_user_tree_stats.return_value = sample_tree_stats
+        mock_tree_database.get_user_tree_status.return_value = sample_tree_stats
         
         request_data = {
             "message": "テストメッセージ",
@@ -384,7 +424,7 @@ class TestTreeService:
         }
         
         mock_get_db.return_value = mock_tree_database
-        mock_tree_database.get_user_fruits.return_value = mock_fruits_data
+        mock_tree_database.get_user_fruits_list.return_value = mock_fruits_data
         
         # リクエスト実行
         with patch('backend.services.tree_service.main.get_user_id') as mock_get_user:

@@ -23,10 +23,11 @@ import pytz
 # テスト対象のインポート
 from backend.services.tree_service.database import TreeDatabase
 from backend.services.tree_service.models import (
-    TreeStage, FruitInfo, GrowthHistoryItem, TreeTheme,
-    AICharacterType, EmotionType, get_current_jst, 
-    calculate_tree_stage
+    TreeStage, FruitInfo, TreeTheme,
+    AICharacterType, EmotionType
 )
+from homebiyori_common.utils.datetime_utils import get_current_jst
+from homebiyori_common.utils.parameter_store import get_tree_stage
 from homebiyori_common.exceptions import DatabaseError, NotFoundError
 
 
@@ -176,7 +177,7 @@ class TestTreeDatabase:
         
         assert ":new_total" in expression_values
         assert expression_values[":new_total"] == 325
-        assert expression_values[":new_stage"] == calculate_tree_stage(325)
+        assert expression_values[":new_stage"] == get_tree_stage(325)
     
     @pytest.mark.asyncio
     async def test_update_tree_theme(self, tree_db, mock_db_client, sample_user_id):
@@ -388,7 +389,7 @@ class TestTreeDatabase:
     # =====================================
     
     @pytest.mark.asyncio
-    async def test_get_user_fruits_basic(self, tree_db, mock_db_client, sample_user_id):
+    async def test_get_user_fruits_list_basic(self, tree_db, mock_db_client, sample_user_id):
         """
         [D004-1] 基本的な実一覧取得成功
         """
@@ -397,28 +398,22 @@ class TestTreeDatabase:
             {
                 "fruit_id": "fruit_1",
                 "user_id": sample_user_id,
-                "message": "楽しい公園遊び",
-                "emotion_trigger": "joy",
-                "emotion_score": 0.8,
+                "user_message": "楽しい公園遊び",
+                "ai_response": "素晴らしい親子の時間ですね！",
+                "detected_emotion": "joy",
                 "ai_character": "mittyan",
-                "character_color": "warm_pink",
-                "trigger_message_id": "msg_1",
-                "created_at": "2024-08-05T15:00:00+09:00",
-                "viewed_at": None,
-                "view_count": 0
+                "interaction_mode": "praise",
+                "created_at": "2024-08-05T15:00:00+09:00"
             },
             {
                 "fruit_id": "fruit_2",
                 "user_id": sample_user_id,
-                "message": "達成感のある一日",
-                "emotion_trigger": "accomplishment",
-                "emotion_score": 0.9,
+                "user_message": "達成感のある一日",
+                "ai_response": "頑張ったあなたを褒めてあげたいです！",
+                "detected_emotion": "accomplishment",
                 "ai_character": "madokasan",
-                "character_color": "cool_blue",
-                "trigger_message_id": "msg_2",
-                "created_at": "2024-08-04T12:00:00+09:00",
-                "viewed_at": "2024-08-04T13:00:00+09:00",
-                "view_count": 2
+                "interaction_mode": "praise",
+                "created_at": "2024-08-04T12:00:00+09:00"
             }
         ]
         
@@ -429,26 +424,27 @@ class TestTreeDatabase:
         }
         mock_db_client.query.return_value = mock_result
         
+        # get_user_tree_statusのモック（total_fruits取得のため）
+        tree_db.get_user_tree_status = AsyncMock(return_value={"total_fruits": 5})
+        
         # テスト実行
-        result = await tree_db.get_user_fruits(sample_user_id)
+        result = await tree_db.get_user_fruits_list(sample_user_id)
         
         # 結果検証
         assert len(result["items"]) == 2
-        assert result["total_count"] == 2
-        assert result["character_counts"]["mittyan"] == 1
-        assert result["character_counts"]["madokasan"] == 1
-        assert result["emotion_counts"]["joy"] == 1
-        assert result["emotion_counts"]["accomplishment"] == 1
+        assert result["total_count"] == 5  # 木の状態から取得した値
         assert result["has_more"] == False
         
         # FruitInfoオブジェクト変換確認
         fruit_1 = result["items"][0]
         assert fruit_1.fruit_id == "fruit_1"
-        assert fruit_1.emotion_trigger == EmotionType.JOY
-        assert fruit_1.ai_character == AICharacterType.TAMA
+        assert fruit_1.user_message == "楽しい公園遊び"
+        assert fruit_1.ai_response == "素晴らしい親子の時間ですね！"
+        assert fruit_1.detected_emotion == EmotionType.JOY
+        assert fruit_1.ai_character == AICharacterType.MITTYAN
     
     @pytest.mark.asyncio
-    async def test_get_user_fruits_with_filters(self, tree_db, mock_db_client, sample_user_id):
+    async def test_get_user_fruits_list_with_filters(self, tree_db, mock_db_client, sample_user_id):
         """
         [D004-2] フィルター条件付き実一覧取得
         """
@@ -468,7 +464,7 @@ class TestTreeDatabase:
         mock_db_client.query.return_value = mock_result
         
         # テスト実行
-        await tree_db.get_user_fruits(
+        await tree_db.get_user_fruits_list(
             user_id=sample_user_id,
             filters=filters,
             limit=10

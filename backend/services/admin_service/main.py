@@ -34,7 +34,7 @@ from homebiyori_common.exceptions.custom_exceptions import (
     AuthenticationError,
     ExternalServiceError
 )
-from homebiyori_common.utils.middleware import maintenance_check_middleware
+from homebiyori_common.utils.middleware import maintenance_check_middleware, error_handling_middleware
 
 # 環境変数取得
 ENVIRONMENT = os.getenv('ENVIRONMENT', 'prod')
@@ -70,6 +70,7 @@ app.add_middleware(
 )
 
 # 共通ミドルウェアをLambda Layerから適用
+app.middleware("http")(error_handling_middleware)
 app.middleware("http")(maintenance_check_middleware)
 
 # セキュリティ設定
@@ -130,7 +131,7 @@ async def verify_admin_token(credentials: HTTPAuthorizationCredentials = Securit
 
 # API エンドポイント
 
-@app.get("/health")
+@app.get("/api/admin/health")
 async def health_check():
     """ヘルスチェック（認証不要）"""
     try:

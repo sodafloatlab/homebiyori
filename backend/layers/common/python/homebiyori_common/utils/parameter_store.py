@@ -130,35 +130,8 @@ class ParameterStoreClient:
                 f"Failed to get LLM config for {user_tier} tier: {e}",
                 exc_info=True
             )
-            # フォールバック設定
-            return self._get_fallback_llm_config(user_tier)
+            raise
     
-    def _get_fallback_llm_config(self, user_tier: str) -> Dict[str, Any]:
-        """LLM設定のフォールバック"""
-        fallback_configs = {
-            "free": {
-                "model_id": "amazon.nova-lite-v1:0",
-                "max_tokens": 100,
-                "temperature": 0.7,
-                "region_name": os.getenv('AWS_REGION', 'us-east-1'),
-                "anthropic_version": "bedrock-2023-05-31"
-            },
-            "premium": {
-                "model_id": "anthropic.claude-3-5-haiku-20241022-v1:0",
-                "max_tokens": 250,
-                "temperature": 0.7,
-                "region_name": os.getenv('AWS_REGION', 'us-east-1'),
-                "anthropic_version": "bedrock-2023-05-31"
-            }
-        }
-        
-        config = fallback_configs.get(user_tier, fallback_configs["free"])
-        logger.warning(
-            f"Using fallback LLM config for {user_tier} tier",
-            extra=config
-        )
-        
-        return config
     
     # === 機能フラグ制御システム ===
     @lru_cache(maxsize=8)
@@ -177,8 +150,8 @@ class ParameterStoreClient:
             return flags
             
         except Exception as e:
-            logger.warning(f"Feature flags not found in Parameter Store, using defaults: {e}")
-            return self._get_fallback_feature_flags()
+            logger.error(f"Failed to get feature flags: {e}", exc_info=True)
+            raise
     
     def is_feature_enabled(self, feature_name: str) -> bool:
         """
@@ -193,16 +166,6 @@ class ParameterStoreClient:
         flags = self.get_feature_flags()
         return flags.get(feature_name, False)
     
-    def _get_fallback_feature_flags(self) -> Dict[str, bool]:
-        """機能フラグのフォールバック設定 - Parameter Store未設定時のデフォルト"""
-        fallback_flags = {
-            "premium_features_enabled": True,
-            "maintenance_banner": False,
-            "cache_optimization": True
-        }
-        
-        logger.warning("Using fallback feature flags - consider manual Parameter Store setup", extra=fallback_flags)
-        return fallback_flags
     
     # === セキュリティ設定管理 ===
     @lru_cache(maxsize=4)
@@ -249,7 +212,7 @@ class ParameterStoreClient:
             
         except Exception as e:
             logger.error(f"Failed to get security config: {e}", exc_info=True)
-            return self._get_fallback_security_config()
+            raise
     
     def get_rate_limit(self, endpoint_type: str) -> int:
         """
@@ -270,21 +233,6 @@ class ParameterStoreClient:
         
         return limit
     
-    def _get_fallback_security_config(self) -> Dict[str, Any]:
-        """セキュリティ設定のフォールバック - Parameter Store未設定時のアプリレベル設定"""
-        fallback_config = {
-            "rate_limits": {
-                "default_requests_per_minute": 100,
-                "chat_requests_per_minute": 10,
-                "admin_requests_per_minute": 500
-            },
-            "internal_api_key": None,  # 手動設定が必要
-            "admin_api_key": None,     # 手動設定が必要
-            "has_valid_keys": False
-        }
-        
-        logger.warning("Using fallback security config - API keys require manual Parameter Store setup")
-        return fallback_config
     
     # === 木の成長闾値動的変更 ===
     @lru_cache(maxsize=4)
@@ -304,7 +252,7 @@ class ParameterStoreClient:
             
         except Exception as e:
             logger.error(f"Failed to get tree growth thresholds: {e}", exc_info=True)
-            return self._get_fallback_tree_thresholds()
+            raise
     
     def get_tree_stage(self, character_count: int) -> int:
         """
@@ -326,18 +274,6 @@ class ParameterStoreClient:
         
         return 5  # 最大ステージ
     
-    def _get_fallback_tree_thresholds(self) -> Dict[str, int]:
-        """木の成長闾値のフォールバック"""
-        fallback_thresholds = {
-            "stage_1": 20,
-            "stage_2": 50,
-            "stage_3": 100,
-            "stage_4": 180,
-            "stage_5": 300
-        }
-        
-        logger.warning("Using fallback tree growth thresholds", extra=fallback_thresholds)
-        return fallback_thresholds
     
     # === メンテナンス設定 ===
     def get_maintenance_config(self) -> Dict[str, Any]:
@@ -374,12 +310,7 @@ class ParameterStoreClient:
             
         except Exception as e:
             logger.error(f"Failed to get maintenance config: {e}", exc_info=True)
-            return {
-                "enabled": False,
-                "message": "システムメンテナンス中です。しばらくお待ちください。",
-                "start_time": "",
-                "end_time": ""
-            }
+            raise
     
     # === アプリケーション設定 ===
     def get_app_config(self) -> Dict[str, Any]:
@@ -408,12 +339,7 @@ class ParameterStoreClient:
             
         except Exception as e:
             logger.error(f"Failed to get app config: {e}", exc_info=True)
-            return {
-                "version": "1.0.0",
-                "environment": self.environment,
-                "feature_flags": self._get_fallback_feature_flags(),
-                "maintenance": {"enabled": False, "message": ""}
-            }
+            raise
 
 
 # グローバルインスタンス
