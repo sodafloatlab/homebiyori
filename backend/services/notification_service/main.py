@@ -32,8 +32,8 @@ app = FastAPI(
     title="Homebiyori Notification Service",
     description="アプリ内通知管理専用サービス",
     version="1.0.0",
-    docs_url="/docs" if os.getenv("ENVIRONMENT") != "production" else None,
-    redoc_url="/redoc" if os.getenv("ENVIRONMENT") != "production" else None
+    docs_url="/docs" if os.getenv("ENVIRONMENT") != "prod" else None,
+    redoc_url="/redoc" if os.getenv("ENVIRONMENT") != "prod" else None
 )
 
 # CORS設定

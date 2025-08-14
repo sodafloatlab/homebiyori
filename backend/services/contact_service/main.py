@@ -31,8 +31,8 @@ app = FastAPI(
     title="Homebiyori Contact Service",
     description="運営者通知機能付き問い合わせ管理専用サービス",
     version="1.0.0",
-    docs_url="/docs" if os.getenv("ENVIRONMENT") != "production" else None,
-    redoc_url="/redoc" if os.getenv("ENVIRONMENT") != "production" else None
+    docs_url="/docs" if os.getenv("ENVIRONMENT") != "prod" else None,
+    redoc_url="/redoc" if os.getenv("ENVIRONMENT") != "prod" else None
 )
 
 # CORS設定

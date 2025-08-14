@@ -24,7 +24,7 @@ class NotificationSettings(BaseSettings):
     service_name: str = Field(default="notification_service", env="SERVICE_NAME")
     
     # DynamoDB設定
-    dynamodb_table: str = Field(..., env="DYNAMODB_TABLE")
+    dynamodb_table: str = Field(..., env="CORE_TABLE_NAME")
     dynamodb_region: str = Field(default="ap-northeast-1", env="AWS_DEFAULT_REGION")
     
     # 内部API設定

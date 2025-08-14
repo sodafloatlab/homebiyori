@@ -1,25 +1,45 @@
 """
-Lambda Handler for Notification Service
+notification-service Lambda エントリーポイント
 
-AWS Lambda エントリーポイント。
-メンテナンスモード対応とエラーハンドリングを統合。
+■Lambda設定■
+Runtime: Python 3.11
+Memory: 512MB
+Timeout: 30秒
+Environment Variables:
+- CORE_TABLE_NAME: prod-homebiyori-core
+- CHATS_TABLE_NAME: prod-homebiyori-chats
+- FRUITS_TABLE_NAME: prod-homebiyori-fruits
+- FEEDBACK_TABLE_NAME: prod-homebiyori-feedback
+- LOG_LEVEL: INFO
+- ENVIRONMENT: prod
+
+■API Gateway統合■
+- 認証: Cognito User Pool Authorizer
+- CORS: 適切な設定
+- レスポンス変換: Lambda Proxy統合
 """
 
+import os
 import json
-from typing import Dict, Any
-
-# 共通Layer機能インポート
-from homebiyori_common import get_logger, error_response
+from mangum import Mangum
+from homebiyori_common.logger import get_logger
 from homebiyori_common import maintenance_required
 
-from .main import handler as fastapi_handler
+# FastAPIアプリケーションをインポート
+from .main import app
 
-# ログ設定
+# 構造化ログ設定
 logger = get_logger(__name__)
 
+# Mangumアダプターでラップ（API Gateway用）
+handler = Mangum(
+    app,
+    lifespan="off",  # Lambda環境では不要
+    api_gateway_base_path="/api/notifications"  # API Gatewayのベースパス
+)
 
-@maintenance_required(skip_paths=["/health", "/internal/notifications/health"])
-async def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
+@maintenance_required(skip_paths=["/health"])  
+def lambda_handler(event, context):
     """
     Lambda エントリーポイント
     
@@ -28,48 +48,56 @@ async def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         context: Lambda コンテキスト
         
     Returns:
-        Dict[str, Any]: HTTP レスポンス
+        API Gateway レスポンス
     """
     try:
-        logger.info("Notification service invoked", extra={
-            "request_id": context.aws_request_id,
-            "function_name": context.function_name,
-            "path": event.get("path"),
-            "method": event.get("httpMethod"),
-            "source_ip": event.get("requestContext", {}).get("identity", {}).get("sourceIp")
-        })
+        # リクエスト情報をログに記録
+        logger.info(
+            f"notification-service リクエスト開始",
+            extra={
+                "method": event.get("httpMethod"),
+                "path": event.get("path"),
+                "user_id": event.get("requestContext", {}).get("authorizer", {}).get("claims", {}).get("sub"),
+                "request_id": context.aws_request_id
+            }
+        )
         
-        # FastAPI アプリケーションに処理を委譲
-        response = fastapi_handler(event, context)
+        # Mangumでリクエスト処理
+        response = handler(event, context)
         
-        logger.debug("Notification service response", extra={
-            "request_id": context.aws_request_id,
-            "status_code": response.get("statusCode"),
-            "response_size": len(str(response.get("body", "")))
-        })
+        # レスポンス情報をログに記録
+        logger.info(
+            f"notification-service リクエスト完了",
+            extra={
+                "status_code": response.get("statusCode"),
+                "request_id": context.aws_request_id
+            }
+        )
         
         return response
         
     except Exception as e:
-        logger.error("Fatal error in notification handler", extra={
-            "error": str(e),
-            "error_type": type(e).__name__,
-            "request_id": getattr(context, 'aws_request_id', 'unknown'),
-            "event_keys": list(event.keys()) if event else []
-        })
+        # 予期しないエラーをログに記録
+        logger.error(
+            f"notification-service 予期しないエラー: {e}",
+            extra={
+                "request_id": context.aws_request_id,
+                "error_type": type(e).__name__
+            }
+        )
         
-        # 最後の砦としてのエラーレスポンス
+        # エラーレスポンス返却
         return {
             "statusCode": 500,
             "headers": {
-                "Content-Type": "application/json"
+                "Content-Type": "application/json",
+                "Access-Control-Allow-Origin": "*",
+                "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+                "Access-Control-Allow-Headers": "Content-Type, Authorization"
             },
             "body": json.dumps({
-                "success": False,
-                "message": "通知処理中に予期しないエラーが発生しました", 
-                "error": "fatal_error"
-            }, ensure_ascii=False)
+                "error": "internal_server_error",
+                "message": "内部サーバーエラーが発生しました",
+                "request_id": context.aws_request_id
+            })
         }
-
-
-

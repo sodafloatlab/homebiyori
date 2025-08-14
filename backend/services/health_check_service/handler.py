@@ -1,36 +1,103 @@
 """
-Homebiyori Health Check Lambda Handler
+health-check-service Lambda エントリーポイント
 
-このファイルはAWS Lambdaのエントリーポイントです。
+■Lambda設定■
+Runtime: Python 3.11
+Memory: 512MB
+Timeout: 30秒
+Environment Variables:
+- CORE_TABLE_NAME: prod-homebiyori-core
+- CHATS_TABLE_NAME: prod-homebiyori-chats
+- FRUITS_TABLE_NAME: prod-homebiyori-fruits
+- FEEDBACK_TABLE_NAME: prod-homebiyori-feedback
+- LOG_LEVEL: INFO
+- ENVIRONMENT: prod
 
-実装方針:
-- FastAPIアプリケーションをMangumでLambda対応に変換
-- Lambda環境でのHTTPリクエスト/レスポンス処理
-- CloudWatchへの自動ログ出力（JST形式）
-- エラーハンドリングとパフォーマンス監視
-
-使用方法:
-- AWS Lambda関数のhandler設定: handler.handler
-- API Gatewayとの統合でHTTPエンドポイントとして動作
-- ヘルスチェック専用サービスとして独立動作
-- エラー時は500応答でサービス異常を明確に通知
-
-関連ファイル:
-- main.py: FastAPIアプリケーション本体
-- requirements.txt: 依存関係定義
+■API Gateway統合■
+- 認証: Cognito User Pool Authorizer
+- CORS: 適切な設定
+- レスポンス変換: Lambda Proxy統合
 """
 
+import os
+import json
 from mangum import Mangum
-from backend.services.health_check_service.main import app
+from homebiyori_common.logger import get_logger
+from homebiyori_common import maintenance_required
 
-# Lambda関数ハンドラー
-# Mangum: FastAPI（ASGI）をAWS Lambda（イベント駆動）に変換するアダプター
-# 
-# 変更履歴:
-# - パッケージ名修正: health-check → health_check (Pythonパッケージ命名規則準拠)
-# - コメント追加: 初心者でも理解できるよう詳細説明を追加
+# FastAPIアプリケーションをインポート
+from .main import app
+
+# 構造化ログ設定
+logger = get_logger(__name__)
+
+# Mangumアダプターでラップ（API Gateway用）
 handler = Mangum(
     app,
-    lifespan="off",          # Lambda環境ではlifespanイベント不要
-    api_gateway_base_path="/"  # API Gatewayのベースパス設定
+    lifespan="off",  # Lambda環境では不要
+    api_gateway_base_path="/api/health"  # API Gatewayのベースパス
 )
+
+@maintenance_required(skip_paths=["/health"])  
+def lambda_handler(event, context):
+    """
+    Lambda エントリーポイント
+    
+    Args:
+        event: API Gateway イベント
+        context: Lambda コンテキスト
+        
+    Returns:
+        API Gateway レスポンス
+    """
+    try:
+        # リクエスト情報をログに記録
+        logger.info(
+            f"health-check-service リクエスト開始",
+            extra={
+                "method": event.get("httpMethod"),
+                "path": event.get("path"),
+                "user_id": event.get("requestContext", {}).get("authorizer", {}).get("claims", {}).get("sub"),
+                "request_id": context.aws_request_id
+            }
+        )
+        
+        # Mangumでリクエスト処理
+        response = handler(event, context)
+        
+        # レスポンス情報をログに記録
+        logger.info(
+            f"health-check-service リクエスト完了",
+            extra={
+                "status_code": response.get("statusCode"),
+                "request_id": context.aws_request_id
+            }
+        )
+        
+        return response
+        
+    except Exception as e:
+        # 予期しないエラーをログに記録
+        logger.error(
+            f"health-check-service 予期しないエラー: {e}",
+            extra={
+                "request_id": context.aws_request_id,
+                "error_type": type(e).__name__
+            }
+        )
+        
+        # エラーレスポンス返却
+        return {
+            "statusCode": 500,
+            "headers": {
+                "Content-Type": "application/json",
+                "Access-Control-Allow-Origin": "*",
+                "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+                "Access-Control-Allow-Headers": "Content-Type, Authorization"
+            },
+            "body": json.dumps({
+                "error": "internal_server_error",
+                "message": "内部サーバーエラーが発生しました",
+                "request_id": context.aws_request_id
+            })
+        }

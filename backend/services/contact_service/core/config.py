@@ -25,7 +25,7 @@ class ContactSettings(BaseSettings):
     service_name: str = Field(default="contact_service", env="SERVICE_NAME")
     
     # DynamoDB設定（問い合わせ履歴保存用・オプション）
-    dynamodb_table: Optional[str] = Field(None, env="DYNAMODB_TABLE")
+    dynamodb_table: Optional[str] = Field(None, env="FEEDBACK_TABLE_NAME")
     dynamodb_region: str = Field(default="ap-northeast-1", env="AWS_DEFAULT_REGION")
     
     # AWS SNS設定（運営者通知用）

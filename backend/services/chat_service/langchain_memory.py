@@ -30,7 +30,7 @@ class DynamoDBChatMessageHistory(BaseChatMessageHistory):
     ):
         self.user_id = user_id
         self.table_name = table_name
-        self.region_name = region_name or os.getenv('AWS_REGION', 'us-east-1')
+        self.region_name = region_name or os.getenv('AWS_DEFAULT_REGION', 'ap-northeast-1')
         
         self.dynamodb = boto3.resource('dynamodb', region_name=self.region_name)
         self.table = self.dynamodb.Table(table_name)
@@ -98,7 +98,7 @@ class HomebiyoriConversationMemory:
         self.user_id = user_id
         self.user_tier = user_tier
         self.character = character
-        self.table_name = table_name or os.getenv('DYNAMODB_TABLE')
+        self.table_name = table_name or os.getenv('CHATS_TABLE_NAME')
         
         # プラン別設定
         self.config = self._get_plan_config()
@@ -266,8 +266,8 @@ def create_conversation_memory(
 async def get_user_tier_from_db(user_id: str) -> str:
     """ユーザーのプランティアをDynamoDBから取得"""
     try:
-        dynamodb = boto3.resource('dynamodb', region_name=os.getenv('AWS_REGION', 'us-east-1'))
-        table_name = os.getenv('DYNAMODB_TABLE')
+        dynamodb = boto3.resource('dynamodb', region_name=os.getenv('AWS_DEFAULT_REGION', 'ap-northeast-1'))
+        table_name = os.getenv('CORE_TABLE_NAME')
         table = dynamodb.Table(table_name)
         
         response = table.get_item(

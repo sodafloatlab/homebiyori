@@ -79,8 +79,8 @@ app = FastAPI(
     title="Tree Service API",
     description="Homebiyori 木の成長管理システム",
     version="1.0.0",
-    docs_url="/docs" if os.getenv("ENABLE_DOCS") == "true" else None,
-    redoc_url="/redoc" if os.getenv("ENABLE_DOCS") == "true" else None
+    docs_url="/docs" if os.getenv("ENVIRONMENT") != "prod" else None,
+    redoc_url="/redoc" if os.getenv("ENVIRONMENT") != "prod" else None
 )
 
 # データベースインスタンス

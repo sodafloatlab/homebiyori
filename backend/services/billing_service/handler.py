@@ -7,6 +7,9 @@ Memory: 512MB
 Timeout: 30秒
 Environment Variables:
 - CORE_TABLE_NAME: prod-homebiyori-core
+- CHATS_TABLE_NAME: prod-homebiyori-chats
+- FRUITS_TABLE_NAME: prod-homebiyori-fruits
+- FEEDBACK_TABLE_NAME: prod-homebiyori-feedback
 - STRIPE_SECRET_KEY: Stripe APIキー
 - STRIPE_WEBHOOK_SECRET: Webhook署名検証用
 - LOG_LEVEL: INFO
@@ -22,6 +25,7 @@ import os
 import json
 from mangum import Mangum
 from homebiyori_common.logger import get_logger
+from homebiyori_common import maintenance_required
 
 # FastAPIアプリケーションをインポート
 from .main import app
@@ -36,6 +40,7 @@ handler = Mangum(
     api_gateway_base_path="/api/billing"  # API Gatewayのベースパス
 )
 
+@maintenance_required(skip_paths=["/health"])  
 def lambda_handler(event, context):
     """
     Lambda エントリーポイント

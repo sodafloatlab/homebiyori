@@ -1,25 +1,35 @@
 """
-Lambda Handler for TTL Updater Service
+ttl-updater-service Lambda エントリーポイント
 
-SQSメッセージ駆動によるDynamoDB TTL更新処理。
-Stripe Webhookからのサブスクリプション変更を受けて
-チャット履歴の保持期間を動的に調整。
+■Lambda設定■
+Runtime: Python 3.11
+Memory: 512MB
+Timeout: 30秒
+Environment Variables:
+- CORE_TABLE_NAME: prod-homebiyori-core
+- CHATS_TABLE_NAME: prod-homebiyori-chats
+- FRUITS_TABLE_NAME: prod-homebiyori-fruits
+- FEEDBACK_TABLE_NAME: prod-homebiyori-feedback
+- LOG_LEVEL: INFO
+- ENVIRONMENT: prod
+
+■SQS統合■
+- トリガー: SQS キュー
+- バッチサイズ: 10
+- 最大並行実行数: 10
 """
 
 import json
 from typing import Dict, Any, List
-
-# 共通Layer機能インポート
-from homebiyori_common import get_logger, success_response, error_response
+from homebiyori_common.logger import get_logger
 from homebiyori_common.utils.datetime_utils import get_current_jst
 
 from .main import TTLUpdaterService
 
-# ログ設定
+# 構造化ログ設定
 logger = get_logger(__name__)
 
-
-async def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
+def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     """
     Lambda エントリーポイント（SQS イベント処理）
     
@@ -40,7 +50,7 @@ async def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         
         if not event.get("Records"):
             logger.warning("No SQS records found in event")
-            return success_response({"message": "No records to process"})
+            return {"statusCode": 200, "body": json.dumps({"message": "No records to process"})}
         
         # TTL更新サービス初期化
         updater_service = TTLUpdaterService()
@@ -56,7 +66,6 @@ async def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 # SQSメッセージ解析
                 message_body = json.loads(record.get("body", "{}"))
                 message_id = record.get("messageId")
-                receipt_handle = record.get("receiptHandle")
                 
                 logger.debug("Processing SQS record", extra={
                     "message_id": message_id,
@@ -65,7 +74,7 @@ async def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 })
                 
                 # TTL更新処理実行
-                result = await updater_service.process_ttl_update_message(message_body)
+                result = updater_service.process_ttl_update_message(message_body)
                 
                 if result.get("success", False):
                     processed_count += 1
@@ -100,20 +109,18 @@ async def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         
         # 全体処理結果
         total_records = len(event["Records"])
-        success_rate = (processed_count / total_records) * 100 if total_records > 0 else 0
         
         logger.info("TTL Updater batch completed", extra={
             "request_id": context.aws_request_id,
             "total_records": total_records,
             "processed_count": processed_count,
-            "failed_count": failed_count,
-            "success_rate": success_rate
+            "failed_count": failed_count
         })
         
         # 部分的失敗の場合はSQSに失敗レコードを返す
         if failed_count > 0:
             return {
-                "statusCode": 200,  # SQSでは200で部分失敗を示す
+                "statusCode": 200,
                 "body": json.dumps({
                     "success": True,
                     "message": f"Processed {processed_count}/{total_records} records",
@@ -128,19 +135,21 @@ async def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 ]
             }
         
-        return success_response({
-            "message": f"Successfully processed {processed_count} records",
-            "processed_count": processed_count,
-            "failed_count": failed_count,
-            "timestamp": get_current_jst().isoformat()
-        })
+        return {
+            "statusCode": 200,
+            "body": json.dumps({
+                "message": f"Successfully processed {processed_count} records",
+                "processed_count": processed_count,
+                "failed_count": failed_count,
+                "timestamp": get_current_jst().isoformat()
+            }, ensure_ascii=False)
+        }
         
     except Exception as e:
         logger.error("Fatal error in TTL updater handler", extra={
             "error": str(e),
             "error_type": type(e).__name__,
-            "request_id": getattr(context, 'aws_request_id', 'unknown'),
-            "event_keys": list(event.keys()) if event else []
+            "request_id": getattr(context, 'aws_request_id', 'unknown')
         })
         
         # SQS処理でのエラーは500を返してリトライさせる

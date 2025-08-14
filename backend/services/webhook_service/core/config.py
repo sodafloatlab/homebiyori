@@ -24,7 +24,7 @@ class WebhookSettings(BaseSettings):
     service_name: str = Field(default="webhook-service", env="SERVICE_NAME")
     
     # DynamoDB設定
-    dynamodb_table: str = Field(..., env="DYNAMODB_TABLE")
+    dynamodb_table: str = Field(..., env="CORE_TABLE_NAME")
     dynamodb_region: str = Field(default="ap-northeast-1", env="AWS_DEFAULT_REGION")
     
     # Stripe設定

@@ -13,12 +13,12 @@ import asyncio
 import boto3
 import json
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Union, TypedDict
+from typing import Any, Dict, List, Optional, TypedDict
 from decimal import Decimal
-from botocore.exceptions import ClientError, BotoCoreError
+from botocore.exceptions import ClientError
 
 from ..logger import get_logger
-from ..exceptions import DatabaseError, NotFoundError, ConflictError
+from ..exceptions import DatabaseError, ConflictError
 from ..utils.datetime_utils import get_current_jst, to_jst_string
 
 
@@ -50,15 +50,14 @@ class DynamoDBClient:
     Single Table Design に最適化された高性能クライアント。
     """
     
-    def __init__(self, table_name: Optional[str] = None, region_name: str = "ap-northeast-1"):
+    def __init__(self, table_name: str, region_name: str = "ap-northeast-1"):
         """
         クライアント初期化
         
         Args:
-            table_name: DynamoDBテーブル名（Noneの場合は環境変数から取得）
+            table_name: DynamoDBテーブル名（必須）
             region_name: AWSリージョン名
         """
-        import os
         
         # 4テーブル構成対応：table_name必須、デフォルト値なし
         if not table_name:
@@ -403,10 +402,6 @@ class DynamoDBClient:
             
             if filter_expression:
                 query_params["FilterExpression"] = filter_expression
-                # expression_valuesに追加のフィルタ値がある場合、マージ
-                if 'filter_values' in locals():
-                    values.update(filter_values)
-                    query_params["ExpressionAttributeValues"] = self._serialize_expression_values(values)
             if expression_names:
                 query_params["ExpressionAttributeNames"] = expression_names
             if projection_expression:
@@ -479,28 +474,28 @@ class DynamoDBClient:
         if sk_condition:
             # 複合条件の場合
             if "between" in sk_condition:
-                sk_condition_expr = f"SK BETWEEN :sk_start AND :sk_end"
+                sk_condition_expr = "SK BETWEEN :sk_start AND :sk_end"
                 expression_values = {
                     ":sk_start": sk_condition["between"][0],
                     ":sk_end": sk_condition["between"][1]
                 }
             elif ">=" in sk_condition:
-                sk_condition_expr = f"begins_with(SK, :sk_prefix) AND SK >= :sk_value"
+                sk_condition_expr = "begins_with(SK, :sk_prefix) AND SK >= :sk_value"
                 expression_values = {
                     ":sk_prefix": sk_prefix,
                     ":sk_value": sk_condition[">="]
                 }
             elif "<=" in sk_condition:
-                sk_condition_expr = f"begins_with(SK, :sk_prefix) AND SK <= :sk_value"
+                sk_condition_expr = "begins_with(SK, :sk_prefix) AND SK <= :sk_value"
                 expression_values = {
                     ":sk_prefix": sk_prefix,
                     ":sk_value": sk_condition["<="]
                 }
             else:
-                sk_condition_expr = f"begins_with(SK, :sk_prefix)"
+                sk_condition_expr = "begins_with(SK, :sk_prefix)"
                 expression_values = {":sk_prefix": sk_prefix}
         else:
-            sk_condition_expr = f"begins_with(SK, :sk_prefix)"
+            sk_condition_expr = "begins_with(SK, :sk_prefix)"
             expression_values = {":sk_prefix": sk_prefix}
         
         # 既存のexpression_valuesとマージ
@@ -580,18 +575,18 @@ class DynamoDBClient:
         """
         # GSIクエリの場合、プレフィックス処理
         if sk_prefix and not sk_condition:
-            sk_condition_expr = f"begins_with(GSI1SK, :sk_prefix)"
+            sk_condition_expr = "begins_with(GSI1SK, :sk_prefix)"
             expression_values = {":sk_prefix": sk_prefix}
         elif sk_condition:
             # 複合条件の場合（プレフィックス + 範囲など）
             if "between" in sk_condition:
-                sk_condition_expr = f"GSI1SK BETWEEN :sk_start AND :sk_end"
+                sk_condition_expr = "GSI1SK BETWEEN :sk_start AND :sk_end"
                 expression_values = {
                     ":sk_start": sk_condition["between"][0],
                     ":sk_end": sk_condition["between"][1]
                 }
             else:
-                sk_condition_expr = f"begins_with(GSI1SK, :sk_prefix)"
+                sk_condition_expr = "begins_with(GSI1SK, :sk_prefix)"
                 expression_values = {":sk_prefix": sk_prefix}
         else:
             sk_condition_expr = None

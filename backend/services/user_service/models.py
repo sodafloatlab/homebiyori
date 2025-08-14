@@ -40,9 +40,8 @@ Homebiyori（ほめびより）のユーザー管理サービスにおける
 
 from pydantic import BaseModel, Field, field_validator, ConfigDict
 from typing import Optional
-from datetime import datetime, timezone, date
+from datetime import datetime
 from enum import Enum
-import re
 
 # homebiyori-common-layer からバリデーション機能をインポート
 from homebiyori_common.utils import validate_nickname

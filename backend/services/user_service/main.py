@@ -53,22 +53,16 @@ Homebiyori（ほめびより）のユーザー管理マイクロサービス。
 - 設計更新: 2024-08-03 (Lambda Layers + design.md準拠)
 """
 
-from fastapi import FastAPI, HTTPException, Request, Depends
-from fastapi.responses import JSONResponse
-from typing import List
+from fastapi import FastAPI, HTTPException, Depends
 import os
 
 # Lambda Layers からの共通機能インポート
 # homebiyori-common-layer が提供する機能を活用
-from homebiyori_common.auth import get_user_id_from_event
 from homebiyori_common.logger import get_logger
 from homebiyori_common.exceptions import (
     ValidationError,
-    AuthenticationError,
     DatabaseError,
-    MaintenanceError,
 )
-from homebiyori_common.utils.maintenance import check_maintenance_mode
 from homebiyori_common.utils.middleware import maintenance_check_middleware, get_current_user_id
 from homebiyori_common.utils.datetime_utils import get_current_jst
 
@@ -85,7 +79,6 @@ from .models import (
 from .database import get_database
 import uuid
 import boto3
-import aiohttp
 
 # 構造化ログ設定
 # CloudWatch統合による高度な監視とデバッグ機能
@@ -95,15 +88,46 @@ logger = get_logger(__name__)
 # UserServiceDatabaseクラスを使用してユーザーサービス固有の操作を提供
 db = get_database()
 
+# =====================================
+# AWS クライアント初期化
+# =====================================
+
 # AWS SQS クライアント初期化
 sqs = boto3.client('sqs', region_name=os.getenv('AWS_DEFAULT_REGION', 'ap-northeast-1'))
 
 # SQS キューURL設定
 ACCOUNT_DELETION_QUEUE_URL = os.getenv('ACCOUNT_DELETION_QUEUE_URL')
 
+# FastAPIアプリケーション初期化
+# プロダクション環境でのパフォーマンス最適化設定
+app = FastAPI(
+    title="Homebiyori User Service",
+    description="ユーザー管理マイクロサービス - プロフィール、AI設定",
+    version="1.0.0",
+    docs_url=None if os.getenv("ENVIRONMENT") == "prod" else "/docs",  # 本番では無効化
+    redoc_url=None if os.getenv("ENVIRONMENT") == "prod" else "/redoc",
+)
+
+# =====================================
+# ミドルウェア・共通処理
+# =====================================
+
+# 共通ミドルウェアをLambda Layerから適用
+app.middleware("http")(maintenance_check_middleware)
+
+
+# =====================================
+# ヘルパー関数・ユーティリティ
+# =====================================
+
+
 async def get_subscription_info_from_db(user_id: str) -> dict:
     """
     DynamoDBからサブスクリプション情報を取得
+    
+    ■4テーブル統合対応■
+    - 統合テーブル: homebiyori-core (旧subscriptionsテーブル統合)
+    - データベース設計仕様準拠: monthly_amount削除、status必須化
     
     Args:
         user_id: ユーザーID
@@ -112,16 +136,17 @@ async def get_subscription_info_from_db(user_id: str) -> dict:
         サブスクリプション情報辞書（存在しない場合はNone）
     """
     try:
-        # prod-homebiyori-subscriptions テーブルから取得
+        # 統合テーブルから取得
         subscription = await db.get_subscription_status(user_id)
         
         if subscription:
             return {
-                "status": subscription.get("status", "inactive"),
+                "status": subscription["status"],  # 必須項目、デフォルト値なし
                 "current_plan": subscription.get("current_plan"),
+                "current_period_start": subscription.get("current_period_start"),
                 "current_period_end": subscription.get("current_period_end"),
                 "cancel_at_period_end": subscription.get("cancel_at_period_end", False),
-                "monthly_amount": subscription.get("monthly_amount")
+                "ttl_days": subscription.get("ttl_days")
             }
         else:
             return None
@@ -132,6 +157,7 @@ async def get_subscription_info_from_db(user_id: str) -> dict:
             extra={"error": str(e), "user_id": user_id[:8] + "****"}
         )
         return None
+
 
 async def send_deletion_task_to_sqs(user_id: str, deletion_type: str, deletion_request_id: str) -> bool:
     """
@@ -168,23 +194,6 @@ async def send_deletion_task_to_sqs(user_id: str, deletion_type: str, deletion_r
             }
         )
         return False
-
-# FastAPIアプリケーション初期化
-# プロダクション環境でのパフォーマンス最適化設定
-app = FastAPI(
-    title="Homebiyori User Service",
-    description="ユーザー管理マイクロサービス - プロフィール、AI設定",
-    version="1.0.0",
-    docs_url=None if os.getenv("ENVIRONMENT") == "prod" else "/docs",  # 本番では無効化
-    redoc_url=None if os.getenv("ENVIRONMENT") == "prod" else "/redoc",
-)
-
-# =====================================
-# ミドルウェア・共通処理
-# =====================================
-
-# 共通ミドルウェアをLambda Layerから適用
-app.middleware("http")(maintenance_check_middleware)
 
 
 # =====================================

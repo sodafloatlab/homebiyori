@@ -41,15 +41,14 @@ homebiyori-common-layer から以下機能を活用:
 - Lambda Layers対応: 2024-08-03 (homebiyori-common-layer統合)
 """
 
-from typing import List, Optional
+from typing import Optional
 import os
-import uuid
 
 # Lambda Layers からの共通機能インポート
 from homebiyori_common.database import DynamoDBClient
 from homebiyori_common.logger import get_logger
-from homebiyori_common.exceptions import DatabaseError, NotFoundError
-from homebiyori_common.utils.datetime_utils import get_current_jst as get_current_utc
+from homebiyori_common.exceptions import DatabaseError
+from homebiyori_common.utils.datetime_utils import get_current_jst
 
 # ローカルモジュール
 from .models import (
@@ -161,65 +160,60 @@ class UserServiceDatabase:
     async def save_user_profile(self, profile: UserProfile) -> UserProfile:
         """
         ユーザープロフィール保存
-
+        
         ■機能概要■
-        ユーザープロフィールをDynamoDBに保存。
-        新規作成・更新両方に対応。
-
+        - 新規作成または既存プロフィール更新
+        - JST時刻統一: created_at（初回のみ）、updated_at（常に更新）
+        - AI設定は別レコード（SK: AI_SETTINGS）として分離保存
+        
+        ■DynamoDB アクセスパターン■
+        - PK: USER#{user_id}
+        - SK: PROFILE（基本情報）/ AI_SETTINGS（AI設定）
+        - 4テーブル構成のcoreテーブルを使用
+        
         Args:
-            profile: 保存するプロフィール情報
-
+            profile: 保存対象のUserProfileオブジェクト
+            
         Returns:
-            UserProfile: 保存後のプロフィール情報
-
+            UserProfile: 保存後のプロフィール（タイムスタンプ更新済み）
+            
         Raises:
-            DatabaseError: DynamoDB保存エラー
-            ValidationError: プロフィールデータ不正
-
-        ■データベース操作■
-        - updated_at自動更新
-        - PK/SK自動設定
-        - JSON形式でDynamoDB保存
+            DatabaseError: DynamoDB操作エラー時
         """
         try:
-            self.logger.debug(
-                "Saving user profile",
+            self.logger.info(
+                "Saving user profile", 
+                extra={"user_id": profile.user_id[:8] + "****"}
+            )
+            
+            # JST統一: タイムスタンプ設定
+            current_time = get_current_jst()
+            if not profile.created_at:
+                profile.created_at = current_time
+            profile.updated_at = current_time
+            
+            # DynamoDB保存操作
+            await self.core_client.save_user_profile(profile)
+            
+            self.logger.info(
+                "User profile saved successfully",
                 extra={
                     "user_id": profile.user_id[:8] + "****",
-                    "has_nickname": bool(profile.nickname),
-                },
+                    "updated_at": profile.updated_at.isoformat()
+                }
             )
-
-            # updated_at更新
-            profile.updated_at = get_current_utc()
-
-            # DynamoDB保存用データ準備
-            item_data = profile.model_dump()
-
-            # DynamoDB Keys設定
-            item_data["PK"] = f"USER#{profile.user_id}"
-            item_data["SK"] = "PROFILE"
-
-            # 日時をISO8601文字列に変換
-            item_data["created_at"] = profile.created_at.isoformat()
-            item_data["updated_at"] = profile.updated_at.isoformat()
-
-            # DynamoDB保存
-            await self.core_client.put_item(item_data)
-
-            self.logger.debug(
-                "User profile saved successfully",
-                extra={"user_id": profile.user_id[:8] + "****"},
-            )
-
+            
             return profile
-
+            
         except Exception as e:
             self.logger.error(
                 "Failed to save user profile",
-                extra={"error": str(e), "user_id": profile.user_id[:8] + "****"},
+                extra={
+                    "error": str(e),
+                    "user_id": profile.user_id[:8] + "****"
+                }
             )
-            raise DatabaseError(f"Failed to save user profile: {str(e)}")
+            raise DatabaseError(f"ユーザープロフィール保存に失敗しました: {str(e)}")
 
     async def delete_user_profile(self, user_id: str) -> bool:
         """
@@ -249,7 +243,7 @@ class UserServiceDatabase:
             )
             
             # DynamoDB削除操作
-            response = await self.core_client.delete_user_profile(user_id)
+            await self.core_client.delete_user_profile(user_id)
             
             self.logger.info(
                 "User profile deleted successfully",
@@ -279,6 +273,10 @@ class UserServiceDatabase:
         - 統合テーブル: homebiyori-core (旧subscriptionsテーブル統合)
         - PK: USER#{user_id}, SK: SUBSCRIPTION
         
+        ■ステータス仕様■
+        - status: active|canceled|cancel_scheduled|past_due (inactiveは不正値)
+        - デフォルトなし: サブスクリプション未作成時はNoneを返却
+        
         Args:
             user_id: ユーザーID
             
@@ -301,30 +299,39 @@ class UserServiceDatabase:
             
             if not item_data:
                 self.logger.debug(
-                    "Subscription not found",
+                    "Subscription not found - user has no subscription",
                     extra={"user_id": user_id[:8] + "****"}
                 )
                 return None
 
+            # 設計仕様準拠のサブスクリプション情報構築
             subscription_info = {
-                "status": item_data.get("status", "inactive"),
+                "status": item_data["status"],  # 必須項目、デフォルト値なし
                 "current_plan": item_data.get("current_plan"),
+                "current_period_start": item_data.get("current_period_start"),
                 "current_period_end": item_data.get("current_period_end"),
                 "cancel_at_period_end": item_data.get("cancel_at_period_end", False),
-                "monthly_amount": item_data.get("monthly_amount")
+                "ttl_days": item_data.get("ttl_days")
             }
-            
-            # monthly_amountを数値に変換
-            if subscription_info["monthly_amount"]:
-                subscription_info["monthly_amount"] = float(subscription_info["monthly_amount"])
             
             self.logger.debug(
                 "Subscription status retrieved successfully",
-                extra={"user_id": user_id[:8] + "****"}
+                extra={
+                    "user_id": user_id[:8] + "****",
+                    "status": subscription_info["status"],
+                    "current_plan": subscription_info["current_plan"]
+                }
             )
             
             return subscription_info
 
+        except KeyError as e:
+            error_msg = f"Required subscription field missing: {str(e)}"
+            self.logger.error(
+                error_msg,
+                extra={"user_id": user_id[:8] + "****"}
+            )
+            raise DatabaseError(error_msg)
         except Exception as e:
             error_msg = f"Failed to get subscription status: {str(e)}"
             self.logger.error(
