@@ -345,7 +345,7 @@ async def update_ai_preferences(ai_preferences: AIPreferences, user_id: str = De
     - プロフィールとは独立した設定として管理
 
     ■バリデーション■
-    - ai_character: 'tama', 'madoka', 'hide' のみ許可
+    - ai_character: 'mittyan', 'madokasan', 'hideji' のみ許可
     - praise_level: 'normal', 'deep' のみ許可（2段階設計）
     - models.py の AICharacter・PraiseLevel Enum で定義
 

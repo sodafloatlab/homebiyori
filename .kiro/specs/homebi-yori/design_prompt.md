@@ -176,7 +176,7 @@ class CacheOptimizedLangChainService:
 async def generate_optimized_response(
     user_message: str,
     user_id: str,
-    character: str = "tama",
+    character: str = "mittyan",
     mood: str = "praise"
 ) -> str:
     """キャッシュ最適化AI応答生成"""
@@ -360,7 +360,7 @@ class DynamoDBChatMessageHistory(BaseChatMessageHistory):
 from langchain.memory import ConversationSummaryBufferMemory
 
 class HomebiyoriConversationMemory:
-    def __init__(self, user_id: str, user_tier: str = "free", character: str = "tama"):
+    def __init__(self, user_id: str, user_tier: str = "free", character: str = "mittyan"):
         self.user_id = user_id
         self.character = character
         self.config = self._get_plan_config(user_tier)
@@ -642,7 +642,7 @@ class HomebiyoriAIChain:
         self,
         user_message: str,
         user_id: str,
-        character: str = "tama",
+        character: str = "mittyan",
         mood: str = "praise"
     ) -> str:
         """

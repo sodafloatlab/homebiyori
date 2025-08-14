@@ -92,7 +92,7 @@ class HomebiyoriConversationMemory:
         self,
         user_id: str,
         user_tier: str = "free",
-        character: str = "tama",
+        character: str = "mittyan",
         table_name: str = None
     ):
         self.user_id = user_id
@@ -227,7 +227,7 @@ class HomebiyoriConversationMemory:
 def create_conversation_memory(
     user_id: str,
     user_tier: str = "free",
-    character: str = "tama"
+    character: str = "mittyan"
 ) -> HomebiyoriConversationMemory:
     """
     HomebiyoriConversationMemory インスタンス生成
@@ -235,7 +235,7 @@ def create_conversation_memory(
     Args:
         user_id: ユーザーID
         user_tier: ユーザープラン（free/premium）
-        character: AIキャラクター（tama/madoka/hide）
+        character: AIキャラクター（mittyan/madokasan/hideji）
     
     Returns:
         HomebiyoriConversationMemory: 設定済みメモリインスタンス

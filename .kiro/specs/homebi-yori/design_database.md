@@ -55,7 +55,7 @@ graph TB
 {
   "PK": "USER#user_id",
   "SK": "AI_SETTINGS",
-  "ai_character": "tama|madoka|hide",     // 選択したAIキャラクター
+  "ai_character": "mittyan|madokasan|hideji",     // 選択したAIキャラクター
   "praise_level": "normal|deep",          // 褒めレベル設定（2段階）
   "interaction_mode": "praise|listen",    // 対話モード（褒めモード/傾聴モード）
   "updated_at": "2024-01-01T09:00:00+09:00"
@@ -162,7 +162,7 @@ graph TB
   "ai_response": "string",
   
   // AI設定メタデータ
-  "ai_character": "tama|madoka|hide",
+  "ai_character": "mittyan|madokasan|hideji",
   "praise_level": "normal|deep",
   "interaction_mode": "praise|listen",
   
@@ -201,7 +201,7 @@ graph TB
   // 会話内容の完全保存
   "user_message": "string",               // 実生成のきっかけとなったユーザーメッセージ
   "ai_response": "string",                // AIキャラクターの応答メッセージ
-  "ai_character": "tama|madoka|hide",     // どのAIキャラクターとの会話か
+  "ai_character": "mittyan|madokasan|hideji",     // どのAIキャラクターとの会話か
   "interaction_mode": "praise|listen",    // 対話モード記録
   
   // 感情分析結果

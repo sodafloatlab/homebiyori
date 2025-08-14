@@ -114,7 +114,7 @@
 // POST /api/chat/messages
 {
   "message": "今日は子供の寝かしつけが大変でした",
-  "ai_role": "tama",
+  "ai_role": "mittyan",
   "mood": "listen",
   "chat_type": "individual"
 }

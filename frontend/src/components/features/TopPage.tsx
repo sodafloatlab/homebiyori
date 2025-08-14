@@ -116,12 +116,12 @@ const TopPage = ({ onNavigate }: TopPageProps) => {
   const characters = [
     {
       name: "たまさん", 
-      role: "tama",
+      role: "mittyan",
       color: "bg-pink-50 border-pink-200",
       gradientColor: "from-pink-400 to-rose-500",
       bgColor: "bg-pink-50",
       description: "優しく包み込む温かさ",
-      image: "/images/icons/tamasan.png",
+      image: "/images/icons/mittyan.png",
       personality: "母親のような温かさ",
       strength: "心に寄り添う優しさ",
       approach: "あなたの気持ちを理解し、包み込むように褒めてくれます",
@@ -134,12 +134,12 @@ const TopPage = ({ onNavigate }: TopPageProps) => {
     },
     {
       name: "まどか姉さん", 
-      role: "madoka",
+      role: "madokasan",
       color: "bg-sky-50 border-sky-200",
       gradientColor: "from-blue-400 to-indigo-500",
       bgColor: "bg-blue-50",
       description: "お姉さん的な頼もしいサポート",
-      image: "/images/icons/madokanesan.png",
+      image: "/images/icons/madokasan.png",
       personality: "頼れるお姉さん",
       strength: "前向きなエネルギー",
       approach: "明るく元気に、あなたの頑張りを全力で応援してくれます",
@@ -152,7 +152,7 @@ const TopPage = ({ onNavigate }: TopPageProps) => {
     },
     {
       name: "ヒデじい",
-      role: "hide", 
+      role: "hideji", 
       color: "bg-amber-50 border-amber-200",
       gradientColor: "from-yellow-400 to-orange-500",
       bgColor: "bg-amber-50",

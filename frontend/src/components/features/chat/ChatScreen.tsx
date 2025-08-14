@@ -10,6 +10,7 @@ import Button from '@/components/ui/Button';
 import TouchTarget from '@/components/ui/TouchTarget';
 import Toast from '@/components/ui/Toast';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
+import AiIcon from '@/components/ui/AiIcon';
 import { useAuth, useChat, useTree, useMaintenance, usePremiumFeatureGuard } from '@/lib/hooks';
 import { useChatService } from '@/lib/api/chatService';
 import { useTreeService } from '@/lib/api/treeService';
@@ -46,21 +47,21 @@ const ChatScreen = ({
 
   // AIキャラクター情報
   const characters = {
-    'tama': {
-      name: 'たまさん',
-      image: '/images/icons/tamasan.png',
+    'mittyan': {
+      name: 'みっちゃん',
+      image: '/images/icons/mittyan.png',
       color: 'from-rose-400 to-pink-500',
       bgColor: 'bg-rose-50',
       textColor: 'text-rose-700'
     },
-    'madoka': {
-      name: 'まどか姉さん', 
-      image: '/images/icons/madokanesan.png',
+    'madokasan': {
+      name: 'まどかさん', 
+      image: '/images/icons/madokasan.png',
       color: 'from-sky-400 to-blue-500',
       bgColor: 'bg-sky-50',
       textColor: 'text-sky-700'
     },
-    'hide': {
+    'hideji': {
       name: 'ヒデじい',
       image: '/images/icons/hideji.png', 
       color: 'from-amber-400 to-yellow-500',
@@ -120,9 +121,9 @@ const ChatScreen = ({
 
       // バックエンドAPIでAI応答を取得
       const aiCharacterMap: Record<AiRole, AICharacter> = {
-        'tama': 'tama',
-        'madoka': 'madoka',
-        'hide': 'hide'
+        'mittyan': 'mittyan',
+        'madokasan': 'madokasan',
+        'hideji': 'hideji'
       };
 
       const praiseLevelMap: Record<MoodType, PraiseLevel> = {
@@ -282,12 +283,11 @@ const ChatScreen = ({
 
             <div className="flex items-center space-x-3">
               <div className="relative">
-                <Image
-                  src={currentCharacter.image}
-                  alt={currentCharacter.name}
-                  width={40}
-                  height={40}
-                  className="rounded-full shadow-md"
+                <AiIcon
+                  aiRole={selectedAiRole}
+                  size={40}
+                  className="shadow-md"
+                  showBackground={true}
                 />
                 <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-500 border-2 border-white rounded-full"></div>
               </div>
@@ -342,13 +342,11 @@ const ChatScreen = ({
                     >
                       {message.role === 'assistant' && (
                         <div className="flex items-end space-x-2 max-w-[80%]">
-                          <div className="w-8 h-8 rounded-full overflow-hidden flex-shrink-0">
-                            <Image
-                              src={currentCharacter.image}
-                              alt={currentCharacter.name}
-                              width={32}
-                              height={32}
-                              className="w-full h-full object-cover"
+                          <div className="flex-shrink-0">
+                            <AiIcon
+                              aiRole={selectedAiRole}
+                              size={32}
+                              showBackground={true}
                             />
                           </div>
                           <div>
@@ -387,15 +385,11 @@ const ChatScreen = ({
                     className="flex justify-start"
                   >
                     <div className="flex items-end space-x-2">
-                      <div className="w-8 h-8 rounded-full overflow-hidden">
-                        <Image
-                          src={currentCharacter.image}
-                          alt={currentCharacter.name}
-                          width={32}
-                          height={32}
-                          className="w-full h-full object-cover"
-                        />
-                      </div>
+                      <AiIcon
+                        aiRole={selectedAiRole}
+                        size={32}
+                        showBackground={true}
+                      />
                       <div className={`${currentCharacter.bgColor} p-3 rounded-2xl`}>
                         <div className="flex space-x-1">
                           <div className="w-2 h-2 bg-gray-500 rounded-full animate-bounce"></div>

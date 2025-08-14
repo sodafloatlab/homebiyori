@@ -240,7 +240,7 @@ class TestLangChainIntegration:
         response = await generate_ai_response_langchain(
             user_message="今日は子供と公園で遊びました",
             user_id="test_user_123",
-            character="tama",
+            character="mittyan",
             mood="praise"
         )
 
@@ -290,7 +290,7 @@ class TestInteractionModeIntegration:
     def mock_ai_preferences_free_user(self):
         """無料ユーザーのAI設定モックデータ"""
         return {
-            "ai_character": "tama",
+            "ai_character": "mittyan",
             "praise_level": "deep",  # 無料ユーザーがdeepに設定したケース
             "interaction_mode": "praise"
         }
@@ -299,7 +299,7 @@ class TestInteractionModeIntegration:
     def mock_ai_preferences_premium_user(self):
         """プレミアムユーザーのAI設定モックデータ"""
         return {
-            "ai_character": "madoka", 
+            "ai_character": "madokasan", 
             "praise_level": "deep",
             "interaction_mode": "listen"
         }
@@ -344,7 +344,7 @@ class TestInteractionModeIntegration:
         subscription_info = mock_subscription_free
         
         # 設定値確認
-        assert ai_preferences["ai_character"] == "tama"
+        assert ai_preferences["ai_character"] == "mittyan"
         assert ai_preferences["praise_level"] == "deep"  # ユーザー設定値
         assert ai_preferences["interaction_mode"] == "praise"
         assert subscription_info["plan"] == "free"
@@ -359,7 +359,7 @@ class TestInteractionModeIntegration:
         
         # AI応答生成時の引数確認
         expected_call_args = {
-            "character": "tama",
+            "character": "mittyan",
             "mood": "praise", 
             "praise_level": "normal"  # 制限適用後
         }
@@ -393,7 +393,7 @@ class TestInteractionModeIntegration:
         subscription_info = mock_subscription_premium
         
         # 設定値確認
-        assert ai_preferences["ai_character"] == "madoka"
+        assert ai_preferences["ai_character"] == "madokasan"
         assert ai_preferences["praise_level"] == "deep"
         assert ai_preferences["interaction_mode"] == "listen"
         assert subscription_info["plan"] == "monthly"
@@ -414,9 +414,9 @@ class TestInteractionModeIntegration:
         リクエストパラメータ優先、なければプロフィール設定使用を確認
         """
         # ケース1: リクエストパラメータが指定された場合
-        request_character = "hide"
+        request_character = "hideji"
         request_mood = "listen" 
-        profile_character = "tama"
+        profile_character = "mittyan"
         profile_mood = "praise"
         
         # フォールバックロジック
@@ -424,7 +424,7 @@ class TestInteractionModeIntegration:
         effective_mood = request_mood or profile_mood
         
         # リクエストパラメータ優先確認
-        assert effective_character == "hide"
+        assert effective_character == "hideji"
         assert effective_mood == "listen"
         
         # ケース2: リクエストパラメータがNoneの場合
@@ -436,7 +436,7 @@ class TestInteractionModeIntegration:
         effective_mood = request_mood or profile_mood
         
         # プロフィール設定使用確認
-        assert effective_character == "tama"
+        assert effective_character == "mittyan"
         assert effective_mood == "praise"
 
     def test_prompt_file_path_generation(self):
@@ -447,18 +447,18 @@ class TestInteractionModeIntegration:
         """
         # テストケース
         test_cases = [
-            ("tama", "praise", "normal", "tama_praise_normal.md"),
-            ("tama", "praise", "deep", "tama_praise_deep.md"),
-            ("tama", "listen", "normal", "tama_listen_normal.md"),
-            ("tama", "listen", "deep", "tama_listen_deep.md"),
-            ("madoka", "praise", "normal", "madoka_praise_normal.md"),
-            ("madoka", "praise", "deep", "madoka_praise_deep.md"),
-            ("madoka", "listen", "normal", "madoka_listen_normal.md"),
-            ("madoka", "listen", "deep", "madoka_listen_deep.md"),
-            ("hide", "praise", "normal", "hide_praise_normal.md"),
-            ("hide", "praise", "deep", "hide_praise_deep.md"),
-            ("hide", "listen", "normal", "hide_listen_normal.md"),
-            ("hide", "listen", "deep", "hide_listen_deep.md"),
+            ("mittyan", "praise", "normal", "mittyan_praise_normal.md"),
+            ("mittyan", "praise", "deep", "mittyan_praise_deep.md"),
+            ("mittyan", "listen", "normal", "mittyan_listen_normal.md"),
+            ("mittyan", "listen", "deep", "mittyan_listen_deep.md"),
+            ("madokasan", "praise", "normal", "madokasan_praise_normal.md"),
+            ("madokasan", "praise", "deep", "madokasan_praise_deep.md"),
+            ("madokasan", "listen", "normal", "madokasan_listen_normal.md"),
+            ("madokasan", "listen", "deep", "madokasan_listen_deep.md"),
+            ("hideji", "praise", "normal", "hideji_praise_normal.md"),
+            ("hideji", "praise", "deep", "hideji_praise_deep.md"),
+            ("hideji", "listen", "normal", "hideji_listen_normal.md"),
+            ("hideji", "listen", "deep", "hideji_listen_deep.md"),
         ]
         
         for character, interaction_mode, praise_level, expected_filename in test_cases:

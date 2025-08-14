@@ -87,9 +87,9 @@ export const useAiParticipants = (
     // 参加通知
     added.forEach(ai => {
       const character = {
-        tama: 'たまさん',
-        madoka: 'まどか姉さん', 
-        hide: 'ヒデじい'
+        mittyan: 'たまさん',
+        madokasan: 'まどか姉さん', 
+        hideji: 'ヒデじい'
       }[ai];
 
       const joinMessage: ChatMessage = {
@@ -106,9 +106,9 @@ export const useAiParticipants = (
     // 退出通知
     removed.forEach(ai => {
       const character = {
-        tama: 'たまさん',
+        mittyan: 'たまさん',
         madoka: 'まどか姉さん',
-        hide: 'ヒデじい'
+        hideji: 'ヒデじい'
       }[ai];
 
       const leaveMessage: ChatMessage = {
@@ -188,7 +188,7 @@ export const useInitialGreeting = (
           text: 'みなさん、こんにちは！グループチャットにようこそ。今日はどんなことがありましたか？',
           sender: 'ai',
           timestamp: Date.now(),
-          aiRole: 'madoka',
+          aiRole: 'madokasan',
           mood
         };
         onAddGlobalMessage(greeting);

@@ -716,7 +716,7 @@ class ChatServiceDatabase:
         ユーザーのAI設定情報取得
         
         ■取得情報■
-        - ai_character: AIキャラクター（tama, madoka, hide）
+        - ai_character: AIキャラクター（mittyan, madokasan, hideji）
         - praise_level: 褒めレベル（normal, deep）  
         - interaction_mode: 対話モード（praise, listen）
         
@@ -740,14 +740,14 @@ class ChatServiceDatabase:
             
             if profile_data:
                 ai_preferences = {
-                    "ai_character": profile_data.get("ai_character", "tama"),
+                    "ai_character": profile_data.get("ai_character", "mittyan"),
                     "praise_level": profile_data.get("praise_level", "normal"),
                     "interaction_mode": profile_data.get("interaction_mode", "praise")
                 }
             else:
                 # デフォルト設定
                 ai_preferences = {
-                    "ai_character": "tama",
+                    "ai_character": "mittyan",
                     "praise_level": "normal", 
                     "interaction_mode": "praise"
                 }
@@ -773,7 +773,7 @@ class ChatServiceDatabase:
             )
             # エラー時はデフォルト設定返却
             return {
-                "ai_character": "tama",
+                "ai_character": "mittyan",
                 "praise_level": "normal",
                 "interaction_mode": "praise"
             }

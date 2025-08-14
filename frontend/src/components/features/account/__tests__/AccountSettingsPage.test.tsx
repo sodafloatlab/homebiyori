@@ -20,7 +20,7 @@ describe('AccountSettingsPage', () => {
   const defaultUserProfile = {
     userId: '12345',
     nickname: 'テストユーザー',
-    aiCharacter: 'tama' as const,
+    aiCharacter: 'mittyan' as const,
     praiseLevel: 'normal' as const,
     interactionMode: 'praise' as const,
     createdAt: '2024-01-01T00:00:00Z'
@@ -118,7 +118,7 @@ describe('AccountSettingsPage', () => {
       await waitFor(() => {
         expect(mockOnProfileUpdate).toHaveBeenCalledWith({
           nickname: '新しいニックネーム',
-          aiCharacter: 'tama',
+          aiCharacter: 'mittyan',
           praiseLevel: 'normal',
           interactionMode: 'praise'
         });

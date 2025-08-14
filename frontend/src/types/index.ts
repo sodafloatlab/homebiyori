@@ -2,7 +2,7 @@
 // Core Types (Demo互換 + バックエンド統合)
 // ========================================
 
-export type AiRole = 'tama' | 'madoka' | 'hide';
+export type AiRole = 'mittyan' | 'madokasan' | 'hideji';
 export type MoodType = 'praise' | 'listen';
 export type AppScreen = 'landing' | 'auth' | 'character-selection' | 'chat' | 'tree' | 'group-chat' | 'notifications' | 'premium' | 'subscription-cancel' | 'terms-of-service' | 'privacy-policy' | 'commercial-transaction' | 'contact' | 'faq';
 export type UserPlan = 'free' | 'premium';
@@ -13,7 +13,7 @@ export type ChatMode = 'normal' | 'deep';
 // ========================================
 
 // バックエンドのAICharacter enumと統合
-export type AICharacter = 'tama' | 'madoka' | 'hide';
+export type AICharacter = 'mittyan' | 'madokasan' | 'hideji';
 
 // バックエンドのPraiseLevelと統合
 export type PraiseLevel = 'normal' | 'deep';

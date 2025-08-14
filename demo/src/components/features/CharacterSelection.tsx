@@ -65,11 +65,11 @@ const CharacterSelection = ({
 
   const characters = [
     {
-      role: 'tama' as AiRole,
+      role: 'mittyan' as AiRole,
       name: 'たまさん',
       shortDesc: '優しく包み込む温かさ',
       personality: 'いつも优しく寄り添うお母さんのような存在。疑ったり不安になったときも、温かい言葉で包み込んでくれます。',
-      image: '/images/icons/tamasan.png',
+      image: '/images/icons/mittyan.png',
       color: 'from-rose-400 to-pink-500',
       bgColor: 'bg-rose-50',
       borderColor: 'border-rose-200',
@@ -78,11 +78,11 @@ const CharacterSelection = ({
       strengths: ['共感力抜群', '温かい励まし', '安心感']
     },
     {
-      role: 'madoka' as AiRole,
+      role: 'madokasan' as AiRole,
       name: 'まどか姉さん',
       shortDesc: 'お姉さん的な頼もしいサポート',
       personality: '明るくエネルギッシュなお姉さんタイプ。「大丈夫！」「一緒に頑張ろう！」と前向きなエールで背中を押してくれます。',
-      image: '/images/icons/madokanesan.png',
+      image: '/images/icons/madokasan.png',
       color: 'from-sky-400 to-blue-500',
       bgColor: 'bg-sky-50',
       borderColor: 'border-sky-200',
@@ -91,7 +91,7 @@ const CharacterSelection = ({
       strengths: ['ポジティブ思考', '行動力アップ', '元気をくれる']
     },
     {
-      role: 'hide' as AiRole,
+      role: 'hideji' as AiRole,
       name: 'ヒデじい',
       shortDesc: '人生経験豊富な温かな励まし',
       personality: '人生経験豊富なおじいちゃん。「ふむふむ」とうなずきながらも、深い知恵と経験から的確なアドバイスをくれます。',

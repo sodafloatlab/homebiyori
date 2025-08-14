@@ -5,17 +5,17 @@ import { AiRole, CharacterInfo } from '@/types';
 // ========================================
 
 export const AI_CHARACTERS: Record<AiRole, CharacterInfo> = {
-  tama: {
+  mittyan: {
     name: 'たまさん',
-    image: '/images/icons/tamasan.png',
+    image: '/images/icons/mittyan.png',
     color: 'rose'
   },
-  madoka: {
+  madokasan: {
     name: 'まどか姉さん',
-    image: '/images/icons/madokanesan.png',
+    image: '/images/icons/madokasan.png',
     color: 'sky'
   },
-  hide: {
+  hideji: {
     name: 'ヒデじい',
     image: '/images/icons/hideji.png',
     color: 'amber'
@@ -77,15 +77,15 @@ export const EMOTIONS = [
 // ========================================
 
 export const AI_GREETINGS = {
-  tama: {
+  mittyan: {
     praise: 'こんにちは。今日はどんな一日でしたか？頑張ったこと、聞かせてください。',
     listen: 'こんにちは。今日はどんな気持ちですか？何でもお話しください。'
   },
-  madoka: {
+  madokasan: {
     praise: 'お疲れさまです！今日はどんなことを頑張りましたか？',
     listen: 'お疲れさまです！今日はどんなことがありましたか？'
   },
-  hide: {
+  hideji: {
     praise: 'ほほう、今日も一日お疲れじゃったな。どんなことがあったのじゃ？',
     listen: 'ふむ、今日はどんな心持ちじゃな？話を聞かせてもらおうか。'
   }

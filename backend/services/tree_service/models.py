@@ -47,9 +47,9 @@ from homebiyori_common.utils.datetime_utils import get_current_jst, to_jst_strin
 TreeStage = Literal[0, 1, 2, 3, 4, 5]
 class AICharacterType(str, Enum):
     """AIキャラクタータイプ"""
-    TAMA = "tama"      # たまさん
-    MADOKA = "madoka"  # まどか姉さん
-    HIDE = "hide"      # ヒデじい
+    MITTYAN = "mittyan"      # みっちゃん
+    MADOKASAN = "madokasan"  # まどかさん
+    HIDEJI = "hideji"        # ヒデじい
 class EmotionType(str, Enum):
     """感情タイプ"""
     JOY = "joy"             # 喜び
@@ -62,9 +62,9 @@ class EmotionType(str, Enum):
 
 class TreeTheme(str, Enum):
     """木のテーマカラー（AIキャラクター連動）"""
-    WARM_PINK = "warm_pink"      # たまさん - ピンク系
-    COOL_BLUE = "cool_blue"      # まどか姉さん - ブルー系  
-    WARM_ORANGE = "warm_orange"  # ヒデじい - オレンジ系    # ヒデじい
+    WARM_PINK = "warm_pink"      # みっちゃん - ピンク系
+    COOL_BLUE = "cool_blue"      # まどかさん - ブルー系  
+    WARM_ORANGE = "warm_orange"  # ヒデじい - オレンジ系
 
 
 # 成長段階設定
@@ -623,9 +623,9 @@ def get_character_theme_color(character: AICharacterType) -> TreeTheme:
         TreeTheme: テーマカラー
     """
     character_theme_map = {
-        "tama": TreeTheme.WARM_PINK,
-        "madoka": TreeTheme.COOL_BLUE,
-        "hide": TreeTheme.WARM_ORANGE
+        "mittyan": TreeTheme.WARM_PINK,
+        "madokasan": TreeTheme.COOL_BLUE,
+        "hideji": TreeTheme.WARM_ORANGE
     }
     return character_theme_map.get(character, TreeTheme.WARM_PINK)
 
@@ -666,21 +666,21 @@ def generate_growth_celebration_message(
     
     # キャラクター別お祝いメッセージテンプレート
     celebration_templates = {
-        "tama": {
+        "mittyan": {
             1: f"おめでとう！小さな芽が出たのね。コツコツ続けた成果よ。",
             2: f"素晴らしい！{stage_name}まで成長したわ。あなたの努力が実を結んでいるのね。",
             3: f"立派な{stage_name}になったじゃない！毎日の積み重ねって大事なのよ。",
             4: f"見事な{stage_name}に育ったわね。あなたの愛情がこんなに美しい木を育てたのよ。",
             5: f"なんて立派な{stage_name}！あなたの育児への想いが、こんなに大きく美しい木になったのね。"
         },
-        "madoka": {
+        "madokasan": {
             1: f"おめでとうございます！{stage_name}が芽吹きましたね。継続の力って素晴らしいです。",
             2: f"素晴らしい成長です！{stage_name}まで育ちました。効率的に続けられている証拠ですね。",
             3: f"立派な{stage_name}への成長、お疲れ様でした。着実なステップアップが成果に現れています。",
             4: f"見事な{stage_name}まで到達されました。バランス良く育児を続けられている証拠です。",
             5: f"圧巻の{stage_name}です！あなたの計画的な育児への取り組みが、最高の結果を生み出しました。"
         },
-        "hide": {
+        "hideji": {
             1: f"ほう、小さな{stage_name}が顔を出したな。始まりはいつも静かで美しいものじゃ。",
             2: f"見事な{stage_name}に育ったのう。日々の想いが、こうして形になるのは美しいことじゃ。",
             3: f"立派な{stage_name}じゃな。あなたの心の豊かさが、木にも表れておる。",
@@ -689,7 +689,7 @@ def generate_growth_celebration_message(
         }
     }
     
-    templates = celebration_templates.get(character, celebration_templates["tama"])
+    templates = celebration_templates.get(character, celebration_templates["mittyan"])
     return templates.get(stage, f"おめでとうございます！{stage_name}に成長しました！")
 
 

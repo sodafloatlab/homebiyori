@@ -312,7 +312,7 @@ const MainApp = () => {
           text: 'みなさん、こんにちは！グループチャットにようこそ。今日はどんなことがありましたか？',
           sender: 'ai',
           timestamp: Date.now(),
-          aiRole: 'madoka',
+          aiRole: 'madokasan',
           mood: appState.currentMood
         };
         handleAddGlobalMessage(greetingMessage);

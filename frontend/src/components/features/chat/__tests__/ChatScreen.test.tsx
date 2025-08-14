@@ -57,7 +57,7 @@ describe('ChatScreen', () => {
 
     mockUseChat.mockReturnValue({
       messages: [],
-      selectedAiRole: 'tama',
+      selectedAiRole: 'mittyan',
       currentMood: 'praise',
       loadChatHistory: mockLoadChatHistory,
       addMessage: jest.fn(),
@@ -99,7 +99,7 @@ describe('ChatScreen', () => {
   const renderChatScreen = (props = {}) => {
     return render(
       <ChatScreen
-        selectedAiRole="tama"
+        selectedAiRole="mittyan"
         currentMood="praise"
         onNavigate={mockOnNavigate}
         onCharacterChange={mockOnCharacterChange}

@@ -71,9 +71,9 @@ const getCharacterThemeColor = (aiRole, type = 'text') => {
   if (!aiRole) return '';
   
   const colorMap = {
-    tama: 'rose',
-    madoka: 'sky', 
-    hide: 'amber'
+    mittyan: 'rose',
+    madokasan: 'sky', 
+    hideji: 'amber'
   };
   
   const color = colorMap[aiRole];
@@ -186,9 +186,9 @@ describe('Tree Growth Utilities', () => {
 describe('Character Utilities', () => {
   describe('getCharacterThemeColor', () => {
     test('正しいテーマカラーを返すこと', () => {
-      expect(getCharacterThemeColor('tama', 'text')).toBe('text-rose-700');
-      expect(getCharacterThemeColor('madoka', 'bg')).toBe('bg-sky-100');
-      expect(getCharacterThemeColor('hide', 'border')).toBe('border-amber-300');
+      expect(getCharacterThemeColor('mittyan', 'text')).toBe('text-rose-700');
+      expect(getCharacterThemeColor('madokasan', 'bg')).toBe('bg-sky-100');
+      expect(getCharacterThemeColor('hideji', 'border')).toBe('border-amber-300');
     });
 
     test('無効なaiRoleの場合空文字を返すこと', () => {

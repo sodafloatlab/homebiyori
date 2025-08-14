@@ -115,11 +115,11 @@ const TreeView = ({ onNavigate, previousScreen = 'chat' }: TreeViewProps) => {
   // AIキャラクターの情報
   const getCharacterInfo = (aiCharacter: string) => {
     switch (aiCharacter) {
-      case 'tama':
+      case 'mittyan':
         return { name: 'たまさん', color: 'bg-rose-400', textColor: 'text-rose-700' };
-      case 'madoka':
+      case 'madokasan':
         return { name: 'まどか姉さん', color: 'bg-sky-400', textColor: 'text-sky-700' };
-      case 'hide':
+      case 'hideji':
         return { name: 'ヒデじい', color: 'bg-amber-400', textColor: 'text-amber-700' };
       default:
         return { name: 'AI', color: 'bg-gray-400', textColor: 'text-gray-700' };
@@ -450,8 +450,8 @@ const TreeView = ({ onNavigate, previousScreen = 'chat' }: TreeViewProps) => {
                   className="text-6xl mb-3"
                   style={{ 
                     filter: `hue-rotate(${
-                      selectedFruit.ai_character === 'tama' ? '320deg' :
-                      selectedFruit.ai_character === 'madoka' ? '200deg' : 
+                      selectedFruit.ai_character === 'mittyan' ? '320deg' :
+                      selectedFruit.ai_character === 'madokasan' ? '200deg' : 
                       '30deg'
                     })` 
                   }}

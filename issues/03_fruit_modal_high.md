@@ -80,7 +80,7 @@ interface FruitDetail {
   id: string;
   userMessage: string;
   aiResponse: string;
-  aiRole: 'tama' | 'madoka' | 'hide';
+  aiRole: 'mittyan' | 'madokasan' | 'hideji';
   createdAt: string;
   emotion: string;
   themeColor: string;

@@ -22,7 +22,7 @@ describe('AccountDeletionService', () => {
         account: {
           user_id: 'user123',
           nickname: 'テストユーザー',
-          ai_character: 'tama',
+          ai_character: 'mittyan',
           created_at: '2024-01-15T09:30:00Z'
         },
         subscription: {
@@ -49,7 +49,7 @@ describe('AccountDeletionService', () => {
         account: {
           userId: 'user123',
           nickname: 'テストユーザー',
-          aiCharacter: 'tama',
+          aiCharacter: 'mittyan',
           createdAt: '2024-01-15T09:30:00Z',
           usagePeriod: expect.any(String)
         },
@@ -74,7 +74,7 @@ describe('AccountDeletionService', () => {
         account: {
           user_id: 'user123',
           nickname: 'テストユーザー',
-          ai_character: 'tama',
+          ai_character: 'mittyan',
           created_at: '2024-01-15T09:30:00Z'
         },
         subscription: null,
@@ -316,7 +316,7 @@ describe('AccountDeletionService', () => {
         account: {
           user_id: 'user123',
           nickname: 'テストユーザー',
-          ai_character: 'tama',
+          ai_character: 'mittyan',
           created_at: recentDate.toISOString()
         },
         subscription: null,
@@ -343,7 +343,7 @@ describe('AccountDeletionService', () => {
         account: {
           user_id: 'user123',
           nickname: 'テストユーザー',
-          ai_character: 'tama',
+          ai_character: 'mittyan',
           created_at: monthsAgo.toISOString()
         },
         subscription: null,

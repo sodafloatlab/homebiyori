@@ -23,9 +23,9 @@ import uuid
 
 class AICharacterType(str, Enum):
     """AIキャラクタータイプ"""
-    TAMA = "tama"           # たまさん：優しい
-    MADOKA = "madoka"       # まどか姉さん：お姉さん的
-    HIDE = "hide"           # ヒデじい：おじいちゃん的
+    MITTYAN = "mittyan"         # みっちゃん：優しい
+    MADOKASAN = "madokasan"     # まどかさん：お姉さん的
+    HIDEJI = "hideji"           # ひでじい：おじいちゃん的           # ヒデじい：おじいちゃん的
 
 class MoodType(str, Enum):
     """気分タイプ"""
@@ -52,7 +52,7 @@ class EmotionType(str, Enum):
 class ChatRequest(BaseModel):
     """チャット送信リクエスト"""
     message: str = Field(..., min_length=1, max_length=2000, description="ユーザーメッセージ")
-    ai_character: AICharacterType = Field(default=AICharacterType.TAMA, description="AIキャラクター")
+    ai_character: AICharacterType = Field(default=AICharacterType.MITTYAN, description="AIキャラクター")
     mood: MoodType = Field(default=MoodType.PRAISE, description="気分設定")
 
 
@@ -82,7 +82,7 @@ class GroupChatRequest(BaseModel):
         schema_extra = {
             "example": {
                 "message": "今日は子供と公園で遊んで楽しかったです",
-                "active_characters": ["tama", "madoka", "hide"],
+                "active_characters": ["mittyan", "madokasan", "hideji"],
                 "mood": "praise",
                 "context_length": 10
             }
@@ -273,9 +273,9 @@ def can_generate_fruit(last_fruit_date: Optional[datetime]) -> bool:
 def get_character_theme_color(character: AICharacterType) -> str:
     """キャラクターのテーマカラーを取得"""
     color_map = {
-        AICharacterType.TAMA: "warm_pink",
-        AICharacterType.MADOKA: "cool_blue", 
-        AICharacterType.HIDE: "warm_orange"
+        AICharacterType.MITTYAN: "warm_pink",
+        AICharacterType.MADOKASAN: "cool_blue", 
+        AICharacterType.HIDEJI: "warm_orange"
     }
     return color_map.get(character, "warm_pink")
 

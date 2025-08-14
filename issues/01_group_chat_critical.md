@@ -40,7 +40,7 @@
 - [ ] リアルタイム応答表示
 
 ## 技術仕様
-- **AIキャラクター**: `tama`, `madoka`, `hide`
+- **AIキャラクター**: `mittyan`, `madokasan`, `hideji`
 - **色分け**: テーマカラー別メッセージ表示
 - **API**: `POST /api/chat/group` エンドポイント
 - **認証**: プレミアム権限必須

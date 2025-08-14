@@ -343,7 +343,7 @@ class HomebiyoriLangChainService:
 async def generate_ai_response_langchain(
     user_message: str,
     user_id: str,
-    character: str = "tama",
+    character: str = "mittyan",
     mood: str = "praise"
 ) -> str:
     """
@@ -466,15 +466,15 @@ async def get_fallback_response(character: str, user_tier: str) -> str:
     """フォールバック応答（LangChain失敗時）"""
     
     fallback_responses = {
-        "tama": {
+        "mittyan": {
             "free": "あらあら〜、お疲れさまやわ〜。大丈夫よ〜、みんな通る道やで。",
             "premium": "あらあら〜、本当にお疲れさまやわ〜。あなたのことを見てると、いつも一生懸命で立派やなって思うのよ。大丈夫、みんな通る道やから、焦らんでいいのよ〜。"
         },
-        "madoka": {
+        "madokasan": {
             "free": "お疲れさまです！頑張ってる姿、とても素敵ですよ♪",
             "premium": "お疲れさまです！いつも頑張ってる姿を見ていて、本当に素敵だなって思っています。完璧じゃなくても大丈夫、一歩ずつ進んでいけばきっと大丈夫ですよ♪ 応援しています！"
         },
-        "hide": {
+        "hideji": {
             "free": "ほほう、お疲れじゃったのう。立派に頑張っとるわい。",
             "premium": "ほほう、お疲れじゃったのう。わしから見ると、あんたは本当によく頑張っとる。完璧でなくともな、その心意気が大切なんじゃよ。ゆっくりでも歩き続けていけば、きっと道は開けるもんじゃ。心配ないて。"
         }
@@ -488,9 +488,9 @@ async def get_fallback_response(character: str, user_tier: str) -> str:
 ### フルーツとテーマカラーの対応
 ```python
 CHARACTER_THEME_COLORS = {
-    "tama": "warm_pink",      # たまさん - 温かいピンク系
-    "madoka": "cool_blue",    # まどか姉さん - クールブルー系
-    "hide": "warm_orange"     # ヒデじい - 温かいオレンジ系
+    "mittyan": "warm_pink",      # みっちゃん - 温かいピンク系
+    "madokasan": "cool_blue",    # まどかさん - クールブルー系
+    "hideji": "warm_orange"     # ヒデじい - 温かいオレンジ系
 }
 
 FRUIT_COLORS = {

@@ -2,7 +2,7 @@
 // Core Types
 // ========================================
 
-export type AiRole = 'tama' | 'madoka' | 'hide';
+export type AiRole = 'mittyan' | 'madokasan' | 'hideji';
 export type MoodType = 'praise' | 'listen';
 export type AppScreen = 'landing' | 'auth' | 'character-selection' | 'chat' | 'tree' | 'group-chat' | 'premium' | 'subscription-cancel' | 'terms-of-service' | 'privacy-policy' | 'commercial-transaction' | 'contact' | 'faq';
 export type UserPlan = 'free' | 'premium';

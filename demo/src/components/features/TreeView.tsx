@@ -169,13 +169,13 @@ const TreeView = ({
                   >
                   <div className="flex items-center mb-2">
                     <div className={`w-3 h-3 rounded-full mr-2 ${
-                      fruit.aiRole === 'tama' ? 'bg-pink-400' :
-                      fruit.aiRole === 'madoka' ? 'bg-blue-400' :
+                      fruit.aiRole === 'mittyan' ? 'bg-pink-400' :
+                      fruit.aiRole === 'madokasan' ? 'bg-blue-400' :
                       'bg-yellow-400'
                     }`}></div>
                     <Typography variant="small" weight="medium" color="primary">
-                      {fruit.aiRole === 'tama' ? 'たまさん' : 
-                       fruit.aiRole === 'madoka' ? 'まどか姉さん' : 'ヒデじい'}
+                      {fruit.aiRole === 'mittyan' ? 'たまさん' : 
+                       fruit.aiRole === 'madokasan' ? 'まどか姉さん' : 'ヒデじい'}
                     </Typography>
                   </div>
                   <Typography variant="small" color="secondary" className="mb-2 line-clamp-2">{fruit.aiResponse}</Typography>
@@ -203,8 +203,8 @@ const TreeView = ({
             >
               <div className="text-center mb-4">
                 <div className={`w-8 h-8 rounded-full mx-auto mb-2 ${
-                  selectedFruit.aiRole === 'tama' ? 'bg-pink-400' :
-                  selectedFruit.aiRole === 'madoka' ? 'bg-blue-400' :
+                  selectedFruit.aiRole === 'mittyan' ? 'bg-pink-400' :
+                  selectedFruit.aiRole === 'madokasan' ? 'bg-blue-400' :
                   'bg-yellow-400'
                 }`}></div>
                 <Typography variant="h3" color="primary">
@@ -225,12 +225,12 @@ const TreeView = ({
               <div className="mb-4">
                 <Typography variant="small" weight="bold" color="secondary" className="mb-2 flex items-center">
                   <div className={`w-4 h-4 rounded-full mr-2 ${
-                    selectedFruit.aiRole === 'tama' ? 'bg-pink-400' :
-                    selectedFruit.aiRole === 'madoka' ? 'bg-blue-400' :
+                    selectedFruit.aiRole === 'mittyan' ? 'bg-pink-400' :
+                    selectedFruit.aiRole === 'madokasan' ? 'bg-blue-400' :
                     'bg-yellow-400'
                   }`}></div>
-                  {selectedFruit.aiRole === 'tama' ? 'たまさん' : 
-                   selectedFruit.aiRole === 'madoka' ? 'まどか姉さん' : 'ヒデじい'}からの返答
+                  {selectedFruit.aiRole === 'mittyan' ? 'たまさん' : 
+                   selectedFruit.aiRole === 'madokasan' ? 'まどか姉さん' : 'ヒデじい'}からの返答
                 </Typography>
                 <div className="bg-emerald-50 p-3 rounded-lg border border-emerald-100">
                   <Typography variant="body" color="primary" className="leading-relaxed">{selectedFruit.aiResponse}</Typography>

@@ -16,15 +16,15 @@ export const API_ENDPOINTS = {
 
 // AIキャラクター定義
 export const AI_CHARACTERS = {
-  TAMA: 'tama',
-  MADOKA: 'madoka', 
-  HIDE: 'hide',
+  MITTYAN: 'mittyan',
+  MADOKASAN: 'madokasan', 
+  HIDEJI: 'hideji',
 } as const;
 
 export const AI_CHARACTER_NAMES = {
-  [AI_CHARACTERS.TAMA]: 'たまさん',
-  [AI_CHARACTERS.MADOKA]: 'まどか姉さん',
-  [AI_CHARACTERS.HIDE]: 'ヒデじい',
+  [AI_CHARACTERS.MITTYAN]: 'みっちゃん',
+  [AI_CHARACTERS.MADOKASAN]: 'まどかさん',
+  [AI_CHARACTERS.HIDEJI]: 'ヒデじい',
 } as const;
 
 // 木の成長段階

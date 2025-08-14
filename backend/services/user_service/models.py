@@ -55,15 +55,12 @@ from homebiyori_common.utils.datetime_utils import get_current_jst
 
 class AICharacter(str, Enum):
     """
-    利用可能なAIキャラクター
-
-    chat_service の LangChain AI実装と連携。
-    キャラクター設定は DynamoDB 経由でリアルタイム反映。
+    AIキャラクタータイプ定義（新名称）
     """
 
-    TAMA = "tama"  # たまさん（下町のベテランおばちゃん）
-    MADOKA = "madoka"  # まどか姉さん（バリキャリ共働きママ）
-    HIDE = "hide"  # ヒデじい（元教師の詩人）
+    MITTYAN = "mittyan"  # みっちゃん（下町のベテランおばちゃん）
+    MADOKASAN = "madokasan"  # まどかさん（バリキャリ共働きママ）
+    HIDEJI = "hideji"  # ひでじい（元教師の詩人）  # ヒデじい（元教師の詩人）
 
 
 class PraiseLevel(str, Enum):
@@ -179,7 +176,7 @@ class UserProfile(BaseModel):
             "example": {
                 "user_id": "12345678-1234-5678-9012-123456789012",
                 "nickname": "ほめママ",
-                "ai_character": "tama",
+                "ai_character": "mittyan",
                 "praise_level": "standard",
                 "interaction_mode": "praise",
                 "onboarding_completed": True,
@@ -243,7 +240,7 @@ class AIPreferences(BaseModel):
     model_config = ConfigDict(
         json_schema_extra={
             "example": {
-                "ai_character": "madoka", 
+                "ai_character": "madokasan", 
                 "praise_level": "deep",
                 "interaction_mode": "praise"
             }

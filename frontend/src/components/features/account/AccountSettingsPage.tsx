@@ -9,7 +9,7 @@ import { TouchTarget } from '../../ui/TouchTarget';
 interface UserProfile {
   userId: string;
   nickname: string | null;
-  aiCharacter: 'tama' | 'madoka' | 'hide';
+  aiCharacter: 'mittyan' | 'madokasan' | 'hideji';
   praiseLevel: 'normal' | 'deep';
   interactionMode: 'praise' | 'listen';
   createdAt: string;
@@ -97,9 +97,9 @@ export function AccountSettingsPage({
 
   const getCharacterName = (character: string) => {
     const names = {
-      tama: 'たまさん',
-      madoka: 'まどか姉さん',
-      hide: 'ヒデじい'
+      mittyan: 'たまさん',
+      madokasan: 'まどか姉さん',
+      hideji: 'ヒデじい'
     };
     return names[character as keyof typeof names] || character;
   };
@@ -198,13 +198,13 @@ export function AccountSettingsPage({
                   value={editedProfile.aiCharacter}
                   onChange={(e) => setEditedProfile(prev => ({ 
                     ...prev, 
-                    aiCharacter: e.target.value as 'tama' | 'madoka' | 'hide'
+                    aiCharacter: e.target.value as 'mittyan' | 'madokasan' | 'hideji'
                   }))}
                   className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
                 >
-                  <option value="tama">たまさん</option>
-                  <option value="madoka">まどか姉さん</option>
-                  <option value="hide">ヒデじい</option>
+                  <option value="mittyan">たまさん</option>
+                  <option value="madokasan">まどか姉さん</option>
+                  <option value="hideji">ヒデじい</option>
                 </select>
               ) : (
                 <p className="text-gray-900 dark:text-white">

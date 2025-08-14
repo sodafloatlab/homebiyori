@@ -295,7 +295,7 @@ describe('ChatStore', () => {
         id: 'history1',
         userMessage: 'ユーザーメッセージ',
         aiResponse: 'AI応答',
-        aiRole: 'tama',
+        aiRole: 'mittyan',
         timestamp: Date.now(),
         mode: 'normal'
       };
@@ -314,7 +314,7 @@ describe('ChatStore', () => {
           id: `history${i}`,
           userMessage: `ユーザーメッセージ${i}`,
           aiResponse: `AI応答${i}`,
-          aiRole: 'tama',
+          aiRole: 'mittyan',
           timestamp: Date.now(),
           mode: 'normal'
         });
@@ -328,9 +328,9 @@ describe('ChatStore', () => {
 
   describe('AI設定', () => {
     test('setSelectedAiRole でAIロールが設定されること', () => {
-      chatStore.setSelectedAiRole('tama');
+      chatStore.setSelectedAiRole('mittyan');
       const state = chatStore.getState();
-      expect(state.selectedAiRole).toBe('tama');
+      expect(state.selectedAiRole).toBe('mittyan');
     });
 
     test('setCurrentMood で気分が設定されること', () => {
@@ -354,7 +354,7 @@ describe('ChatStore', () => {
     });
 
     test('正常なメッセージ送信でユーザーメッセージとAI応答が追加されること', async () => {
-      chatStore.setSelectedAiRole('tama');
+      chatStore.setSelectedAiRole('mittyan');
       
       await chatStore.sendMessage('こんにちは');
       const state = chatStore.getState();
@@ -411,7 +411,7 @@ describe('ChatStore', () => {
           id: `history${i}`,
           userMessage: `メッセージ${i}`,
           aiResponse: `応答${i}`,
-          aiRole: 'tama',
+          aiRole: 'mittyan',
           timestamp: Date.now(),
           mode: 'normal'
         });
@@ -427,7 +427,7 @@ describe('ChatStore', () => {
         id: 'history1',
         userMessage: 'あいうえお', // 5文字
         aiResponse: 'かきくけこ', // 5文字
-        aiRole: 'tama',
+        aiRole: 'mittyan',
         timestamp: Date.now(),
         mode: 'normal'
       });

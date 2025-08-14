@@ -284,7 +284,7 @@ class TestTreeService:
             "message": "今日は子供と公園で楽しく遊びました",
             "emotion": "joy",
             "emotion_score": 0.8,
-            "ai_character": "tama",
+            "ai_character": "mittyan",
             "trigger_message_id": "msg_123"
         }
         
@@ -302,7 +302,7 @@ class TestTreeService:
         assert data["message"] == request_data["message"]
         assert data["emotion_trigger"] == "joy"
         assert data["emotion_score"] == 0.8
-        assert data["ai_character"] == "tama"
+        assert data["ai_character"] == "mittyan"
         assert data["character_color"] == "warm_pink"
         assert data["trigger_message_id"] == "msg_123"
         assert "fruit_id" in data
@@ -326,7 +326,7 @@ class TestTreeService:
             "message": "テストメッセージ",
             "emotion": "joy",
             "emotion_score": 0.7,
-            "ai_character": "tama"
+            "ai_character": "mittyan"
         }
         
         # リクエスト実行
@@ -377,7 +377,7 @@ class TestTreeService:
         mock_fruits_data = {
             "items": mock_fruits,
             "total_count": 2,
-            "character_counts": {"tama": 1, "madoka": 1},
+            "character_counts": {"mittyan": 1, "madokasan": 1},
             "emotion_counts": {"joy": 1, "accomplishment": 1},
             "next_token": None,
             "has_more": False
@@ -398,8 +398,8 @@ class TestTreeService:
         
         assert len(data["fruits"]) == 2
         assert data["total_count"] == 2
-        assert data["character_counts"]["tama"] == 1
-        assert data["character_counts"]["madoka"] == 1
+        assert data["character_counts"]["mittyan"] == 1
+        assert data["character_counts"]["madokasan"] == 1
         assert data["emotion_counts"]["joy"] == 1
         assert data["emotion_counts"]["accomplishment"] == 1
         assert data["has_more"] == False

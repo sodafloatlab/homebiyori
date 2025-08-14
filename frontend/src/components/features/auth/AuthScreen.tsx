@@ -242,7 +242,7 @@ const AuthScreen = ({ onNavigate, onAuthSuccess }: AuthScreenProps) => {
                         const dummyProfile = {
                           user_id: 'demo-user',
                           nickname: 'デモユーザー',
-                          ai_character: 'tama',
+                          ai_character: 'mittyan',
                           praise_level: 'normal',
                           onboarding_completed: false
                         };

@@ -120,9 +120,9 @@ const AccountSettingsPage = ({ userProfile, subscriptionStatus, onProfileUpdate,
 
   const getCharacterName = (character) => {
     const names = {
-      tama: 'たまさん',
-      madoka: 'まどか姉さん',
-      hide: 'ヒデじい'
+      mittyan: 'たまさん',
+      madokasan: 'まどか姉さん',
+      hideji: 'ヒデじい'
     };
     return names[character] || character;
   };
@@ -180,9 +180,9 @@ const AccountSettingsPage = ({ userProfile, subscriptionStatus, onProfileUpdate,
               aiCharacter: e.target.value
             }))}
           >
-            <option value="tama">たまさん</option>
-            <option value="madoka">まどか姉さん</option>
-            <option value="hide">ヒデじい</option>
+            <option value="mittyan">たまさん</option>
+            <option value="madokasan">まどか姉さん</option>
+            <option value="hideji">ヒデじい</option>
           </select>
         ) : (
           <p>{getCharacterName(userProfile.aiCharacter)}</p>
@@ -340,7 +340,7 @@ const AccountSettingsPage = ({ userProfile, subscriptionStatus, onProfileUpdate,
 const mockUserProfile = {
   userId: 'user123',
   nickname: 'テストユーザー',
-  aiCharacter: 'tama' as const,
+  aiCharacter: 'mittyan' as const,
   praiseLevel: 'normal' as const,
   interactionMode: 'praise' as const,
   createdAt: '2024-01-15T09:30:00Z'
@@ -642,7 +642,7 @@ describe('AccountSettingsPage', () => {
       await waitFor(() => {
         expect(mockProps.onProfileUpdate).toHaveBeenCalledWith({
           nickname: 'テストユーザー',
-          aiCharacter: 'tama',
+          aiCharacter: 'mittyan',
           praiseLevel: 'normal',
           interactionMode: 'listen'
         });

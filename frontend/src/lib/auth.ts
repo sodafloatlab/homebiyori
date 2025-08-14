@@ -112,7 +112,7 @@ export class AuthService {
       // プロフィールが存在しない場合は作成
       const newProfile = await apiClient.post('/user/profile', {
         nickname: user.email?.split('@')[0] || 'ユーザー', // デフォルトニックネーム
-        ai_character: 'tama', // デフォルトキャラクター
+        ai_character: 'mittyan', // デフォルトキャラクター
         praise_level: 'normal' // デフォルト褒めレベル
       });
 

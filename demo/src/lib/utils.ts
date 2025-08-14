@@ -28,9 +28,9 @@ export const getCharacterThemeColor = (aiRole?: AiRole, type: 'bg' | 'text' | 'b
   if (!aiRole) return '';
   
   const colorMap = {
-    tama: 'rose',
-    madoka: 'sky', 
-    hide: 'amber'
+    mittyan: 'rose',
+    madokasan: 'sky', 
+    hideji: 'amber'
   } as const;
   
   const color = colorMap[aiRole];
@@ -42,19 +42,19 @@ export const getCharacterThemeColor = (aiRole?: AiRole, type: 'bg' | 'text' | 'b
  */
 export const getCharacterInfo = (aiRole: AiRole): CharacterInfo => {
   const characterMap = {
-    tama: {
+    mittyan: {
       name: 'たまさん',
-      image: '/images/icons/tamasan.png',
+      image: '/images/icons/mittyan.png',
       color: 'rose' as const
     },
-    madoka: {
+    madokasan: {
       name: 'まどか姉さん',
-      image: '/images/icons/madokanesan.png',
+      image: '/images/icons/madokasan.png',
       color: 'sky' as const
     },
-    hide: {
+    hideji: {
       name: 'ヒデじい',
-      image: '/images/icons/hidejii.png',
+      image: '/images/icons/hideji.png',
       color: 'amber' as const
     }
   };

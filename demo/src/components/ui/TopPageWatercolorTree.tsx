@@ -33,7 +33,7 @@ const TopPageWatercolorTree = ({ ageInDays }: Props) => {
     const fruits = [];
     
     for (let i = 0; i < fruitCount; i++) {
-      const aiRoles: ('tama' | 'madoka' | 'hide')[] = ['tama', 'madoka', 'hide'];
+      const aiRoles: ('mittyan' | 'madokasan' | 'hideji')[] = ['mittyan', 'madokasan', 'hideji'];
       fruits.push({
         id: `toppage-fruit-${i}`,
         aiRole: aiRoles[i % 3],
@@ -151,17 +151,17 @@ const TopPageWatercolorTree = ({ ageInDays }: Props) => {
   // AIロールに応じた色設定を取得
   const getFruitColors = (aiRole: string) => {
     switch (aiRole) {
-      case 'tama':
+      case 'mittyan':
         return {
           gradient: 'radial-gradient(circle, rgba(255, 182, 193, 0.8), rgba(255, 148, 179, 0.7), rgba(255, 105, 180, 0.6))',
           shadow: '0 0 15px rgba(255, 182, 193, 0.6), 0 0 25px rgba(255, 182, 193, 0.3), inset 0 1px 3px rgba(255, 255, 255, 0.4)'
         };
-      case 'madoka':
+      case 'madokasan':
         return {
           gradient: 'radial-gradient(circle, rgba(135, 206, 235, 0.8), rgba(103, 171, 225, 0.7), rgba(70, 130, 180, 0.6))',
           shadow: '0 0 15px rgba(135, 206, 235, 0.6), 0 0 25px rgba(135, 206, 235, 0.3), inset 0 1px 3px rgba(255, 255, 255, 0.4)'
         };
-      case 'hide':
+      case 'hideji':
         return {
           gradient: 'radial-gradient(circle, rgba(255, 215, 0, 0.8), rgba(255, 190, 83, 0.7), rgba(255, 165, 0, 0.6))',
           shadow: '0 0 15px rgba(255, 215, 0, 0.6), 0 0 25px rgba(255, 215, 0, 0.3), inset 0 1px 3px rgba(255, 255, 255, 0.4)'

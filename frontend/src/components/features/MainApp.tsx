@@ -203,7 +203,7 @@ const MainApp = () => {
       case 'chat':
         return (
           <ChatScreen
-            selectedAiRole={chat.selectedAiRole || 'tama'}
+            selectedAiRole={chat.selectedAiRole || 'mittyan'}
             currentMood={chat.currentMood || 'praise'}
             onNavigate={handleNavigate}
             onCharacterChange={() => handleNavigate('character-selection')}

@@ -7,24 +7,25 @@ import Image from 'next/image';
 import NavigationHeader from '../../layout/NavigationHeader';
 import TouchTarget from '../../ui/TouchTarget';
 import Typography from '../../ui/Typography';
+import AiIcon from '../../ui/AiIcon';
 import { GroupChatScreenProps, AiRole, MoodType, ChatMessage } from '../../../types';
 // Zustandストアは直接プロパティから取得するため、importを削除
 
 // AI_CHARACTERS定数定義（demo版から移植）
 const AI_CHARACTERS = {
-  tama: {
-    name: 'たまさん',
-    image: '/images/icons/tamasan.png',
+  mittyan: {
+    name: 'みっちゃん',
+    image: '/images/icons/mittyan.png',
     color: 'rose'
   },
-  madoka: {
-    name: 'まどか姉さん',
-    image: '/images/icons/madoka.png',
+  madokasan: {
+    name: 'まどかさん',
+    image: '/images/icons/madokasan.png',
     color: 'sky'
   },
-  hide: {
+  hideji: {
     name: 'ヒデじい',
-    image: '/images/icons/hidejii.png',
+    image: '/images/icons/hideji.png',
     color: 'amber'
   }
 } as const;
@@ -61,7 +62,7 @@ const GroupChatScreen = ({
   onEmailChange
 }: GroupChatScreenProps) => {
   const [selectedMoodState, setSelectedMoodState] = useState(currentMood);
-  const [activeAIs, setActiveAIs] = useState<AiRole[]>(['tama', 'madoka', 'hide']);
+  const [activeAIs, setActiveAIs] = useState<AiRole[]>(['mittyan', 'madokasan', 'hideji']);
   const [messages, setMessages] = useState<ChatMessage[]>(globalMessages || []);
   const [inputText, setInputText] = useState('');
   const [isTyping, setIsTyping] = useState(false);
@@ -363,15 +364,11 @@ const GroupChatScreen = ({
                           : 'bg-gray-100 border-gray-300 text-gray-600 hover:bg-gray-200'
                         }`}
                     >
-                      <div className="w-6 h-6 rounded-full overflow-hidden">
-                        <Image
-                          src={character.image}
-                          alt={character.name}
-                          width={24}
-                          height={24}
-                          className="w-full h-full object-cover"
-                        />
-                      </div>
+                      <AiIcon
+                        aiRole={key as AiRole}
+                        size={24}
+                        showBackground={false}
+                      />
                       <span className="text-xs font-medium">{character.name}</span>
                     </TouchTarget>
                   ))}
@@ -391,13 +388,11 @@ const GroupChatScreen = ({
                     >
                       {msg.sender === 'ai' && (
                         <div className="flex items-end space-x-2 max-w-[80%]">
-                          <div className="w-8 h-8 rounded-full overflow-hidden flex-shrink-0">
-                            <Image
-                              src={AI_CHARACTERS[msg.aiRole!]?.image || '/images/icons/tamasan.png'}
-                              alt={AI_CHARACTERS[msg.aiRole!]?.name || 'AI'}
-                              width={32}
-                              height={32}
-                              className="w-full h-full object-cover"
+                          <div className="flex-shrink-0">
+                            <AiIcon
+                              aiRole={msg.aiRole!}
+                              size={32}
+                              showBackground={true}
                             />
                           </div>
                           <div>
@@ -435,15 +430,11 @@ const GroupChatScreen = ({
                   >
                     {activeAIs.slice(0, 2).map((aiRole, index) => (
                       <div key={aiRole} className="flex items-end space-x-2">
-                        <div className="w-8 h-8 rounded-full overflow-hidden">
-                          <Image
-                            src={AI_CHARACTERS[aiRole].image}
-                            alt={AI_CHARACTERS[aiRole].name}
-                            width={32}
-                            height={32}
-                            className="w-full h-full object-cover"
-                          />
-                        </div>
+                        <AiIcon
+                          aiRole={aiRole}
+                          size={32}
+                          showBackground={true}
+                        />
                         <div className={`${getCharacterThemeColor(aiRole, 'bg')} p-3 rounded-2xl`}>
                           <div className="flex space-x-1">
                             <div className="w-2 h-2 bg-current rounded-full animate-bounce"></div>

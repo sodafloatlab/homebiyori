@@ -367,7 +367,7 @@ async def test_chat_service_ai_preferences_integration():
     mock_profile_data = {
         "PK": f"USER#{test_user_id}",
         "SK": "PROFILE",
-        "ai_character": "madoka",
+        "ai_character": "madokasan",
         "praise_level": "deep",
         "interaction_mode": "listen",
         "subscription_plan": "monthly"  # プレミアムユーザー
@@ -380,7 +380,7 @@ async def test_chat_service_ai_preferences_integration():
         ai_preferences = await chat_db.get_user_ai_preferences(test_user_id)
         
         # 設定値確認
-        assert ai_preferences["ai_character"] == "madoka"
+        assert ai_preferences["ai_character"] == "madokasan"
         assert ai_preferences["praise_level"] == "deep"
         assert ai_preferences["interaction_mode"] == "listen"
         
@@ -410,7 +410,7 @@ async def test_free_user_praise_level_restriction():
     mock_profile_data = {
         "PK": f"USER#{test_user_id}",
         "SK": "PROFILE",
-        "ai_character": "tama",
+        "ai_character": "mittyan",
         "praise_level": "deep",  # deepに設定されているが
         "interaction_mode": "praise",
         "subscription_plan": "free"  # 無料ユーザー
@@ -455,7 +455,7 @@ async def test_ai_character_fallback_logic():
     mock_profile_data = {
         "PK": f"USER#{test_user_id}",
         "SK": "PROFILE", 
-        "ai_character": "hide",      # プロフィールではhide
+        "ai_character": "hideji",      # プロフィールではhideji
         "praise_level": "normal",
         "interaction_mode": "listen",  # プロフィールではlisten
         "subscription_plan": "yearly"
@@ -468,7 +468,7 @@ async def test_ai_character_fallback_logic():
         ai_preferences = await chat_db.get_user_ai_preferences(test_user_id)
         
         # ケース1: リクエストパラメータが指定された場合
-        request_ai_character = "tama"    # リクエストでtamaを指定
+        request_ai_character = "mittyan"    # リクエストでmittyanを指定
         request_mood = "praise"          # リクエストでpraiseを指定
         
         # フォールバックロジックをシミュレート
@@ -476,7 +476,7 @@ async def test_ai_character_fallback_logic():
         effective_mood = request_mood or ai_preferences["interaction_mode"]
         
         # リクエストパラメータが優先されることを確認
-        assert effective_character == "tama"    # リクエスト値が使用される
+        assert effective_character == "mittyan"    # リクエスト値が使用される
         assert effective_mood == "praise"       # リクエスト値が使用される
         
         # ケース2: リクエストパラメータがNoneの場合
@@ -488,7 +488,7 @@ async def test_ai_character_fallback_logic():
         effective_mood = request_mood or ai_preferences["interaction_mode"]
         
         # プロフィール設定が使用されることを確認
-        assert effective_character == "hide"    # プロフィール値が使用される
+        assert effective_character == "hideji"    # プロフィール値が使用される
         assert effective_mood == "listen"       # プロフィール値が使用される
 
 

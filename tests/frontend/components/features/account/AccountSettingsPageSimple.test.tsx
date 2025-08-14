@@ -106,16 +106,16 @@ describe('AccountSettingsPage Logic Tests', () => {
     it('AIキャラクター名が正しく変換される', () => {
       const getCharacterName = (character: string) => {
         const names = {
-          tama: 'たまさん',
-          madoka: 'まどか姉さん',
-          hide: 'ヒデじい'
+          mittyan: 'たまさん',
+          madokasan: 'まどか姉さん',
+          hideji: 'ヒデじい'
         };
         return names[character as keyof typeof names] || character;
       };
 
-      expect(getCharacterName('tama')).toBe('たまさん');
-      expect(getCharacterName('madoka')).toBe('まどか姉さん');
-      expect(getCharacterName('hide')).toBe('ヒデじい');
+      expect(getCharacterName('mittyan')).toBe('たまさん');
+      expect(getCharacterName('madokasan')).toBe('まどか姉さん');
+      expect(getCharacterName('hideji')).toBe('ヒデじい');
       expect(getCharacterName('unknown')).toBe('unknown');
     });
   });
@@ -163,7 +163,7 @@ describe('AccountSettingsPage Logic Tests', () => {
       const userProfile = {
         userId: 'user123',
         nickname: 'テストユーザー',
-        aiCharacter: 'tama' as const,
+        aiCharacter: 'mittyan' as const,
         praiseLevel: 'normal' as const,
         createdAt: '2024-01-15T09:30:00Z'
       };
@@ -175,7 +175,7 @@ describe('AccountSettingsPage Logic Tests', () => {
       };
 
       expect(initialEditedProfile.nickname).toBe('テストユーザー');
-      expect(initialEditedProfile.aiCharacter).toBe('tama');
+      expect(initialEditedProfile.aiCharacter).toBe('mittyan');
       expect(initialEditedProfile.praiseLevel).toBe('normal');
     });
 
@@ -183,7 +183,7 @@ describe('AccountSettingsPage Logic Tests', () => {
       const userProfile = {
         userId: 'user123',
         nickname: null,
-        aiCharacter: 'madoka' as const,
+        aiCharacter: 'madokasan' as const,
         praiseLevel: 'deep' as const,
         createdAt: '2024-01-15T09:30:00Z'
       };
@@ -195,7 +195,7 @@ describe('AccountSettingsPage Logic Tests', () => {
       };
 
       expect(initialEditedProfile.nickname).toBe('');
-      expect(initialEditedProfile.aiCharacter).toBe('madoka');
+      expect(initialEditedProfile.aiCharacter).toBe('madokasan');
       expect(initialEditedProfile.praiseLevel).toBe('deep');
     });
   });

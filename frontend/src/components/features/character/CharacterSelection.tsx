@@ -10,6 +10,7 @@ import Button from '@/components/ui/Button';
 import TouchTarget from '@/components/ui/TouchTarget';
 import Toast from '@/components/ui/Toast';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
+import AiIcon from '@/components/ui/AiIcon';
 import { useAuth, useUserProfile, useMaintenance } from '@/lib/hooks';
 import useChatStore from '@/stores/chatStore';
 
@@ -40,9 +41,9 @@ const CharacterSelection = ({
     if (auth.profile) {
       // 既存の設定を復元
       const aiCharacterMap: Record<string, AiRole> = {
-        'tama': 'tama',
-        'madoka': 'madoka', 
-        'hide': 'hide'
+        'mittyan': 'mittyan',
+        'madokasan': 'madokasan', 
+        'hideji': 'hideji'
       };
       
       if (auth.profile.ai_character && aiCharacterMap[auth.profile.ai_character]) {
@@ -85,11 +86,11 @@ const CharacterSelection = ({
 
   const characters = [
     {
-      role: 'tama' as AiRole,
-      name: 'たまさん',
+      role: 'mittyan' as AiRole,
+      name: 'みっちゃん',
       shortDesc: '優しく包み込む温かさ',
       personality: 'いつも优しく寄り添うお母さんのような存在。悩んだり不安になったときも、温かい言葉で包み込んでくれます。',
-      image: '/images/icons/tamasan.png',
+      image: '/images/icons/mittyan.png',
       color: 'from-rose-400 to-pink-500',
       bgColor: 'bg-rose-50',
       borderColor: 'border-rose-200',
@@ -98,11 +99,11 @@ const CharacterSelection = ({
       strengths: ['共感力抜群', '温かい励まし', '安心感']
     },
     {
-      role: 'madoka' as AiRole,
-      name: 'まどか姉さん',
+      role: 'madokasan' as AiRole,
+      name: 'まどかさん',
       shortDesc: 'お姉さん的な頼もしいサポート',
       personality: '明るくエネルギッシュなお姉さんタイプ。「大丈夫！」「一緒に頑張ろう！」と前向きなエールで背中を押してくれます。',
-      image: '/images/icons/madokanesan.png',
+      image: '/images/icons/madokasan.png',
       color: 'from-sky-400 to-blue-500',
       bgColor: 'bg-sky-50',
       borderColor: 'border-sky-200',
@@ -111,7 +112,7 @@ const CharacterSelection = ({
       strengths: ['ポジティブ思考', '行動力アップ', '元気をくれる']
     },
     {
-      role: 'hide' as AiRole,
+      role: 'hideji' as AiRole,
       name: 'ヒデじい',
       shortDesc: '人生経験豊富な温かな励まし',
       personality: '人生経験豊富なおじいちゃん。「ふむふむ」とうなずきながらも、深い知恵と経験から的確なアドバイスをくれます。',
@@ -149,9 +150,9 @@ const CharacterSelection = ({
     try {
       // AI設定をバックエンドに保存
       const aiCharacterMap: Record<AiRole, AICharacter> = {
-        'tama': 'tama',
-        'madoka': 'madoka',
-        'hide': 'hide'
+        'mittyan': 'mittyan',
+        'madokasan': 'madokasan',
+        'hideji': 'hideji'
       };
 
       const praiseLevelMap: Record<MoodType, PraiseLevel> = {
@@ -366,13 +367,12 @@ const CharacterSelection = ({
                   )}
 
                   <div className="text-center space-y-4">
-                    <div className="relative">
-                      <Image
-                        src={character.image}
-                        alt={character.name}
-                        width={80}
-                        height={80}
-                        className="mx-auto rounded-full shadow-lg"
+                    <div className="relative flex justify-center">
+                      <AiIcon
+                        aiRole={character.role}
+                        size={80}
+                        className="shadow-lg"
+                        showBackground={true}
                       />
                     </div>
 
@@ -432,12 +432,11 @@ const CharacterSelection = ({
                       </div>
                       <ChevronRight className="w-5 h-5 text-emerald-600" />
                       <div className="flex items-center space-x-3">
-                        <Image
-                          src={characters.find(c => c.role === selectedCharacter)?.image || ''}
-                          alt={characters.find(c => c.role === selectedCharacter)?.name || ''}
-                          width={60}
-                          height={60}
-                          className="rounded-full shadow-lg"
+                        <AiIcon
+                          aiRole={selectedCharacter}
+                          size={60}
+                          className="shadow-lg"
+                          showBackground={true}
                         />
                         <div>
                           <Typography variant="small" color="secondary">選択キャラクター</Typography>

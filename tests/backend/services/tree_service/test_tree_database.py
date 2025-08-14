@@ -400,7 +400,7 @@ class TestTreeDatabase:
                 "message": "楽しい公園遊び",
                 "emotion_trigger": "joy",
                 "emotion_score": 0.8,
-                "ai_character": "tama",
+                "ai_character": "mittyan",
                 "character_color": "warm_pink",
                 "trigger_message_id": "msg_1",
                 "created_at": "2024-08-05T15:00:00+09:00",
@@ -413,7 +413,7 @@ class TestTreeDatabase:
                 "message": "達成感のある一日",
                 "emotion_trigger": "accomplishment",
                 "emotion_score": 0.9,
-                "ai_character": "madoka",
+                "ai_character": "madokasan",
                 "character_color": "cool_blue",
                 "trigger_message_id": "msg_2",
                 "created_at": "2024-08-04T12:00:00+09:00",
@@ -435,8 +435,8 @@ class TestTreeDatabase:
         # 結果検証
         assert len(result["items"]) == 2
         assert result["total_count"] == 2
-        assert result["character_counts"]["tama"] == 1
-        assert result["character_counts"]["madoka"] == 1
+        assert result["character_counts"]["mittyan"] == 1
+        assert result["character_counts"]["madokasan"] == 1
         assert result["emotion_counts"]["joy"] == 1
         assert result["emotion_counts"]["accomplishment"] == 1
         assert result["has_more"] == False
@@ -454,7 +454,7 @@ class TestTreeDatabase:
         """
         # フィルター条件
         filters = {
-            "character": "tama",
+            "character": "mittyan",
             "emotion": "joy",
             "start_date": "2024-08-01",
             "end_date": "2024-08-05"
@@ -486,7 +486,7 @@ class TestTreeDatabase:
         assert "created_at <= :end_date" in call_args["filter_expression"]
         
         expression_values = call_args["expression_values"]
-        assert expression_values[":character"] == "tama"
+        assert expression_values[":character"] == "mittyan"
         assert expression_values[":emotion"] == "joy"
 
     # =====================================

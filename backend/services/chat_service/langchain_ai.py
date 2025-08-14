@@ -37,7 +37,7 @@ class HomebiyoriAIChain:
     def _load_prompt_templates(self):
         """プロンプトテンプレートをファイルから読み込み"""
         try:
-            characters = ["tama", "madoka", "hide"]
+            characters = ["mittyan", "madokasan", "hideji"]
             moods = ["praise", "listen"]
             praise_levels = ["normal", "deep"]
             
@@ -113,9 +113,9 @@ class HomebiyoriAIChain:
         group_instruction = ""
         if group_context and len(group_context) > 1:
             character_names = {
-                "tama": "たまさん",
-                "madoka": "まどか姉さん", 
-                "hide": "ヒデじい"
+                "mittyan": "みっちゃん",
+                "madokasan": "まどかさん", 
+                "hideji": "ひでじい"
             }
             
             other_characters = [char for char in group_context if char != character]
@@ -152,9 +152,9 @@ class HomebiyoriAIChain:
     def _get_fallback_prompt(self, character: str, mood: str, praise_level: str) -> str:
         """フォールバック用の基本プロンプト"""
         character_names = {
-            "tama": "たまさん",
-            "madoka": "まどか姉さん", 
-            "hide": "ヒデじい"
+            "mittyan": "みっちゃん",
+            "madokasan": "まどかさん", 
+            "hideji": "ひでじい"
         }
         
         mood_text = "褒めて欲しい" if mood == "praise" else "話を聞いて欲しい"
@@ -171,7 +171,7 @@ class HomebiyoriAIChain:
         self,
         user_message: str,
         user_id: str,
-        character: str = "tama",
+        character: str = "mittyan",
         mood: str = "praise",
         praise_level: str = "normal",
         group_context: Optional[List[str]] = None
@@ -182,7 +182,7 @@ class HomebiyoriAIChain:
         Args:
             user_message: ユーザーメッセージ
             user_id: ユーザーID
-            character: AIキャラクター（tama/madoka/hide）
+            character: AIキャラクター（mittyan/madokasan/hideji）
             mood: ムード（praise/listen）
             praise_level: 褒めレベル（normal/deep）
             group_context: グループチャット時のアクティブキャラクターリスト（オプション）
@@ -289,9 +289,9 @@ class HomebiyoriAIChain:
     def _get_fallback_response(self, user_tier: str, character: str) -> str:
         """エラー時のフォールバック応答"""
         fallback_responses = {
-            "tama": "あらあら〜、ちょっと調子が悪いみたいやわ。もう一度話しかけてくれる？",
-            "madoka": "すみません！システムの調子が悪いようです。もう一度お試しください！",
-            "hide": "おや、ちょっと具合が悪いようじゃな。もう一度話しかけてくれるかの〜"
+            "mittyan": "あらあら〜、ちょっと調子が悪いみたいやわ。もう一度話しかけてくれる？",
+            "madokasan": "すみません！システムの調子が悪いようです。もう一度お試しください！",
+            "hideji": "おや、ちょっと具合が悪いようじゃな。もう一度話しかけてくれるかの〜"
         }
         
         base_response = fallback_responses.get(character, "申し訳ございません。もう一度お試しください。")
@@ -316,7 +316,7 @@ def get_ai_chain() -> HomebiyoriAIChain:
 async def generate_ai_response_langchain(
     user_message: str,
     user_id: str,
-    character: str = "tama",
+    character: str = "mittyan",
     mood: str = "praise",
     praise_level: str = "normal",
     group_context: Optional[List[str]] = None
@@ -327,7 +327,7 @@ async def generate_ai_response_langchain(
     Args:
         user_message: ユーザーメッセージ
         user_id: ユーザーID
-        character: AIキャラクター（tama/madoka/hide）
+        character: AIキャラクター（mittyan/madokasan/hideji）
         mood: ムード（praise/listen）
         praise_level: 褒めレベル（normal/deep）
         group_context: グループチャット時のアクティブキャラクターリスト（オプション）
