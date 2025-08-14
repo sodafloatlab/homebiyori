@@ -25,7 +25,6 @@ import os
 import json
 from mangum import Mangum
 from homebiyori_common.logger import get_logger
-from homebiyori_common import maintenance_required
 
 # FastAPIアプリケーションをインポート
 from .main import app
@@ -40,7 +39,6 @@ handler = Mangum(
     api_gateway_base_path="/api/billing"  # API Gatewayのベースパス
 )
 
-@maintenance_required(skip_paths=["/health"])  
 def lambda_handler(event, context):
     """
     Lambda エントリーポイント

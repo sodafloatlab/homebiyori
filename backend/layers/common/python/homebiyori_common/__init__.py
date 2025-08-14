@@ -36,8 +36,7 @@ from .utils.middleware import (
 from .utils.maintenance import (
     check_maintenance_mode,
     is_maintenance_mode,
-    get_maintenance_message,
-    maintenance_required
+    get_maintenance_message
 )
 
 __all__ = [
@@ -59,6 +58,5 @@ __all__ = [
     "get_current_user_id",
     "check_maintenance_mode",
     "is_maintenance_mode",
-    "get_maintenance_message", 
-    "maintenance_required"
+    "get_maintenance_message"
 ]

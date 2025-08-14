@@ -42,7 +42,6 @@ from homebiyori_common.exceptions import (
     MaintenanceError,
     ExternalServiceError
 )
-from homebiyori_common.utils.maintenance import maintenance_required
 from homebiyori_common.utils.middleware import maintenance_check_middleware, get_current_user_id
 
 # ローカルモジュール

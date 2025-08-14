@@ -129,20 +129,5 @@ def get_maintenance_message() -> Optional[str]:
         return None
 
 
-def maintenance_required(skip_paths=None):
-    """
-    メンテナンスチェック用デコレータ
-    
-    Args:
-        skip_paths: メンテナンスチェックをスキップするパス（リスト）
-        
-    Notes:
-        現在のアーキテクチャではmiddleware方式を推奨しており、
-        このデコレータは既存コードとの互換性のために残されています。
-    """
-    def decorator(handler_func):
-        def wrapper(*args, **kwargs):
-            # 互換性のため、実際のチェックはmiddlewareで実行
-            return handler_func(*args, **kwargs)
-        return wrapper
-    return decorator
+# maintenance_required デコレータは削除されました。
+# メンテナンスチェックは FastAPI middleware (maintenance_check_middleware) で一元化されています。

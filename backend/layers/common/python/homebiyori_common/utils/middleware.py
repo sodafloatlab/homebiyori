@@ -39,15 +39,19 @@ async def maintenance_check_middleware(request: Request, call_next: Callable[[Re
     メンテナンス中の場合は503エラーを返却する。
     
     処理フロー:
-    1. Parameter Store からメンテナンス状態取得
-    2. メンテナンス中の場合、503エラーレスポンス返却
-    3. 通常時は次の処理に継続
+    1. ヘルスチェックパス除外確認
+    2. Parameter Store からメンテナンス状態取得
+    3. メンテナンス中の場合、503エラーレスポンス返却
+    4. 通常時は次の処理に継続
     
     例外処理:
     - Parameter Store接続エラー: 処理継続（可用性優先）
     - メンテナンス設定不正: 処理継続（フェイルセーフ）
     """
     try:
+        # ヘルスチェックパスはメンテナンスチェックをスキップ
+        if request.url.path in ["/health", "/api/health"]:
+            return await call_next(request)
         # 同期版maintenance check（user_serviceなど）と非同期版（chat_serviceなど）の統一
         # Parameter Storeアクセスは基本的に同期なのでcheck_maintenance_modeを使用
         try:

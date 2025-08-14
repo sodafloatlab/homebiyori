@@ -15,7 +15,6 @@ from mangum import Mangum
 
 # 共通Layer機能インポート
 from homebiyori_common import get_logger, success_response, error_response
-from homebiyori_common import maintenance_required
 from homebiyori_common import maintenance_check_middleware
 
 from .handlers.notifications import router as notification_router
