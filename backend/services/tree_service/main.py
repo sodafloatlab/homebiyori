@@ -45,15 +45,19 @@ from homebiyori_common.utils.middleware import maintenance_check_middleware, get
 from homebiyori_common.utils.datetime_utils import get_current_jst, to_jst_string, parse_jst_datetime
 from homebiyori_common.utils.parameter_store import get_tree_stage
 
-# ローカルモジュール
-from .models import (
-    TreeStatus,
-    FruitsListRequest,
-    FruitsListResponse,
-    TreeStage,
+# 共通Layerからモデルをインポート
+from homebiyori_common.models import (
     AICharacterType,
     EmotionType,
-    TreeTheme
+    TreeStage,
+    TreeStatus,
+    FruitInfo
+)
+
+# ローカルモジュール
+from .models import (
+    FruitsListRequest,
+    FruitsListResponse
 )
 from .database import get_tree_database
 
@@ -76,35 +80,9 @@ db = get_tree_database()
 # ユーティリティ関数
 # =====================================
 
-def calculate_tree_stage_local(total_characters: int) -> TreeStage:
-    """
-    累計文字数から成長段階を計算（Parameter Store使用）
-    
-    Args:
-        total_characters: 累計文字数
-        
-    Returns:
-        TreeStage: 成長段階（0-5）
-    """
-    return get_tree_stage(total_characters)
-
-
-def get_character_theme_color(character: AICharacterType) -> TreeTheme:
-    """
-    AIキャラクターからテーマカラーを取得（design_ai.md準拠）
-    
-    Args:
-        character: AIキャラクター
-        
-    Returns:
-        TreeTheme: テーマカラー
-    """
-    character_theme_map = {
-        AICharacterType.MITTYAN: TreeTheme.ROSE,
-        AICharacterType.MADOKASAN: TreeTheme.SKY,
-        AICharacterType.HIDEJI: TreeTheme.AMBER
-    }
-    return character_theme_map.get(character, TreeTheme.ROSE)
+# 以前ここにあったcompute関数は以下の理由で削除されました：
+# - calculate_tree_stage_local: database.pyで直接get_tree_stageを使用しているため不要
+# - get_character_theme_color: ユーザーのAIキャラクター情報はuser_serviceで管理されるべき
 
 
 def can_generate_fruit(last_fruit_date: Optional[str]) -> bool:
@@ -371,51 +349,42 @@ async def generate_fruit(
         raise HTTPException(status_code=500, detail="実の生成に失敗しました")
 
 
-@app.get("/api/tree/fruits", response_model=Dict[str, Any])
+@app.get("/api/tree/fruits", response_model=FruitsListResponse)
 async def get_fruits_list(
-    limit: int = 20,
-    next_token: Optional[str] = None,
-    character: Optional[str] = None,
-    emotion: Optional[str] = None,
-    start_date: Optional[str] = None,
-    end_date: Optional[str] = None,
+    request: FruitsListRequest = Depends(),
     user_id: str = Depends(get_current_user_id)
 ):
     """
     実一覧を取得
     
     Args:
-        limit: 取得件数制限
-        next_token: ページネーショントークン
-        character: AIキャラクターフィルター
-        emotion: 感情フィルター
-        start_date: 開始日フィルター
-        end_date: 終了日フィルター
+        request: 実一覧取得リクエストパラメーター
+        user_id: ユーザーID（認証から自動取得）
     
     Returns:
-        Dict: 実一覧とメタデータ
+        FruitsListResponse: 実一覧とメタデータ
     """
     try:
         logger.info(f"実一覧取得開始: user_id={user_id}")
         
         filters = {}
-        if character:
-            filters["character"] = character
-        if emotion:
-            filters["emotion"] = emotion
-        if start_date:
-            filters["start_date"] = start_date
-        if end_date:
-            filters["end_date"] = end_date
+        if request.character_filter:
+            filters["character"] = request.character_filter.value
+        if request.emotion_filter:
+            filters["emotion"] = request.emotion_filter.value
+        if request.start_date:
+            filters["start_date"] = request.start_date
+        if request.end_date:
+            filters["end_date"] = request.end_date
         
-        result = await db.get_user_fruits_list(
+        result = await db.get_fruits_list(
             user_id=user_id,
             filters=filters if filters else None,
-            limit=limit,
-            next_token=next_token
+            limit=request.limit,
+            next_token=request.next_token
         )
         
-        logger.info(f"実一覧取得完了: user_id={user_id}, count={len(result['items'])}")
+        logger.info(f"実一覧取得完了: user_id={user_id}, count={len(result.items)}")
         return result
         
     except Exception as e:

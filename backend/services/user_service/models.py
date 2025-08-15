@@ -47,45 +47,14 @@ from enum import Enum
 from homebiyori_common.utils import validate_nickname
 from homebiyori_common.utils.datetime_utils import get_current_jst
 
+# 共通Layerから列挙型をインポート
+from homebiyori_common.models import (
+    AICharacterType,
+    PraiseLevel,
+    InteractionMode
+)
 
-# =======================================
-# 列挙型定義
-# =======================================
-
-
-class AICharacter(str, Enum):
-    """
-    AIキャラクタータイプ定義（新名称）
-    """
-
-    MITTYAN = "mittyan"  # みっちゃん（下町のベテランおばちゃん）
-    MADOKASAN = "madokasan"  # まどかさん（バリキャリ共働きママ）
-    HIDEJI = "hideji"  # ひでじい（元教師の詩人）  # ヒデじい（元教師の詩人）
-
-
-class PraiseLevel(str, Enum):
-    """
-    AI褒めレベル設定（2段階）
-
-    各レベルの応答文字数目安:
-    - NORMAL: 2-3文程度（適度なサポートと承認）
-    - DEEP: 4-5文程度（思慮深く詳細な肯定と共感）
-    """
-
-    NORMAL = "normal"  # ノーマル: 適度なサポートと承認
-    DEEP = "deep"  # ディープ: 思慮深く詳細な肯定と共感
-
-
-class InteractionMode(str, Enum):
-    """
-    AI対話モード設定
-    
-    ユーザーの今日の気分や必要に応じてAI応答のトーンを調整。
-    chat_serviceでプロンプト生成時に参照される。
-    """
-    
-    PRAISE = "praise"  # 褒めモード: 積極的な肯定・承認・励まし中心
-    LISTEN = "listen"  # 傾聴モード: 共感・理解・寄り添い中心
+# AICharacter → AICharacterType移行完了（共通Layer使用）
 
 
 # =======================================
@@ -137,8 +106,8 @@ class UserProfile(BaseModel):
         None, description="ユーザー表示名", min_length=1, max_length=20
     )
 
-    ai_character: AICharacter = Field(
-        AICharacter.TAMA, description="選択AIキャラクター"
+    ai_character: AICharacterType = Field(
+        AICharacterType.MITTYAN, description="選択AIキャラクター"
     )
 
     praise_level: PraiseLevel = Field(
@@ -228,7 +197,7 @@ class AIPreferences(BaseModel):
     利用可能なキャラクター、褒めレベル、対話モードのみ許可。
     """
 
-    ai_character: AICharacter = Field(..., description="選択AIキャラクター")
+    ai_character: AICharacterType = Field(..., description="選択AIキャラクター")
 
     praise_level: PraiseLevel = Field(..., description="AI褒めレベル設定")
     

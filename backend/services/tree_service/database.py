@@ -26,9 +26,12 @@ homebiyori-common-layer:
 - Exceptions: 統一例外処理
 """
 
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, TYPE_CHECKING
 import os
 from datetime import datetime
+
+if TYPE_CHECKING:
+    from .models import FruitsListResponse
 
 # Lambda Layers からの共通機能インポート
 from homebiyori_common.database import DynamoDBClient
@@ -37,8 +40,8 @@ from homebiyori_common.exceptions import DatabaseError
 from homebiyori_common.utils.datetime_utils import get_current_jst, to_jst_string
 from homebiyori_common.utils.parameter_store import get_tree_stage
 
-# ローカルモジュール
-from .models import (
+# 共通Layerからモデルをインポート
+from homebiyori_common.models import (
     FruitInfo,
     AICharacterType,
     EmotionType
@@ -313,13 +316,13 @@ class TreeDatabase:
             self.logger.error(f"実詳細取得エラー: user_id={user_id}, fruit_id={fruit_id}, error={e}")
             raise DatabaseError(f"実の詳細取得に失敗しました: {e}")
     
-    async def get_user_fruits_list(
+    async def get_fruits_list(
         self,
         user_id: str,
         filters: Dict[str, Any] = None,
         limit: int = 20,
         next_token: Optional[str] = None
-    ) -> Dict[str, Any]:
+    ) -> 'FruitsListResponse':
         """
         ユーザーの実一覧を取得（簡素化版）
         
@@ -330,7 +333,7 @@ class TreeDatabase:
             next_token: ページネーショントークン
             
         Returns:
-            Dict: 実一覧とメタデータ
+            FruitsListResponse: 実一覧とメタデータ
         """
         try:
             pk = f"USER#{user_id}"
@@ -394,12 +397,15 @@ class TreeDatabase:
             
             self.logger.info(f"実一覧取得完了: user_id={user_id}, count={len(fruits)}")
             
-            return {
-                "items": fruits,
-                "total_count": total_fruits,  # 木の状態から正確な総数を取得
-                "next_token": result.get("next_token"),
-                "has_more": result.get("has_more", False)
-            }
+            # FruitsListResponseインスタンスを作成するため、遅延インポート
+            from .models import FruitsListResponse
+            
+            return FruitsListResponse(
+                items=fruits,
+                total_count=total_fruits,  # 木の状態から正確な総数を取得
+                next_token=result.get("next_token"),
+                has_more=result.get("has_more", False)
+            )
             
         except Exception as e:
             self.logger.error(f"実一覧取得エラー: user_id={user_id}, error={e}")
