@@ -32,8 +32,10 @@ from fastapi.testclient import TestClient
 # テスト対象のインポート
 from backend.services.chat_service.main import app
 from backend.services.chat_service.models import (
-    ChatMessage, AICharacterType, EmotionType, MoodType,
-    ChatRequest, MoodUpdateRequest, EmotionStampRequest
+    ChatRequest, EmotionStampRequest
+)
+from homebiyori_common.models import (
+    AICharacterType, EmotionType, InteractionMode
 )
 
 # テスト用クライアント
@@ -57,7 +59,7 @@ class TestChatServiceBasic:
         
         # 認証なしでアクセスするため、401エラーが返る
         response = client.get("/api/chat/history")
-        assert response.status_code == 500  # 認証なしでの内部エラー
+        assert response.status_code == 401  # 認証なしでの認証エラー
 
     def test_invalid_endpoint_access(self):
         """存在しないエンドポイントアクセステスト"""
@@ -70,64 +72,58 @@ class TestChatServiceBasic:
 class TestChatModels:
     """Chat Models バリデーションテスト"""
 
-    def test_chat_message_model_validation(self):
-        """ChatMessageモデルのバリデーションテスト"""
+    def test_group_ai_response_model_validation(self):
+        """GroupAIResponseモデルのバリデーションテスト"""
+        from backend.services.chat_service.models import GroupAIResponse
+        
         # 有効なデータ
         valid_data = {
-            "user_id": "user_123",
-            "message_id": "msg_123",
-            "user_message_s3_key": "s3://test/user_msg",
-            "ai_response_s3_key": "s3://test/ai_resp",
-            "ai_character": AICharacterType.TAMA,
-            "mood": MoodType.PRAISE,
-            "emotion_detected": EmotionType.JOY,
-            "character_count": 100,
-            "tree_stage_before": 0,
-            "tree_stage_after": 1,
-            "created_at": datetime.now(),
-            "character_date": "20250807"
+            "character": AICharacterType.MITTYAN,
+            "response": "テスト応答",
+            "is_representative": True
         }
 
-        message = ChatMessage(**valid_data)
-        assert message.ai_character == AICharacterType.TAMA
-        assert message.emotion_detected == EmotionType.JOY
+        response = GroupAIResponse(**valid_data)
+        assert response.character == AICharacterType.MITTYAN
+        assert response.response == "テスト応答"
+        assert response.is_representative == True
 
     def test_chat_request_validation(self):
         """ChatRequestバリデーションテスト"""
         # 有効なデータ
         valid_data = {
             "message": "テストメッセージ",
-            "ai_character": AICharacterType.TAMA,
-            "mood": MoodType.PRAISE
+            "ai_character": AICharacterType.MITTYAN,
+            "interaction_mode": InteractionMode.PRAISE
         }
 
         request = ChatRequest(**valid_data)
         assert request.message == "テストメッセージ"
-        assert request.ai_character == AICharacterType.TAMA
+        assert request.ai_character == AICharacterType.MITTYAN
 
         # メッセージが長すぎる場合
         with pytest.raises(ValueError):
             ChatRequest(
                 message="a" * 2001,  # 2000文字制限を超過
-                ai_character=AICharacterType.TAMA
+                ai_character=AICharacterType.MITTYAN
             )
 
     def test_emotion_stamp_request_validation(self):
         """EmotionStampRequestバリデーションテスト"""
         valid_data = {
             "emotion": EmotionType.JOY,
-            "intensity": 0.8
+            "context_message": "今日は楽しかった"
         }
 
         request = EmotionStampRequest(**valid_data)
         assert request.emotion == EmotionType.JOY
-        assert request.intensity == 0.8
+        assert request.context_message == "今日は楽しかった"
 
-        # 強度が範囲外
+        # context_messageが長すぎる場合
         with pytest.raises(ValueError):
             EmotionStampRequest(
                 emotion=EmotionType.JOY,
-                intensity=1.5  # 1.0を超過
+                context_message="a" * 51  # 50文字制限を超過
             )
 
 
@@ -152,8 +148,8 @@ class TestChatDatabase:
             "message_id": "msg_test",
             "user_message_s3_key": "s3://test/msg",
             "ai_response_s3_key": "s3://test/resp",
-            "ai_character": AICharacterType.TAMA,
-            "mood": MoodType.PRAISE,
+            "ai_character": AICharacterType.MITTYAN,
+            "interaction_mode": InteractionMode.PRAISE,
             "character_count": 10,
             "tree_stage_before": 0,
             "tree_stage_after": 0,
@@ -360,7 +356,7 @@ class TestInteractionModeIntegration:
         # AI応答生成時の引数確認
         expected_call_args = {
             "character": "mittyan",
-            "mood": "praise", 
+            "interaction_mode": "praise", 
             "praise_level": "normal"  # 制限適用後
         }
         
@@ -470,17 +466,17 @@ class TestInteractionModeIntegration:
         """
         [INTEGRATION-005] InteractionMode Enum値確認
         
-        MoodType enumの値確認（chat_serviceでの使用）
+        InteractionMode enumの値確認（chat_serviceでの使用）
         """
-        from backend.services.chat_service.models import MoodType
+        from backend.services.chat_service.models import InteractionMode
         
-        # MoodType（InteractionModeに対応）の値確認
-        assert MoodType.PRAISE == "praise"
-        assert MoodType.LISTEN == "listen"
+        # InteractionMode（InteractionModeに対応）の値確認
+        assert InteractionMode.PRAISE == "praise"
+        assert InteractionMode.LISTEN == "listen"
         
         # 網羅性確認
         expected_moods = {"praise", "listen"}
-        actual_moods = {mood.value for mood in MoodType}
+        actual_moods = {mood.value for mood in InteractionMode}
         assert actual_moods == expected_moods
 
 

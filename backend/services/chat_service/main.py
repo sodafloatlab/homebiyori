@@ -74,7 +74,6 @@ from .models import (
     ChatMessage,
     ChatHistoryRequest,
     ChatHistoryResponse,
-    MoodUpdateRequest,
     EmotionStampRequest,
     # MoodType → InteractionMode移行完了
 )
@@ -157,7 +156,7 @@ async def send_message(
             extra={
                 "user_id": user_id[:8] + "****",
                 "ai_character": chat_request.ai_character,
-                "mood": chat_request.mood,
+                "interaction_mode": chat_request.interaction_mode,
                 "message_length": len(chat_request.message)
             }
         )
@@ -181,7 +180,7 @@ async def send_message(
         
         # AI設定の決定（リクエスト優先、なければプロフィール設定）
         ai_character = chat_request.ai_character or user_ai_preferences["ai_character"]
-        interaction_mode = chat_request.mood or user_ai_preferences["interaction_mode"]
+        interaction_mode = chat_request.interaction_mode or user_ai_preferences["interaction_mode"]
         praise_level = user_ai_preferences["praise_level"]
         
         # 無料ユーザーのpraise_level制限適用
@@ -197,7 +196,7 @@ async def send_message(
             user_message=chat_request.message,
             user_id=user_id,
             character=ai_character,
-            mood=interaction_mode,
+            interaction_mode=interaction_mode,
             praise_level=praise_level
         )
         
@@ -247,7 +246,7 @@ async def send_message(
                         user_message=chat_request.message,
                         ai_response=ai_response_text,
                         ai_character=ai_character,
-                        interaction_mode=chat_request.mood,
+                        interaction_mode=chat_request.interaction_mode,
                         detected_emotion=detected_emotion
                     )
                     
@@ -282,25 +281,20 @@ async def send_message(
             created_at=timestamp
         )
         
-        # DynamoDB保存用モデル作成（S3キーの代わりにダミー値）
+        # DynamoDB保存用モデル作成（design_database.md準拠・統合版）
         chat_message = ChatMessage(
+            chat_id=message_id,
             user_id=user_id,
-            message_id=message_id,
-            user_message_s3_key=f"dummy_user_{message_id}",  # DynamoDB直接保存のためダミー
-            ai_response_s3_key=f"dummy_ai_{message_id}",    # DynamoDB直接保存のためダミー
-            ai_character=ai_character,  # 実際に使用されたキャラクター
-            mood=interaction_mode,      # 実際に使用された対話モード
-            emotion_detected=detected_emotion,
-            emotion_score=emotion_score,
-            character_count=message_character_count,
-            tree_stage_before=previous_stage,
-            tree_stage_after=current_stage,
-            fruit_generated=fruit_generated,
-            fruit_id=fruit_info.fruit_id if fruit_info else None,
-            image_s3_key=None,  # 画像機能削除
+            chat_type="single",  # シングルチャットを明示
+            user_message=chat_request.message,
+            ai_response=ai_response_text,
+            ai_character=ai_character,
+            praise_level=chat_request.praise_level,
+            interaction_mode=interaction_mode,
+            growth_points_gained=message_character_count,
+            tree_stage_at_time=tree_growth.current_stage,
             created_at=timestamp,
-            ttl=ttl_timestamp,
-            character_date=f"{chat_request.ai_character}#{timestamp.strftime('%Y-%m-%d')}"
+            expires_at=ttl_timestamp
         )
         
         # ===============================
@@ -460,7 +454,7 @@ async def send_group_message(
         # 3. ユーザーAI設定情報取得（user_serviceから）
         # ===============================
         user_ai_preferences = await service_client.get_user_ai_preferences(user_id)
-        interaction_mode = group_chat_request.mood or user_ai_preferences["interaction_mode"]
+        interaction_mode = group_chat_request.interaction_mode or user_ai_preferences["interaction_mode"]
         praise_level = user_ai_preferences["praise_level"]  # プレミアムユーザーは設定値使用
         
         # ===============================
@@ -512,6 +506,27 @@ async def send_group_message(
         tasks = [generate_single_ai_response(char) for char in group_chat_request.active_characters]
         ai_responses = await asyncio.gather(*tasks)
         
+        # GroupAIResponseモデルに変換し、代表応答を決定（最適化版）
+        from .models import GroupAIResponse
+        group_ai_responses = []
+        representative_response = None
+        representative_character = None
+        
+        for i, ai_resp in enumerate(ai_responses):
+            is_representative = (i == 0)  # 最初のキャラクターを代表とする
+            
+            group_resp = GroupAIResponse(
+                character=ai_resp.character,
+                response=ai_resp.message,
+                is_representative=is_representative
+            )
+            group_ai_responses.append(group_resp)
+            
+            # 代表応答を記録（LangChain文脈用）
+            if is_representative:
+                representative_response = ai_resp.message
+                representative_character = ai_resp.character
+        
         # ===============================
         # 5. 感情検出（ユーザーメッセージから）
         # ===============================
@@ -559,29 +574,29 @@ async def send_group_message(
             
             last_fruit_date = await service_client.get_last_fruit_date(user_id)
             
-            if can_generate_fruit(last_fruit_date):
+            can_generate = await service_client.can_generate_fruit(user_id)
+            
+            if can_generate:
                 try:
-                    # ランダムでキャラクターを選択（実の生成担当）
-                    import random
-                    fruit_character = random.choice(group_chat_request.active_characters)
-                    
+                    # 代表キャラクターを使用（実の生成担当：is_representative基準）
                     fruit_info = FruitInfo(
                         user_id=user_id,
                         user_message=group_chat_request.message,
-                        ai_response=chosen_response.message,  # 選択されたAI応答
-                        ai_character=fruit_character,
-                        interaction_mode=group_chat_request.mood or "praise",
+                        ai_response=representative_response,  # 代表応答
+                        ai_character=representative_character,  # 代表キャラクター
+                        interaction_mode=group_chat_request.interaction_mode or InteractionMode.PRAISE,
                         detected_emotion=detected_emotion
                     )
                     
                     fruit_generated = True
                     
                     logger.info(
-                        "Group chat fruit generated",
+                        "Group chat fruit generated with representative character",
                         extra={
                             "user_id": user_id[:8] + "****",
-                            "fruit_character": fruit_character,
-                            "active_characters": group_chat_request.active_characters
+                            "representative_character": representative_character,
+                            "active_characters": group_chat_request.active_characters,
+                            "growth_optimization": "is_representative_based"
                         }
                     )
                     
@@ -599,27 +614,22 @@ async def send_group_message(
             created_at=timestamp
         )
         
-        # グループチャット用のメッセージ保存（代表キャラクター使用）
-        primary_character = group_chat_request.active_characters[0]  # 最初のキャラクターを代表とする
-        
+        # グループチャット用のメッセージ保存（代表応答最適化版）
         chat_message = ChatMessage(
+            chat_id=message_id,
             user_id=user_id,
-            message_id=message_id,
-            user_message_s3_key=f"group_user_{message_id}",  # グループチャット識別用
-            ai_response_s3_key=f"group_ai_{message_id}",     # グループチャット識別用
-            ai_character=primary_character,
-            mood=interaction_mode,
-            emotion_detected=detected_emotion,
-            emotion_score=emotion_score,
-            character_count=message_character_count,
-            tree_stage_before=previous_stage,
-            tree_stage_after=current_stage,
-            fruit_generated=fruit_generated,
-            fruit_id=fruit_info.fruit_id if fruit_info else None,
-            image_s3_key=None,
+            chat_type="group",  # グループチャットを明示
+            user_message=group_chat_request.message,
+            ai_response=representative_response,  # 代表応答（LangChain文脈用）
+            ai_character=representative_character,
+            praise_level=PraiseLevel.NORMAL,  # グループチャットはnormal固定
+            interaction_mode=interaction_mode,
+            active_characters=group_chat_request.active_characters,
+            group_ai_responses=group_ai_responses,  # 最適化されたGroupAIResponseリスト
+            growth_points_gained=message_character_count,
+            tree_stage_at_time=current_stage,
             created_at=timestamp,
-            ttl=ttl_timestamp,
-            character_date=f"GROUP#{timestamp.strftime('%Y-%m-%d')}"  # グループチャット用
+            expires_at=ttl_timestamp
         )
         
         # ===============================
@@ -785,7 +795,7 @@ async def get_chat_history(
 
 @app.put("/api/chat/mood")
 async def update_mood(
-    mood_request: MoodUpdateRequest,
+    interaction_mode: InteractionMode,
     user_id: str = Depends(get_current_user_id)
 ):
     """
@@ -801,21 +811,20 @@ async def update_mood(
             "Processing mood update",
             extra={
                 "user_id": user_id[:8] + "****",
-                "interaction_mode": mood_request.interaction_mode
+                "interaction_mode": interaction_mode
             }
         )
         
         # user_serviceに気分更新を委譲
         await service_client.update_user_interaction_mode(
             user_id=user_id,
-            interaction_mode=mood_request.interaction_mode.value,
-            user_note=mood_request.user_note
+            interaction_mode=interaction_mode.value
         )
         
         return {
             "success": True,
-            "updated_mode": mood_request.interaction_mode.value,
-            "message": f"対話モードを「{mood_request.interaction_mode.value}」に変更しました",
+            "updated_mode": interaction_mode.value,
+            "message": f"対話モードを「{interaction_mode.value}」に変更しました",
             "timestamp": get_current_jst().isoformat()
         }
         
@@ -924,25 +933,20 @@ async def send_emotion_stamp(
             created_at=timestamp
         )
         
-        # DynamoDB保存用モデル作成
+        # DynamoDB保存用モデル作成（感情スタンプ機能・統合版）
         chat_message = ChatMessage(
+            chat_id=message_id,
             user_id=user_id,
-            message_id=message_id,
-            user_message_s3_key=f"emotion_{emotion_request.emotion.value}_{message_id}",
-            ai_response_s3_key=f"response_{message_id}",
+            chat_type="single",  # 感情スタンプはシングルチャット扱い
+            user_message=f"[感情スタンプ: {emotion_request.emotion.value}]",
+            ai_response=ai_response_text,
             ai_character=ai_character,
-            mood=interaction_mode,
-            emotion_detected=emotion_request.emotion,
-            emotion_score=1.0,  # 感情スタンプは確実性100%
-            character_count=message_character_count,
-            tree_stage_before=previous_stage,
-            tree_stage_after=current_stage,
-            fruit_generated=False,  # 感情スタンプでは実生成しない
-            fruit_id=None,
-            image_s3_key=None,
+            praise_level=PraiseLevel.NORMAL,  # 感情スタンプはnormal固定
+            interaction_mode=interaction_mode,
+            growth_points_gained=message_character_count,
+            tree_stage_at_time=current_stage,
             created_at=timestamp,
-            ttl=ttl_timestamp,
-            character_date=f"{ai_character}#{timestamp.strftime('%Y-%m-%d')}"
+            expires_at=ttl_timestamp
         )
         
         # DynamoDB保存実行

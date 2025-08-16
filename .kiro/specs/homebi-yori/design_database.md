@@ -142,29 +142,48 @@ graph TB
 - **expires_at**: 90日後に自動削除
 - **DynamoDB TTL機能**: ストレージコスト最適化
 
-## 2. prod-homebiyori-chats（独立保持）
+## 2. prod-homebiyori-chats（独立保持・1:1・グループチャット統合）
 
 **設計意図:**
 - **TTL管理**: プラン別データ保持期間の動的制御
 - **大容量データ特性**: チャット履歴の独立管理
 - **LangChain最適化**: 高速文脈情報取得
+- **統合チャット対応**: 1:1・グループチャットの統一管理
 
 **エンティティ構造:**
 ```json
 {
   "PK": "USER#user_id",
-  "SK": "CHAT#2024-01-01T12:00:00+09:00",
+  "SK": "CHAT#single#2024-01-01T12:00:00+09:00",  // または "CHAT#group#..."
   "chat_id": "string",
   "user_id": "string",
   
+  // チャットタイプ（統合管理）
+  "chat_type": "single|group",
+  
   // メッセージ内容（DynamoDB直接保存）
   "user_message": "string",
-  "ai_response": "string",
+  "ai_response": "string",                // single時：単一応答、group時：代表応答
   
-  // AI設定メタデータ
+  // AI設定メタデータ（single時：実際のAI、group時：代表AI）
   "ai_character": "mittyan|madokasan|hideji",
   "praise_level": "normal|deep",
   "interaction_mode": "praise|listen",
+  
+  // グループチャット専用フィールド（group時のみ）
+  "active_characters": ["mittyan", "madokasan", "hideji"],    // アクティブAIキャラクターリスト
+  "group_ai_responses": [                                     // 全AI応答詳細
+    {
+      "character": "mittyan",
+      "response": "みっちゃんの応答...",
+      "is_representative": false
+    },
+    {
+      "character": "madokasan", 
+      "response": "まどか姉さんの応答...",
+      "is_representative": true  // 代表応答：成長ポイント計算対象、ai_responseにもコピー
+    }
+  ],
   
   // 木の成長関連
   "growth_points_gained": "number",
@@ -177,6 +196,17 @@ graph TB
   "expires_at": "1719763200"             // unixtime（プラン別180日/30日）
 }
 ```
+
+**SKフォーマットのメリット:**
+- **チャットタイプ別検索**: `SK begins_with "CHAT#single#"` で1:1のみ、`SK begins_with "CHAT#group#"` でグループのみ取得可能
+- **統合表示制御**: フロントエンドでタイプ別の表示制御が容易
+- **パフォーマンス向上**: 必要なチャットタイプのみクエリでコスト削減
+- **後方互換性**: 既存の時系列ソートは維持
+
+**フロントエンド統合メリット:**
+- **一つのチャット画面**: 1:1・グループチャットを統一インターフェースで表示
+- **時系列統合表示**: `chat_type`フィールドによる条件分岐で適切な表示制御
+- **効率的データ管理**: 単一テーブルでの統合管理により開発・運用コスト削減
 
 **TTL管理方式:**
 - **フリーユーザー**: expires_at = created_at + 30日
@@ -265,10 +295,19 @@ GET prod-homebiyori-notifications: PK=USER#user_id, SK begins_with NOTIFICATION#
 QUERY prod-homebiyori-core: PK=USER#user_id
 ```
 
-**2. チャット履歴表示**
+**2. チャット履歴表示（統合版）**
 ```
+// 全チャット履歴（1:1・グループ統合）
 QUERY prod-homebiyori-chats: PK=USER#user_id, SK begins_with CHAT#
 ORDER BY SK DESC, LIMIT 20 (最新20件)
+
+// 1:1チャットのみ
+QUERY prod-homebiyori-chats: PK=USER#user_id, SK begins_with CHAT#single#
+ORDER BY SK DESC, LIMIT 20
+
+// グループチャットのみ  
+QUERY prod-homebiyori-chats: PK=USER#user_id, SK begins_with CHAT#group#
+ORDER BY SK DESC, LIMIT 20
 ```
 
 **3. 実の一覧表示**

@@ -5,7 +5,7 @@ Chat Service Models for Homebiyori
 
 from typing import List, Optional, Dict, Any, Literal
 from datetime import datetime
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator
 import uuid
 
 # 共通Layerから日時処理をインポート
@@ -16,10 +16,21 @@ from homebiyori_common.models import (
     AICharacterType,
     EmotionType,
     InteractionMode,
+    PraiseLevel,
     FruitInfo,
     TreeGrowthInfo,
     AIResponse
 )
+
+# =====================================
+# グループチャット専用データモデル
+# =====================================
+
+class GroupAIResponse(BaseModel):
+    """グループチャット内の個別AI応答（最適化版）"""
+    character: AICharacterType = Field(description="応答したAIキャラクター")
+    response: str = Field(description="AI応答テキスト")
+    is_representative: bool = Field(default=False, description="代表応答フラグ（成長ポイント計算・ai_response保存対象）")
 
 # MoodType → InteractionMode移行完了（共通Layer使用）
 
@@ -31,7 +42,9 @@ class ChatRequest(BaseModel):
     """チャット送信リクエスト"""
     message: str = Field(..., min_length=1, max_length=2000, description="ユーザーメッセージ")
     ai_character: AICharacterType = Field(default=AICharacterType.MITTYAN, description="AIキャラクター")
-    mood: InteractionMode = Field(default=InteractionMode.PRAISE, description="気分設定")
+    interaction_mode: InteractionMode = Field(default=InteractionMode.PRAISE, description="対話モード")
+    praise_level: PraiseLevel = Field(default=PraiseLevel.NORMAL, description="褒めレベル")
+    context_length: int = Field(10, ge=1, le=50, description="文脈履歴取得件数")
 
 
 
@@ -43,25 +56,26 @@ class GroupChatRequest(BaseModel):
     message: str = Field(..., min_length=1, max_length=2000, description="ユーザーメッセージ")
     active_characters: List[AICharacterType] = Field(
         ..., 
-        min_items=1, 
-        max_items=3, 
+        min_length=1, 
+        max_length=3, 
         description="アクティブなAIキャラクターリスト"
     )
-    mood: Optional[InteractionMode] = Field(None, description="対話モード（省略時はプロフィール設定値使用）")
+    interaction_mode: Optional[InteractionMode] = Field(None, description="対話モード（省略時はプロフィール設定値使用）")
     context_length: int = Field(10, ge=1, le=50, description="文脈履歴取得件数")
     
-    @validator("active_characters")
+    @field_validator("active_characters")
+    @classmethod
     def validate_unique_characters(cls, v):
         if len(set(v)) != len(v):
             raise ValueError("重複するキャラクターは指定できません")
         return v
     
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "message": "今日は子供と公園で遊んで楽しかったです",
                 "active_characters": ["mittyan", "madokasan", "hideji"],
-                "mood": "praise",
+                "interaction_mode": "praise",
                 "context_length": 10
             }
         }
@@ -102,24 +116,35 @@ class GroupChatResponse(BaseModel):
 # =====================================
 
 class ChatMessage(BaseModel):
-    """チャットメッセージ（DynamoDB直接保存版）"""
+    """チャットメッセージ（1:1・グループチャット統合版・design_database.md準拠）"""
+    chat_id: str = Field(description="チャットID")
     user_id: str = Field(description="ユーザーID")
-    message_id: str = Field(description="メッセージID")
-    user_message_s3_key: str = Field(description="ユーザーメッセージS3キー")
-    ai_response_s3_key: str = Field(description="AI応答S3キー")
-    ai_character: AICharacterType = Field(description="使用AIキャラクター")
-    mood: InteractionMode = Field(description="気分設定")
-    emotion_detected: Optional[EmotionType] = Field(None, description="検出された感情")
-    emotion_score: float = Field(default=0.0, description="感情スコア")
-    character_count: int = Field(description="メッセージ文字数")
-    tree_stage_before: int = Field(description="変更前木段階")
-    tree_stage_after: int = Field(description="変更後木段階")
-    fruit_generated: bool = Field(default=False, description="実生成フラグ")
-    fruit_id: Optional[str] = Field(None, description="生成された実のID")
-    image_s3_key: Optional[str] = Field(None, description="画像S3キー")
+    
+    # チャットタイプ（統合管理のためのキー情報）
+    chat_type: Literal["single", "group"] = Field(description="チャットタイプ（single: 1:1, group: グループ）")
+    
+    # メッセージ内容（DynamoDB直接保存）
+    user_message: str = Field(description="ユーザーメッセージ")
+    ai_response: str = Field(description="AI応答（single時：単一応答、group時：代表応答）")
+    
+    # AI設定メタデータ（single時：実際のAI、group時：代表AI）
+    ai_character: AICharacterType = Field(description="使用AIキャラクター（代表キャラクター）")
+    praise_level: PraiseLevel = Field(description="褒めレベル")
+    interaction_mode: InteractionMode = Field(description="対話モード")
+    
+    # グループチャット専用フィールド
+    active_characters: Optional[List[AICharacterType]] = Field(None, description="アクティブAIキャラクターリスト（group時のみ）")
+    group_ai_responses: Optional[List[GroupAIResponse]] = Field(None, description="全AI応答詳細（group時のみ・最適化版）")
+    
+    # 木の成長関連
+    growth_points_gained: int = Field(description="獲得成長ポイント")
+    tree_stage_at_time: int = Field(description="その時点での木の段階")
+    
+    # タイムスタンプ（JST統一）
     created_at: datetime = Field(description="作成時刻")
-    ttl: Optional[int] = Field(None, description="TTL")
-    character_date: str = Field(description="キャラクター日付インデックス")
+    
+    # プラン別TTL設定
+    expires_at: Optional[int] = Field(None, description="TTL（unixtime、プラン別180日/30日）")
 
     class Config:
         json_encoders = {
@@ -131,16 +156,15 @@ class ChatMessage(BaseModel):
 # =====================================
 
 class ChatHistoryRequest(BaseModel):
-    """チャット履歴取得リクエスト"""
+    """チャット履歴取得リクエスト（1:1・グループチャット統合版）"""
     start_date: Optional[str] = Field(None, description="開始日")
     end_date: Optional[str] = Field(None, description="終了日")
-    character_filter: Optional[AICharacterType] = Field(None, description="キャラクターフィルター")
     limit: int = Field(default=20, description="取得件数")
     next_token: Optional[str] = Field(None, description="ページネーショントークン")
 
 class ChatHistoryResponse(BaseModel):
-    """チャット履歴レスポンス"""
-    messages: List[Dict[str, Any]] = Field(description="メッセージ一覧")
+    """チャット履歴レスポンス（1:1・グループチャット統合版）"""
+    messages: List[ChatMessage] = Field(description="メッセージ一覧（統合ChatMessageモデル）")
     next_token: Optional[str] = Field(None, description="次のページトークン")
     has_more: bool = Field(description="さらにデータがあるか")
     total_count: Optional[int] = Field(None, description="総件数")
@@ -148,24 +172,6 @@ class ChatHistoryResponse(BaseModel):
 # =====================================
 # 気分・感情アイコン機能モデル（チャット機能として復活）
 # =====================================
-
-class MoodUpdateRequest(BaseModel):
-    """
-    気分変更リクエスト（チャット機能の一部）
-    
-    ■用途■
-    - ユーザーがチャット中に対話モードを変更する機能
-    - 「ほめほめ」「聞いて」のトグルボタン対応
-    - InteractionMode（praise/listen）の動的変更
-    """
-    interaction_mode: InteractionMode = Field(
-        description="対話モード（praise: 褒めほしい, listen: 話を聞いてほしい）"
-    )
-    user_note: Optional[str] = Field(
-        None, 
-        max_length=100,
-        description="気分変更時のユーザーメモ（オプション）"
-    )
 
 
 class EmotionStampRequest(BaseModel):

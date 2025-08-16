@@ -183,7 +183,7 @@ class HomebiyoriAIChain:
             user_message: ユーザーメッセージ
             user_id: ユーザーID
             character: AIキャラクター（mittyan/madokasan/hideji）
-            mood: ムード（praise/listen）
+            mood: 対話モード（praise/listen）※内部処理用にmoodパラメータ名を保持
             praise_level: 褒めレベル（normal/deep）
             group_context: グループチャット時のアクティブキャラクターリスト（オプション）
             
@@ -216,7 +216,7 @@ class HomebiyoriAIChain:
             # LangChain ConversationChain構築
             conversation_chain = ConversationChain(
                 llm=llm,
-                memory=memory.memory,  # ConversationSummaryBufferMemory使用
+                memory=memory.memory,  # ConversationSummaryBufferMemoryを使用
                 prompt=prompt_template,
                 verbose=False
             )
@@ -238,7 +238,7 @@ class HomebiyoriAIChain:
                 extra={
                     "user_id": user_id[:8] + "****",
                     "character": character,
-                    "mood": mood,
+                    "interaction_mode": mood,
                     "user_tier": user_tier,
                     "group_context": group_context,
                     "response_length": len(validated_response),
@@ -255,7 +255,7 @@ class HomebiyoriAIChain:
                     "error": str(e),
                     "user_id": user_id[:8] + "****",
                     "character": character,
-                    "mood": mood,
+                    "interaction_mode": mood,
                     "group_context": group_context
                 },
                 exc_info=True
@@ -317,7 +317,7 @@ async def generate_ai_response_langchain(
     user_message: str,
     user_id: str,
     character: str = "mittyan",
-    mood: str = "praise",
+    interaction_mode: str = "praise",
     praise_level: str = "normal",
     group_context: Optional[List[str]] = None
 ) -> str:
@@ -328,7 +328,7 @@ async def generate_ai_response_langchain(
         user_message: ユーザーメッセージ
         user_id: ユーザーID
         character: AIキャラクター（mittyan/madokasan/hideji）
-        mood: ムード（praise/listen）
+        interaction_mode: 対話モード（praise/listen）
         praise_level: 褒めレベル（normal/deep）
         group_context: グループチャット時のアクティブキャラクターリスト（オプション）
         
@@ -340,7 +340,7 @@ async def generate_ai_response_langchain(
         user_message=user_message,
         user_id=user_id,
         character=character,
-        mood=mood,
+        mood=interaction_mode,
         praise_level=praise_level,
         group_context=group_context
     )
