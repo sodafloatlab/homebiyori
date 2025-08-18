@@ -16,7 +16,7 @@ from .response_utils import (
     rate_limit_error_response
 )
 from .maintenance import check_maintenance_mode, is_maintenance_mode, get_maintenance_message
-from .middleware import maintenance_check_middleware, get_current_user_id, error_handling_middleware
+# ミドルウェア機能はhomebiyori_common.middlewareに移行済み
 from .parameter_store import (
     get_llm_config, 
     get_parameter_store_client,
@@ -46,13 +46,10 @@ __all__ = [
     "authorization_error_response",
     "not_found_error_response",
     "rate_limit_error_response",
-    # メンテナンス・ミドルウェア機能
+    # メンテナンス機能
     "check_maintenance_mode",
     "is_maintenance_mode", 
     "get_maintenance_message",
-    "maintenance_check_middleware",
-    "get_current_user_id",
-    "error_handling_middleware",
     # Parameter Store機能
     "get_llm_config",
     "get_parameter_store_client",

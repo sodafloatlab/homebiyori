@@ -3,6 +3,7 @@ Homebiyori Common Models
 
 サービス間で共有されるモデル定義
 - AIキャラクター、感情、気分タイプ
+- サブスクリプション関連（Issue #15 統一定義）
 - データモデル（FruitInfo、TreeGrowthInfo等）
 - リクエスト/レスポンスモデル
 """
@@ -13,7 +14,11 @@ from .enums import (
     InteractionMode,
     PraiseLevel,
     TreeTheme,
-    TreeStage
+    TreeStage,
+    # サブスクリプション関連（Issue #15 統一定義）
+    SubscriptionStatus,
+    SubscriptionPlan,
+    PaymentStatus
 )
 
 from .data_models import (
@@ -31,6 +36,11 @@ __all__ = [
     "PraiseLevel",
     "TreeTheme",
     "TreeStage",
+    
+    # サブスクリプション関連（Issue #15 統一定義）
+    "SubscriptionStatus",
+    "SubscriptionPlan", 
+    "PaymentStatus",
     
     # Data Models
     "FruitInfo",

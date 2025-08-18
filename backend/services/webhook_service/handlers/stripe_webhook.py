@@ -20,9 +20,10 @@ from homebiyori_common.utils.datetime_utils import get_current_jst
 from ..core.dependencies import verify_webhook_signature, validate_webhook_event, get_current_settings
 from ..core.config import WebhookSettings
 from ..models.stripe_models import (
-    WebhookEvent, WebhookEventType, SubscriptionStatus, PlanType,
+    WebhookEvent, WebhookEventType, SubscriptionStatus,
     TTLUpdateMessage, NotificationMessage
 )
+from homebiyori_common.models import SubscriptionPlan
 from ..services.subscription_sync import SubscriptionSyncService
 from ..services.queue_service import QueueService
 from ..services.notification_service import NotificationService
@@ -220,7 +221,7 @@ async def _handle_subscription_updated(
     
     # 3. プラン変更の場合、TTL更新キューに送信
     if current_subscription and current_subscription.get("plan_type") != subscription.plan_type.value:
-        old_plan = PlanType(current_subscription.get("plan_type", "free"))
+        old_plan = SubscriptionPlan(current_subscription.get("plan_type", "trial"))
         new_plan = subscription.plan_type
         
         ttl_message = TTLUpdateMessage(
@@ -288,7 +289,7 @@ async def _handle_subscription_deleted(
     ttl_message = TTLUpdateMessage(
         user_id=user_id,
         old_plan=subscription.plan_type,
-        new_plan=PlanType.FREE,
+        new_plan=SubscriptionPlan.TRIAL,
         subscription_id=subscription.id,
         change_reason="subscription_canceled",
         request_id=event.id

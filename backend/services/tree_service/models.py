@@ -28,7 +28,7 @@ Homebiyori（ほめびより）木の成長システムのデータモデル。
 """
 
 from typing import Optional
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 
 # 共通Layerからモデル定義をインポート
 from homebiyori_common.models import (
@@ -85,8 +85,9 @@ class FruitsListRequest(BaseModel):
         description="ページネーション用トークン"
     )
     
-    class Config:
-        populate_by_name = True
+    model_config = ConfigDict(
+        populate_by_name=True
+    )
 
 
 class FruitsListResponse(BaseModel):

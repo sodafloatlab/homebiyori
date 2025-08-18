@@ -28,8 +28,8 @@ from .exceptions import (
     MaintenanceError
 )
 
-# 新規追加: 共通ミドルウェア機能（utilsに移動）
-from .utils.middleware import (
+# 新規追加: 共通ミドルウェア機能（middleware配下に統一）
+from .middleware import (
     maintenance_check_middleware,
     get_current_user_id
 )
@@ -53,7 +53,7 @@ __all__ = [
     "DatabaseError", 
     "ExternalServiceError",
     "MaintenanceError",
-    # 新規追加: ミドルウェア・メンテナンス機能
+    # ミドルウェア・メンテナンス機能
     "maintenance_check_middleware",
     "get_current_user_id",
     "check_maintenance_mode",

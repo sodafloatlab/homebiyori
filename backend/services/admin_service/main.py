@@ -34,7 +34,7 @@ from homebiyori_common.exceptions.custom_exceptions import (
     AuthenticationError,
     ExternalServiceError
 )
-from homebiyori_common.utils.middleware import maintenance_check_middleware, error_handling_middleware
+from homebiyori_common.middleware import maintenance_check_middleware, error_handling_middleware
 
 # 環境変数取得
 ENVIRONMENT = os.getenv('ENVIRONMENT', 'prod')

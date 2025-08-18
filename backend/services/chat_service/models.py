@@ -5,7 +5,7 @@ Chat Service Models for Homebiyori
 
 from typing import List, Optional, Dict, Any, Literal
 from datetime import datetime
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, ConfigDict
 import uuid
 
 # 共通Layerから日時処理をインポート
@@ -70,8 +70,8 @@ class GroupChatRequest(BaseModel):
             raise ValueError("重複するキャラクターは指定できません")
         return v
     
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "message": "今日は子供と公園で遊んで楽しかったです",
                 "active_characters": ["mittyan", "madokasan", "hideji"],
@@ -79,22 +79,7 @@ class GroupChatRequest(BaseModel):
                 "context_length": 10
             }
         }
-
-# FruitInfo、TreeGrowthInfo、AIResponseは homebiyori_common.models から使用
-
-class ChatResponse(BaseModel):
-    """チャット応答レスポンス"""
-    message_id: str = Field(description="メッセージID")
-    ai_response: AIResponse = Field(description="AI応答情報")
-    tree_growth: TreeGrowthInfo = Field(description="木の成長情報")
-    fruit_generated: bool = Field(description="実が生成されたかどうか")
-    fruit_info: Optional[FruitInfo] = Field(None, description="生成された実の情報")
-    timestamp: datetime = Field(description="処理完了時刻")
-
-    class Config:
-        json_encoders = {
-            datetime: to_jst_string
-        }
+    )
 
 class GroupChatResponse(BaseModel):
     """グループチャット応答レスポンス"""
@@ -106,10 +91,9 @@ class GroupChatResponse(BaseModel):
     timestamp: datetime = Field(description="処理完了時刻")
     active_characters: List[AICharacterType] = Field(description="応答したAIキャラクターリスト")
 
-    class Config:
-        json_encoders = {
-            datetime: to_jst_string
-        }
+    model_config = ConfigDict(
+        json_encoders={datetime: to_jst_string}
+    )
 
 # =====================================
 # データ永続化モデル（DynamoDB直接保存）
@@ -143,13 +127,12 @@ class ChatMessage(BaseModel):
     # タイムスタンプ（JST統一）
     created_at: datetime = Field(description="作成時刻")
     
-    # プラン別TTL設定
-    expires_at: Optional[int] = Field(None, description="TTL（unixtime、プラン別180日/30日）")
+    # TTL設定
+    expires_at: Optional[int] = Field(None, description="TTL（unixtime、180日）")
 
-    class Config:
-        json_encoders = {
-            datetime: to_jst_string
-        }
+    model_config = ConfigDict(
+        json_encoders={datetime: to_jst_string}
+    )
 
 # =====================================
 # その他のリクエスト・レスポンス

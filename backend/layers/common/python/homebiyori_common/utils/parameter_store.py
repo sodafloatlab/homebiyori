@@ -88,38 +88,43 @@ class ParameterStoreClient:
     # === LLM設定管理 ===
     def get_llm_config(self, user_tier: str) -> Dict[str, Any]:
         """
-        ユーザープラン別LLM設定を取得
+        ユーザープラン別LLM設定を取得（新戦略：全ユーザー統一設定）
         
         Args:
-            user_tier: ユーザープラン ('free' or 'premium')
+            user_tier: ユーザープラン ('free' or 'premium') - 統一設定のため実質無視
             
         Returns:
             LLM設定辞書
         """
         try:
-            # パラメータ名構築
-            tier_path = f"{self._base_path}/llm/{user_tier}-user"
+            # 新戦略：全ユーザー統一設定パス
+            unified_path = f"{self._base_path}/llm/unified"
             
             # 各設定値を取得
-            model_id = self.get_parameter(f"{tier_path}/model-id")
-            max_tokens = int(self.get_parameter(f"{tier_path}/max-tokens"))
-            temperature = float(self.get_parameter(f"{tier_path}/temperature"))
+            model_id = self.get_parameter(f"{unified_path}/model-id")
+            max_tokens = int(self.get_parameter(f"{unified_path}/max-tokens"))
+            temperature = float(self.get_parameter(f"{unified_path}/temperature"))
             
+            # Amazon Nova Lite用設定（anthropic_versionは不要）
             config = {
                 "model_id": model_id,
                 "max_tokens": max_tokens,
                 "temperature": temperature,
-                "region_name": os.getenv('AWS_REGION', 'us-east-1'),
-                "anthropic_version": "bedrock-2023-05-31"
+                "region_name": os.getenv('AWS_REGION', 'us-east-1')
             }
             
+            # Amazon NovaモデルかAnthropicモデルかを判定してパラメータを調整
+            if "anthropic.claude" in model_id:
+                config["anthropic_version"] = "bedrock-2023-05-31"
+            
             logger.info(
-                f"Retrieved LLM config for {user_tier} tier",
+                f"Retrieved unified LLM config (requested tier: {user_tier})",
                 extra={
                     "user_tier": user_tier,
                     "model_id": model_id,
                     "max_tokens": max_tokens,
-                    "temperature": temperature
+                    "temperature": temperature,
+                    "is_anthropic": "anthropic.claude" in model_id
                 }
             )
             
@@ -127,7 +132,7 @@ class ParameterStoreClient:
             
         except Exception as e:
             logger.error(
-                f"Failed to get LLM config for {user_tier} tier: {e}",
+                f"Failed to get unified LLM config (requested tier: {user_tier}): {e}",
                 exc_info=True
             )
             raise
@@ -262,17 +267,34 @@ class ParameterStoreClient:
             character_count: 累積文字数
             
         Returns:
-            木のステージ (1-5)
+            木のステージ (0-6)
+            - 0: 土だけ（累積文字数0）
+            - 1: 発芽（累積文字数1以上）
+            - 2-6: 成長段階
         """
-        thresholds = self.get_tree_growth_thresholds()
+        # 累積文字数が0の場合は0段階目（土だけ）
+        if character_count == 0:
+            return 0
         
-        # ステージ判定
-        for stage in range(1, 6):
+        try:
+            thresholds = self.get_tree_growth_thresholds()
+        except Exception:
+            # Parameter Storeが利用できない場合のデフォルト値
+            thresholds = {
+                "stage_1": 100,
+                "stage_2": 500, 
+                "stage_3": 1500,
+                "stage_4": 3000,
+                "stage_5": 5000
+            }
+        
+        # ステージ判定（1段階目から6段階目まで）
+        for stage in range(1, 7):
             stage_key = f"stage_{stage}"
             if character_count < thresholds.get(stage_key, float('inf')):
                 return stage
         
-        return 5  # 最大ステージ
+        return 6  # 最大ステージ
     
     
     # === メンテナンス設定 ===

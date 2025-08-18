@@ -16,7 +16,10 @@ from mangum import Mangum
 # 共通Layer機能インポート
 from homebiyori_common import get_logger, success_response, error_response
 from homebiyori_common import maintenance_check_middleware
-from homebiyori_common.utils.middleware import error_handling_middleware
+from homebiyori_common.middleware import error_handling_middleware
+
+# アクセス制御ミドルウェア
+from homebiyori_common.middleware import require_basic_access
 
 from .handlers.notifications import router as notification_router
 from .handlers.internal import router as internal_router

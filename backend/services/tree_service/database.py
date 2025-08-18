@@ -451,21 +451,33 @@ class TreeDatabase:
     # ヘルスチェック
     # =====================================
     
-    async def health_check(self) -> bool:
+    async def health_check(self) -> Dict[str, Any]:
         """
-        データベース接続ヘルスチェック
+        データベース接続ヘルスチェック（統一戻り値型）
         
         Returns:
-            bool: 接続が正常かどうか
+            Dict[str, Any]: ヘルスチェック結果
         """
         try:
             # テーブル存在確認（coreテーブル）
             await self.core_client.describe_table()
-            return True
+            
+            self.logger.info("木の成長サービス ヘルスチェック成功")
+            return {
+                "status": "healthy",
+                "service": "tree_service",
+                "database": "connected",
+                "core_table": "available"
+            }
             
         except Exception as e:
-            self.logger.error(f"ヘルスチェック失敗: {e}")
-            return False
+            self.logger.error(f"木の成長サービス ヘルスチェック失敗: {e}")
+            return {
+                "status": "unhealthy",
+                "service": "tree_service",
+                "database": "error", 
+                "error": str(e)
+            }
 
 
 # =====================================

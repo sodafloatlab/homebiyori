@@ -18,7 +18,12 @@ from .custom_exceptions import (
     MaintenanceError,
     NotFoundError,
     ConflictError,
-    RateLimitError
+    RateLimitError,
+    # サービス固有エラークラス（統一定義）
+    BillingServiceError,
+    StripeAPIError,
+    PaymentFailedError,
+    SubscriptionNotFoundError
 )
 
 __all__ = [
@@ -31,5 +36,10 @@ __all__ = [
     "MaintenanceError",
     "NotFoundError",
     "ConflictError", 
-    "RateLimitError"
+    "RateLimitError",
+    # サービス固有エラークラス（統一定義）
+    "BillingServiceError",
+    "StripeAPIError", 
+    "PaymentFailedError",
+    "SubscriptionNotFoundError"
 ]

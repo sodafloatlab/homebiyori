@@ -511,6 +511,123 @@ class DynamoDBClient:
             **kwargs
         )
 
+    async def query_by_pk_prefix(
+        self,
+        pk_prefix: str,
+        sk_condition: Optional[Dict[str, Any]] = None,
+        **kwargs
+    ) -> QueryResult:
+        """
+        PKプレフィックス（begins_with）によるクエリ
+        新しいPK構造 USER#{user_id}#{chat_type} での統合取得に対応
+        
+        Args:
+            pk_prefix: パーティションキープレフィックス（例: "USER#user123#"）
+            sk_condition: ソートキー条件（between, >=, <= など）
+            **kwargs: その他のクエリパラメータ
+            
+        Returns:
+            QueryResult: クエリ結果
+            
+        注意:
+            DynamoDBはPKに対してbegins_withを直接サポートしないため、
+            Scanを使用してPKプレフィックスマッチを実現します。
+            効率化のためFilterExpressionでPKフィルタを適用します。
+        """
+        try:
+            # PKフィルタ式構築
+            filter_expression = "begins_with(PK, :pk_prefix)"
+            expression_values = {":pk_prefix": pk_prefix}
+            
+            # SKフィルタが指定されている場合は追加
+            if sk_condition:
+                if "between" in sk_condition:
+                    filter_expression += " AND SK BETWEEN :sk_start AND :sk_end"
+                    expression_values.update({
+                        ":sk_start": sk_condition["between"][0],
+                        ":sk_end": sk_condition["between"][1]
+                    })
+                elif ">=" in sk_condition:
+                    filter_expression += " AND SK >= :sk_value"
+                    expression_values[":sk_value"] = sk_condition[">="]
+                elif "<=" in sk_condition:
+                    filter_expression += " AND SK <= :sk_value"
+                    expression_values[":sk_value"] = sk_condition["<="]
+            
+            # 既存のexpression_valuesとマージ
+            if "expression_values" in kwargs:
+                expression_values.update(kwargs["expression_values"])
+            kwargs["expression_values"] = expression_values
+            
+            # Scanを使用してPKプレフィックスマッチを実行
+            # 注意: 本来はより効率的な方法（GSIなど）が推奨されますが、
+            # 現在の要件では統合クエリの利便性を重視
+            scan_kwargs = {
+                "FilterExpression": filter_expression,
+                "ExpressionAttributeValues": self._serialize_expression_values(expression_values)
+            }
+            
+            # その他のオプション適用
+            if "limit" in kwargs:
+                scan_kwargs["Limit"] = kwargs["limit"]
+            if "next_token" in kwargs and kwargs["next_token"]:
+                scan_kwargs["ExclusiveStartKey"] = self._decode_pagination_token(kwargs["next_token"])
+            if "scan_index_forward" in kwargs:
+                # Scanでは直接のソート制御はないため、後でPythonレベルでソート
+                pass
+            
+            self.logger.debug(
+                "Executing PK prefix scan query",
+                extra={
+                    "table_name": self.table_name,
+                    "pk_prefix": pk_prefix,
+                    "sk_condition": sk_condition,
+                    "filter_expression": filter_expression
+                }
+            )
+            
+            response = await self.client.scan(**scan_kwargs)
+            
+            # レスポンス処理
+            items = [self._deserialize_item(item) for item in response.get("Items", [])]
+            
+            # Pythonレベルでのソート（scan_index_forwardに対応）
+            scan_index_forward = kwargs.get("scan_index_forward", True)
+            items.sort(key=lambda x: x.get("SK", ""), reverse=not scan_index_forward)
+            
+            result = {
+                "items": items,
+                "count": len(items),
+                "scanned_count": response.get("ScannedCount", 0)
+            }
+            
+            # ページネーション情報
+            if "LastEvaluatedKey" in response:
+                result["next_token"] = self._encode_pagination_token(response["LastEvaluatedKey"])
+            
+            self.logger.info(
+                "PK prefix scan query completed",
+                extra={
+                    "table_name": self.table_name,
+                    "pk_prefix": pk_prefix,
+                    "items_returned": len(items),
+                    "items_scanned": response.get("ScannedCount", 0)
+                }
+            )
+            
+            return result
+            
+        except Exception as e:
+            self.logger.error(
+                "PK prefix scan query failed",
+                extra={
+                    "error": str(e),
+                    "table_name": self.table_name,
+                    "pk_prefix": pk_prefix
+                }
+            )
+            raise
+
     # =====================================
     # ページネーション付きクエリ
     # =====================================

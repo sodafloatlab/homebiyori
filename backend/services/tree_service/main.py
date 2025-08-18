@@ -41,9 +41,12 @@ from homebiyori_common.exceptions import (
     MaintenanceError,
     ExternalServiceError
 )
-from homebiyori_common.utils.middleware import maintenance_check_middleware, get_current_user_id, error_handling_middleware
+from homebiyori_common.middleware import maintenance_check_middleware, get_current_user_id, error_handling_middleware
 from homebiyori_common.utils.datetime_utils import get_current_jst, to_jst_string, parse_jst_datetime
 from homebiyori_common.utils.parameter_store import get_tree_stage
+
+# アクセス制御ミドルウェア
+from homebiyori_common.middleware import require_basic_access
 
 # 共通Layerからモデルをインポート
 from homebiyori_common.models import (
@@ -165,6 +168,7 @@ app.middleware("http")(error_handling_middleware)
 # =====================================
 
 @app.get("/api/tree/status")
+@require_basic_access()
 async def get_tree_status(
     user_id: str = Depends(get_current_user_id)
 ):
@@ -212,6 +216,7 @@ async def get_tree_status(
 
 
 @app.put("/api/tree/status", response_model=TreeStatus)
+@require_basic_access()
 async def initialize_tree_status(
     user_id: str = Depends(get_current_user_id)
 ):
@@ -259,6 +264,7 @@ async def initialize_tree_status(
         raise HTTPException(status_code=500, detail="木の初期化に失敗しました")
 
 @app.post("/api/tree/update-growth")
+@require_basic_access()
 async def update_tree_growth(
     added_characters: int,
     user_id: str = Depends(get_current_user_id)
@@ -294,6 +300,7 @@ async def update_tree_growth(
 # =====================================
 
 @app.post("/api/tree/fruits", response_model=FruitInfo)
+@require_basic_access()
 async def generate_fruit(
     request: Dict[str, Any],
     user_id: str = Depends(get_current_user_id)
@@ -350,6 +357,7 @@ async def generate_fruit(
 
 
 @app.get("/api/tree/fruits", response_model=FruitsListResponse)
+@require_basic_access()
 async def get_fruits_list(
     request: FruitsListRequest = Depends(),
     user_id: str = Depends(get_current_user_id)
@@ -393,6 +401,7 @@ async def get_fruits_list(
 
 
 @app.get("/api/tree/fruits/{fruit_id}", response_model=FruitInfo)
+@require_basic_access()
 async def get_fruit_detail(
     fruit_id: str,
     user_id: str = Depends(get_current_user_id)

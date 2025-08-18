@@ -15,7 +15,8 @@ from homebiyori_common import get_logger
 from homebiyori_common.utils.datetime_utils import get_current_jst, to_jst_string
 from homebiyori_common.exceptions import DatabaseError
 
-from ..models.stripe_models import StripeSubscription, SubscriptionStatus, PlanType
+from ..models.stripe_models import StripeSubscription, SubscriptionStatus
+from homebiyori_common.models import SubscriptionPlan
 from ..database import WebhookServiceDatabase
 
 logger = get_logger(__name__)
@@ -193,7 +194,7 @@ class SubscriptionSyncService:
             # サブスクリプションを削除状態に更新（完全削除はしない）
             update_data = {
                 "status": SubscriptionStatus.CANCELED.value,
-                "plan_type": PlanType.FREE.value,  # フリープランに戻す
+                "plan_type": SubscriptionPlan.TRIAL.value,  # トライアルプランに戻す
                 "canceled_at": subscription.canceled_at or int(current_time.timestamp()),
                 "cancel_at": subscription.cancel_at,
                 "synced_at": to_jst_string(current_time),
@@ -204,7 +205,7 @@ class SubscriptionSyncService:
             await self.db.update_subscription(user_id, update_data)
             
             # ユーザープロフィールをフリープランに戻す
-            await self._update_user_plan_status(user_id, PlanType.FREE, SubscriptionStatus.CANCELED)
+            await self._update_user_plan_status(user_id, SubscriptionPlan.TRIAL, SubscriptionStatus.CANCELED)
             
             logger.info("Subscription deleted successfully", extra={
                 "user_id": user_id,
@@ -216,7 +217,7 @@ class SubscriptionSyncService:
                 "status": "success",
                 "action": "deleted",
                 "subscription_id": subscription.id,
-                "reverted_to_plan": PlanType.FREE.value
+                "reverted_to_plan": SubscriptionPlan.TRIAL.value
             }
             
         except Exception as e:
@@ -276,7 +277,7 @@ class SubscriptionSyncService:
     async def _update_user_plan_status(
         self,
         user_id: str,
-        plan_type: PlanType,
+        plan_type: SubscriptionPlan,
         status: SubscriptionStatus
     ) -> None:
         """

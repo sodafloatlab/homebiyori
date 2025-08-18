@@ -21,40 +21,19 @@ JST時刻統一、DynamoDB効率的保存を提供。
 
 from datetime import datetime, timezone, timedelta
 from typing import Dict, List, Literal, Optional, Union, Any
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator, ConfigDict
 import uuid
 
-# 共通Layerから日時処理をインポート
+# 共通Layerから日時処理とenum定義をインポート
 from homebiyori_common.utils.datetime_utils import get_current_jst, to_jst_string
-from enum import Enum
-
-# 共通Layerから使用するため削除（homebiyori_common.utils.datetime_utils を使用）
-
-# =====================================
-# サブスクリプション関連型定義
-# =====================================
-
-class SubscriptionPlan(str, Enum):
-    """サブスクリプションプラン"""
-    FREE = "free"                # 無料プラン（30日保持）
-    MONTHLY = "monthly"          # 月額プレミアム（180日保持）
-    # YEARLY = "yearly"          # 将来的に年額プラン追加予定
-
-class SubscriptionStatus(str, Enum):
-    """サブスクリプション状態"""
-    ACTIVE = "active"            # アクティブ
-    CANCELED = "canceled"        # キャンセル済み
-    PAST_DUE = "past_due"       # 支払い遅延
-    UNPAID = "unpaid"           # 未払い
-    INCOMPLETE = "incomplete"    # 不完全（初回支払い失敗等）
-    TRIALING = "trialing"       # トライアル期間
-
-class PaymentStatus(str, Enum):
-    """支払い状態"""
-    SUCCEEDED = "succeeded"      # 成功
-    FAILED = "failed"           # 失敗
-    PENDING = "pending"         # 保留中
-    CANCELED = "canceled"       # キャンセル
+from homebiyori_common.models import SubscriptionStatus, SubscriptionPlan, PaymentStatus
+from homebiyori_common.utils.subscription_utils import (
+    is_premium_plan, is_paid_plan, is_active_subscription, 
+    get_unified_ttl_days, get_plan_price, get_stripe_price_id
+)
+from homebiyori_common.exceptions import (
+    BillingServiceError, StripeAPIError, PaymentFailedError, SubscriptionNotFoundError
+)
 
 # =====================================
 # リクエスト・レスポンスモデル
@@ -64,7 +43,7 @@ class CreateSubscriptionRequest(BaseModel):
     """サブスクリプション作成リクエスト"""
     plan: SubscriptionPlan = Field(..., description="サブスクリプションプラン")
     payment_method_id: Optional[str] = Field(None, description="Stripe支払い方法ID")
-    coupon_code: Optional[str] = Field(None, description="クーポンコード")
+    # coupon_code削除: Stripe側制御のため不要
 
 class CreateSubscriptionResponse(BaseModel):
     """サブスクリプション作成レスポンス"""
@@ -73,10 +52,9 @@ class CreateSubscriptionResponse(BaseModel):
     status: SubscriptionStatus = Field(description="サブスクリプション状態")
     current_period_end: datetime = Field(description="現在の課金期間終了日（JST）")
     
-    class Config:
-        json_encoders = {
-            datetime: to_jst_string
-        }
+    model_config = ConfigDict(
+        json_encoders={datetime: to_jst_string}
+    )
 
 class CancelSubscriptionRequest(BaseModel):
     """サブスクリプションキャンセルリクエスト"""
@@ -106,7 +84,7 @@ class UserSubscription(BaseModel):
     
     # プラン情報
     current_plan: SubscriptionPlan = Field(
-        default=SubscriptionPlan.FREE, 
+        default=SubscriptionPlan.TRIAL, 
         description="現在のプラン"
     )
     status: SubscriptionStatus = Field(
@@ -132,10 +110,20 @@ class UserSubscription(BaseModel):
         description="キャンセル日時（JST）"
     )
     
-    # TTL設定
+    # 新戦略：トライアル期間管理
+    trial_start_date: Optional[datetime] = Field(
+        None, 
+        description="トライアル開始日（JST）"
+    )
+    trial_end_date: Optional[datetime] = Field(
+        None, 
+        description="トライアル終了日（JST）"
+    )
+    
+    # TTL設定（新戦略では統一）
     ttl_days: int = Field(
-        default=30, 
-        description="データ保持期間（日数）"
+        default=180, 
+        description="データ保持期間（日数）：全プラン統一"
     )
     
     # メタデータ
@@ -148,10 +136,9 @@ class UserSubscription(BaseModel):
         description="更新日時（JST）"
     )
     
-    class Config:
-        json_encoders = {
-            datetime: to_jst_string
-        }
+    model_config = ConfigDict(
+        json_encoders={datetime: to_jst_string}
+    )
 
 class PaymentHistory(BaseModel):
     """支払い履歴"""
@@ -182,10 +169,9 @@ class PaymentHistory(BaseModel):
     paid_at: Optional[datetime] = Field(None, description="支払い完了日時（JST）")
     created_at: datetime = Field(default_factory=get_current_jst, description="作成日時（JST）")
     
-    class Config:
-        json_encoders = {
-            datetime: to_jst_string
-        }
+    model_config = ConfigDict(
+        json_encoders={datetime: to_jst_string}
+    )
 
 class BillingPortalRequest(BaseModel):
     """課金ポータルセッション作成リクエスト"""
@@ -226,58 +212,19 @@ class SubscriptionAnalytics(BaseModel):
         description="分析実行時刻（JST）"
     )
     
-    class Config:
-        json_encoders = {
-            datetime: to_jst_string
-        }
+    model_config = ConfigDict(
+        json_encoders={datetime: to_jst_string}
+    )
 
-# =====================================
-# エラーハンドリング
-# =====================================
-
-class BillingServiceError(Exception):
-    """課金サービス基底例外"""
-    def __init__(self, message: str, error_code: str = "BILLING_ERROR"):
-        self.message = message
-        self.error_code = error_code
-        super().__init__(self.message)
-
-class StripeAPIError(BillingServiceError):
-    """Stripe API エラー"""
-    def __init__(self, message: str, stripe_error_code: Optional[str] = None):
-        self.stripe_error_code = stripe_error_code
-        super().__init__(message, "STRIPE_API_ERROR")
-
-class PaymentFailedError(BillingServiceError):
-    """支払い失敗エラー"""
-    def __init__(self, message: str):
-        super().__init__(message, "PAYMENT_FAILED")
-
-class SubscriptionNotFoundError(BillingServiceError):
-    """サブスクリプション未発見エラー"""
-    def __init__(self, message: str):
-        super().__init__(message, "SUBSCRIPTION_NOT_FOUND")
+# エラーハンドリングクラスは homebiyori_common.exceptions からインポート
+# 統一定義により重複削除（Issue #15 サービス間記載統一）
 
 # =====================================
 # コンスタント定義
 # =====================================
 
-# プラン設定
-PLAN_CONFIGS = {
-    SubscriptionPlan.FREE: {
-        "name": "フリープラン",
-        "price": 0,
-        "ttl_days": 30,
-        "description": "30日保存、基本機能利用可能"
-    },
-    SubscriptionPlan.MONTHLY: {
-        "name": "プレミアムプラン（月額）",
-        "price": 980,  # 円
-        "ttl_days": 180,
-        "stripe_price_id": "price_1PremiumMonthly",  # 実際のStripe価格IDに置換
-        "description": "180日保存、全機能利用可能"
-    }
-}
+# プラン設定は homebiyori_common.utils.subscription_utils.get_plan_price() を使用
+# 重複定義を削除（Issue #15 統一対応）
 
 # Stripe設定
 STRIPE_CONFIG = {
@@ -287,37 +234,5 @@ STRIPE_CONFIG = {
     "collection_method": "charge_automatically"
 }
 
-# TTL計算関数
-def calculate_ttl_for_plan(plan: SubscriptionPlan) -> int:
-    """プランに基づくTTL日数を計算"""
-    config = PLAN_CONFIGS.get(plan, PLAN_CONFIGS[SubscriptionPlan.FREE])
-    return config["ttl_days"]
-
-def get_plan_price(plan: SubscriptionPlan) -> int:
-    """プランの価格を取得（円）"""
-    config = PLAN_CONFIGS.get(plan, PLAN_CONFIGS[SubscriptionPlan.FREE])
-    return config["price"]
-
-def get_stripe_price_id(plan: SubscriptionPlan) -> Optional[str]:
-    """StripeのPrice IDを取得"""
-    config = PLAN_CONFIGS.get(plan)
-    return config.get("stripe_price_id") if config else None
-
-# サブスクリプション状態判定
-def is_active_subscription(subscription: UserSubscription) -> bool:
-    """サブスクリプションがアクティブかどうか判定"""
-    if subscription.current_plan == SubscriptionPlan.FREE:
-        return True
-    
-    return (
-        subscription.status == SubscriptionStatus.ACTIVE and
-        subscription.current_period_end and
-        subscription.current_period_end > get_current_jst()
-    )
-
-def should_apply_premium_benefits(subscription: UserSubscription) -> bool:
-    """プレミアム特典を適用すべきかどうか判定"""
-    return (
-        subscription.current_plan == SubscriptionPlan.MONTHLY and
-        is_active_subscription(subscription)
-    )
+# 統一ロジック関数は homebiyori_common.utils.subscription_utils からインポート
+# Issue #15 リファクタリング完了

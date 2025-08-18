@@ -70,14 +70,20 @@ class HomebiyoriAIChain:
             
             config = get_llm_config(user_tier)
             
+            # Amazon Nova Lite vs Anthropic Claude用の設定分岐
+            model_kwargs = {
+                "max_tokens": config["max_tokens"],
+                "temperature": config["temperature"]
+            }
+            
+            # Anthropic Claudeモデルの場合のみanthropic_versionを追加
+            if "anthropic_version" in config:
+                model_kwargs["anthropic_version"] = config["anthropic_version"]
+            
             self.llm_cache[user_tier] = ChatBedrock(
                 model_id=config["model_id"],
                 region_name=config["region_name"],
-                model_kwargs={
-                    "max_tokens": config["max_tokens"],
-                    "temperature": config["temperature"],
-                    "anthropic_version": config["anthropic_version"]
-                }
+                model_kwargs=model_kwargs
             )
             
             logger.info(
@@ -85,7 +91,8 @@ class HomebiyoriAIChain:
                 extra={
                     "user_tier": user_tier,
                     "model_id": config["model_id"],
-                    "max_tokens": config["max_tokens"]
+                    "max_tokens": config["max_tokens"],
+                    "is_anthropic": "anthropic_version" in config
                 }
             )
         

@@ -109,14 +109,20 @@ class HomebiyoriConversationMemory:
         # 要約用は無料プランのモデルを使用（コスト最適化）
         summary_config = get_llm_config("free")
         
+        # Amazon Nova Lite vs Anthropic Claude用の設定分岐
+        model_kwargs = {
+            "max_tokens": 150,  # 要約用のため短め
+            "temperature": 0.3  # 要約精度重視
+        }
+        
+        # Anthropic Claudeモデルの場合のみanthropic_versionを追加
+        if "anthropic_version" in summary_config:
+            model_kwargs["anthropic_version"] = summary_config["anthropic_version"]
+        
         self.llm = ChatBedrock(
             model_id=summary_config["model_id"],
             region_name=summary_config["region_name"],
-            model_kwargs={
-                "max_tokens": 150,  # 要約用のため短め
-                "temperature": 0.3,  # 要約精度重視
-                "anthropic_version": summary_config["anthropic_version"]
-            }
+            model_kwargs=model_kwargs
         )
         
         # DynamoDB ChatMessageHistory初期化

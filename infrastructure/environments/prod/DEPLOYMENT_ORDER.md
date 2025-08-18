@@ -9,6 +9,7 @@ This document outlines the correct deployment order and dependency management fo
 1. **datastore** - Foundation layer (DynamoDB, S3, SQS)
 2. **backend** - Application layer (Lambda, API Gateway, Cognito)  
 3. **frontend** - Presentation layer (CloudFront, WAF)
+4. **audit** - Security audit layer (CloudTrail, S3 audit logs) - **Optional but recommended**
 
 ## Remote State Dependencies
 
@@ -29,6 +30,13 @@ This document outlines the correct deployment order and dependency management fo
   - S3 bucket names for CloudFront origins
 - References backend remote state for:
   - API Gateway URL for CloudFront behaviors
+
+### audit → datastore + backend (optional references)
+- References datastore remote state for:
+  - DynamoDB table ARNs for audit targeting
+- References backend remote state for:
+  - Lambda function ARNs for audit targeting
+- **Independent deployment**: Can be deployed separately without affecting other layers
 
 ## Circular Dependency Considerations
 
@@ -59,7 +67,8 @@ All environments use consistent S3 backend configuration:
 prod-homebiyori-terraform-state/
 ├── datastore/terraform.tfstate    # Foundation layer
 ├── backend/terraform.tfstate      # Application layer  
-└── frontend/terraform.tfstate     # Presentation layer
+├── frontend/terraform.tfstate     # Presentation layer
+└── audit/terraform.tfstate        # Security audit layer (optional)
 ```
 ```
 
@@ -79,6 +88,7 @@ Run these commands to verify all configurations are valid:
 cd infrastructure/environments/prod/datastore && terraform validate
 cd ../backend && terraform validate  
 cd ../frontend && terraform validate
+cd ../audit && terraform validate
 
 ## Lambda Layer Package Structure
 

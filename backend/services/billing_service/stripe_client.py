@@ -89,34 +89,37 @@ class StripeClient:
     
     def __init__(self, api_key: Optional[str] = None, webhook_secret: Optional[str] = None):
         """
-        Stripeクライアント初期化
+        Stripeクライアント初期化（新戦略対応）
         
         Args:
             api_key: Stripe APIキー（Parameter Storeから取得）
             webhook_secret: Webhook署名検証用シークレット
         """
-        # Parameter Store からStripe APIキー取得
-        stripe_api_key_param = os.getenv("STRIPE_API_KEY_PARAMETER")
-        if not api_key and stripe_api_key_param:
+        # Parameter Store からStripe APIキー取得（新戦略）
+        if not api_key:
             try:
-                stripe.api_key = get_parameter_store_value(stripe_api_key_param)
+                from homebiyori_common.utils.parameter_store import get_parameter
+                stripe.api_key = get_parameter(
+                    "/prod/homebiyori/stripe/api_key",
+                    default_value=os.getenv("STRIPE_SECRET_KEY")
+                )
             except Exception as e:
                 logger.error(f"Stripe APIキーのParameter Store取得失敗: {str(e)}")
-                raise ValueError(f"Failed to retrieve Stripe API key from Parameter Store: {str(e)}")
+                # フォールバック: 環境変数から取得
+                stripe.api_key = os.getenv("STRIPE_SECRET_KEY")
         else:
-            # フォールバック: 環境変数から取得
-            stripe.api_key = api_key or os.getenv("STRIPE_SECRET_KEY")
+            stripe.api_key = api_key
         
-        # Webhook secretの設定（必要に応じて）
+        # Webhook secretの設定（新戦略）
         if not webhook_secret:
-            webhook_secret_param = os.getenv("STRIPE_WEBHOOK_SECRET_PARAMETER")
-            if webhook_secret_param:
-                try:
-                    self.webhook_secret = get_parameter_store_value(webhook_secret_param)
-                except Exception as e:
-                    logger.warning(f"Stripe Webhook SecretのParameter Store取得失敗: {str(e)}")
-                    self.webhook_secret = os.getenv("STRIPE_WEBHOOK_SECRET")
-            else:
+            try:
+                from homebiyori_common.utils.parameter_store import get_parameter
+                self.webhook_secret = get_parameter(
+                    "/prod/homebiyori/stripe/webhook_secret",
+                    default_value=os.getenv("STRIPE_WEBHOOK_SECRET")
+                )
+            except Exception as e:
+                logger.warning(f"Stripe Webhook SecretのParameter Store取得失敗: {str(e)}")
                 self.webhook_secret = os.getenv("STRIPE_WEBHOOK_SECRET")
         else:
             self.webhook_secret = webhook_secret
@@ -301,7 +304,7 @@ class StripeClient:
             UserSubscription: 更新されたサブスクリプション情報（変更がない場合はNone）
         """
         try:
-            if not subscription.subscription_id or subscription.subscription_id == "free_plan":
+            if not subscription.subscription_id or subscription.subscription_id == "trial_plan":
                 return None
             
             # Stripeから最新状態を取得
@@ -405,6 +408,98 @@ class StripeClient:
         except stripe.error.StripeError as e:
             self.logger.error(f"課金ポータルセッション作成エラー: customer_id={customer_id}, error={e}")
             raise StripeAPIError(f"課金ポータルセッションの作成に失敗しました: {e.user_message}")
+
+    
+    async def create_checkout_session(
+        self,
+        customer_id: str,
+        price_id: str,
+        success_url: str,
+        cancel_url: str,
+        promotion_codes: Optional[List[str]] = None
+    ) -> Dict[str, Any]:
+        """
+        Stripeチェックアウトセッション作成（新戦略）
+        
+        ■機能概要■
+        - プラン選択後の決済画面作成
+        - プロモーションコード自動適用（初回300円等）
+        - 成功・キャンセル時のリダイレクト設定
+        
+        Args:
+            customer_id: Stripe Customer ID
+            price_id: Stripe Price ID
+            success_url: 成功時リダイレクトURL
+            cancel_url: キャンセル時リダイレクトURL
+            promotion_codes: 適用するプロモーションコード一覧
+            
+        Returns:
+            Dict: チェックアウトセッション情報
+        """
+        try:
+            session_data = {
+                "customer": customer_id,
+                "payment_method_types": ["card"],
+                "line_items": [{
+                    "price": price_id,
+                    "quantity": 1
+                }],
+                "mode": "subscription",
+                "success_url": success_url,
+                "cancel_url": cancel_url,
+                "payment_method_collection": "if_required",
+                "subscription_data": {
+                    "metadata": {
+                        "user_id": customer_id,
+                        "created_via": "checkout_session"
+                    }
+                },
+                "allow_promotion_codes": True,
+                "billing_address_collection": "auto",
+                "locale": "ja"
+            }
+            
+            # プロモーションコード自動適用
+            if promotion_codes:
+                session_data["discounts"] = [
+                    {"promotion_code": code} for code in promotion_codes
+                ]
+            
+            session = await self._stripe_request(
+                stripe.checkout.Session.create,
+                **session_data
+            )
+            
+            self.logger.info(f"チェックアウトセッション作成完了: customer_id={customer_id}, session_id={session.id}")
+            return session
+            
+        except stripe.error.StripeError as e:
+            self.logger.error(f"チェックアウトセッション作成エラー: customer_id={customer_id}, error={e}")
+            raise StripeAPIError(f"チェックアウトセッションの作成に失敗しました: {e.user_message}")
+    
+    async def retrieve_checkout_session(self, session_id: str) -> Dict[str, Any]:
+        """
+        チェックアウトセッション詳細取得
+        
+        Args:
+            session_id: チェックアウトセッションID
+            
+        Returns:
+            Dict: セッション詳細情報
+        """
+        try:
+            session = await self._stripe_request(
+                stripe.checkout.Session.retrieve,
+                session_id,
+                expand=["subscription", "customer"]
+            )
+            
+            self.logger.info(f"チェックアウトセッション取得完了: session_id={session_id}")
+            return session
+            
+        except stripe.error.StripeError as e:
+            self.logger.error(f"チェックアウトセッション取得エラー: session_id={session_id}, error={e}")
+            raise StripeAPIError(f"チェックアウトセッションの取得に失敗しました: {e.user_message}")
     
     # =====================================
     # Webhook処理

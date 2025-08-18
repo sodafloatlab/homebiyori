@@ -69,7 +69,47 @@ class TreeTheme(str, Enum):
 
 
 # =====================================
+# サブスクリプション・課金関連
+# =====================================
+
+class SubscriptionStatus(str, Enum):
+    """
+    サブスクリプション状態（統一定義）
+    
+    Issue #15 新戦略対応：
+    billing_service と webhook_service の重複定義を統一
+    """
+    ACTIVE = "active"            # アクティブ
+    CANCELED = "canceled"        # キャンセル済み
+    PAST_DUE = "past_due"       # 支払い遅延
+    UNPAID = "unpaid"           # 未払い
+    INCOMPLETE = "incomplete"    # 不完全（初回支払い失敗等）
+    TRIALING = "trialing"       # トライアル期間
+    EXPIRED = "expired"         # 期限切れ（新戦略）
+
+
+class SubscriptionPlan(str, Enum):
+    """
+    サブスクリプションプラン（統一定義）
+    
+    Issue #15 新戦略対応：
+    全ユーザー統一体験、月額・年額データレベル区別のみ
+    """
+    TRIAL = "trial"              # 1週間無料トライアル
+    MONTHLY = "monthly"          # 月額プラン（580円）
+    YEARLY = "yearly"            # 年額プラン（5800円）
+
+
+class PaymentStatus(str, Enum):
+    """支払い状態（統一定義）"""
+    SUCCEEDED = "succeeded"      # 成功
+    FAILED = "failed"           # 失敗
+    PENDING = "pending"         # 保留中
+    CANCELED = "canceled"       # キャンセル
+
+
+# =====================================
 # 型エイリアス
 # =====================================
 
-TreeStage = Literal[0, 1, 2, 3, 4, 5]
+TreeStage = Literal[0, 1, 2, 3, 4, 5, 6]

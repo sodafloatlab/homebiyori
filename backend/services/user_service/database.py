@@ -41,7 +41,7 @@ homebiyori-common-layer から以下機能を活用:
 - Lambda Layers対応: 2024-08-03 (homebiyori-common-layer統合)
 """
 
-from typing import Optional
+from typing import Optional, Dict, Any
 import os
 
 # Lambda Layers からの共通機能インポート

@@ -85,75 +85,9 @@ resource "aws_ssm_parameter" "app_version" {
 
 # 機能フラグは削除 - 運用時に必要に応じて手動追加
 
-# AI設定 - 無料ユーザー向けLLM設定（Amazon Nova Lite）
-# 無料プランユーザーのチャット機能で使用するLLMモデル設定
-resource "aws_ssm_parameter" "ai_free_user_model_id" {
-  name        = "/${var.environment}/homebiyori/llm/free-user/model-id"
-  description = "LLM model ID for free tier users - Amazon Nova Lite (cost-optimized)"
-  type        = "String"
-  value       = "amazon.nova-lite-v1:0"  # 2025年時点の最新Nova Liteモデル
-  
-  # 運用時のモデルバージョン切り替えに備えて値変更を許可
-  # Tags are automatically applied via provider default_tags
-}
-
-# 無料ユーザー向け出力トークン制限
-# 用途: コスト制御と適切な応答長バランス
-# 換算: 100トークン = 約150-200日本語文字（1トークン≈1.5-2文字）
-# 目標応答長: 50-150文字（無料プランの制限内）
-resource "aws_ssm_parameter" "ai_free_user_max_tokens" {
-  name        = "/${var.environment}/homebiyori/llm/free-user/max-tokens"
-  description = "Max output tokens for free users - cost control (100 tokens = ~150-200 JP chars)"
-  type        = "String"
-  value       = "100"
-  
-  # 運用時のコスト調整・応答品質バランスに備えて動的変更を許可
-  # Tags are automatically applied via provider default_tags
-}
-
-resource "aws_ssm_parameter" "ai_free_user_temperature" {
-  name        = "/${var.environment}/homebiyori/llm/free-user/temperature"
-  description = "Temperature setting for free tier users"
-  type        = "String"
-  value       = "0.7"
-  
-  # Tags are automatically applied via provider default_tags
-}
-
-# AI設定 - プレミアムユーザー向けLLM設定（Claude 3.5 Haiku）
-# プレミアムプランユーザーのチャット機能で使用する高品質LLMモデル設定
-resource "aws_ssm_parameter" "ai_premium_user_model_id" {
-  name        = "/${var.environment}/homebiyori/llm/premium-user/model-id"
-  description = "LLM model ID for premium users - Claude 3.5 Haiku (high-quality)"
-  type        = "String"
-  value       = "anthropic.claude-3-5-haiku-20241022-v1:0"  # 2024年10月時点の最新Claude 3.5 Haiku
-  
-  # プレミアム体験向上のため、より高性能モデルへの切り替えに備える
-  # Tags are automatically applied via provider default_tags
-}
-
-# プレミアムユーザー向け出力トークン制限
-# 用途: 高品質で詳細な応答提供（プレミアム価値創出）
-# 換算: 250トークン = 約375-500日本語文字（1トークン≈1.5-2文字）
-# 目標応答長: 200-400文字（プレミアムプランの豊富な応答）
-resource "aws_ssm_parameter" "ai_premium_user_max_tokens" {
-  name        = "/${var.environment}/homebiyori/llm/premium-user/max-tokens"
-  description = "Max output tokens for premium users - quality focus (250 tokens = ~375-500 JP chars)"
-  type        = "String"
-  value       = "250"
-  
-  # プレミアム体験最適化のため応答品質調整を動的変更で対応
-  # Tags are automatically applied via provider default_tags
-}
-
-resource "aws_ssm_parameter" "ai_premium_user_temperature" {
-  name        = "/${var.environment}/homebiyori/llm/premium-user/temperature"
-  description = "Temperature setting for premium tier users"
-  type        = "String"
-  value       = "0.7"
-  
-  # Tags are automatically applied via provider default_tags
-}
+# ========================================
+# AI設定（新戦略：全ユーザー統一）
+# ========================================
 
 # Tree growth thresholds
 resource "aws_ssm_parameter" "tree_growth_thresholds" {
@@ -172,3 +106,148 @@ resource "aws_ssm_parameter" "tree_growth_thresholds" {
 }
 
 # レート制限設定は削除 - アプリケーションレベルで固定値を使用
+
+# ========================================
+# 新戦略パラメータ（1週間トライアル→有料化）
+# ========================================
+
+# チャット保持期間（全ユーザー統一）
+resource "aws_ssm_parameter" "chat_retention_days" {
+  name        = "/${var.environment}/homebiyori/chat/retention_days"
+  description = "Chat message retention period in days (unified for all users)"
+  type        = "String"
+  value       = "180"
+  
+  # 運用時のポリシー調整に備えて動的変更を許可
+  # Tags are automatically applied via provider default_tags
+}
+
+# トライアル期間設定
+resource "aws_ssm_parameter" "trial_duration_days" {
+  name        = "/${var.environment}/homebiyori/trial/duration_days"
+  description = "Trial period duration in days"
+  type        = "String"
+  value       = "7"
+  
+  # 運用時のマーケティング戦略調整に備えて動的変更を許可
+  # Tags are automatically applied via provider default_tags
+}
+
+# 全ユーザー共通LLM設定
+resource "aws_ssm_parameter" "ai_unified_model_id" {
+  name        = "/${var.environment}/homebiyori/llm/unified/model-id"
+  description = "Unified LLM model ID for all users - Amazon Nova Lite"
+  type        = "String"
+  value       = "amazon.nova-lite-v1:0"
+  
+  # 全ユーザー統一体験のためのモデル選択
+  # Tags are automatically applied via provider default_tags
+}
+
+# 全ユーザー共通出力トークン設定
+resource "aws_ssm_parameter" "ai_unified_max_tokens" {
+  name        = "/${var.environment}/homebiyori/llm/unified/max-tokens"
+  description = "Unified max output tokens for all users (250 tokens = ~375-500 JP chars)"
+  type        = "String"
+  value       = "250"
+  
+  # 統一品質体験のための設定
+  # Tags are automatically applied via provider default_tags
+}
+
+# 全ユーザー共通温度設定
+resource "aws_ssm_parameter" "ai_unified_temperature" {
+  name        = "/${var.environment}/homebiyori/llm/unified/temperature"
+  description = "Unified temperature setting for all users"
+  type        = "String"
+  value       = "0.7"
+  
+  # Tags are automatically applied via provider default_tags
+}
+
+# ========================================
+# Stripe統合設定（新戦略）
+# ========================================
+
+# Stripe API設定
+resource "aws_ssm_parameter" "stripe_api_key" {
+  name        = "/${var.environment}/homebiyori/stripe/api_key"
+  description = "Stripe Secret API Key - managed via AWS Console/CLI"
+  type        = "SecureString"
+  value       = "placeholder_value_set_manually"
+  
+  # 手動設定方針：セキュリティ重要パラメータはTerraform管理外
+  lifecycle {
+    ignore_changes = [value]
+  }
+  
+  # Tags are automatically applied via provider default_tags
+}
+
+resource "aws_ssm_parameter" "stripe_webhook_secret" {
+  name        = "/${var.environment}/homebiyori/stripe/webhook_secret"
+  description = "Stripe Webhook Endpoint Secret - managed via AWS Console/CLI"
+  type        = "SecureString"
+  value       = "placeholder_value_set_manually"
+  
+  # 手動設定方針：セキュリティ重要パラメータはTerraform管理外
+  lifecycle {
+    ignore_changes = [value]
+  }
+  
+  # Tags are automatically applied via provider default_tags
+}
+
+# Stripe価格ID設定（新戦略）
+resource "aws_ssm_parameter" "stripe_monthly_price_id" {
+  name        = "/${var.environment}/homebiyori/stripe/monthly_price_id"
+  description = "Stripe Price ID for monthly plan (580 JPY)"
+  type        = "String"
+  value       = "price_monthly_580jpy_placeholder"
+  
+  # 運用時にStripe Dashboard確認後に実際のPrice IDに更新
+  lifecycle {
+    ignore_changes = [value]
+  }
+  
+  # Tags are automatically applied via provider default_tags
+}
+
+resource "aws_ssm_parameter" "stripe_yearly_price_id" {
+  name        = "/${var.environment}/homebiyori/stripe/yearly_price_id"
+  description = "Stripe Price ID for yearly plan (5800 JPY)"
+  type        = "String"
+  value       = "price_yearly_5800jpy_placeholder"
+  
+  # 運用時にStripe Dashboard確認後に実際のPrice IDに更新
+  lifecycle {
+    ignore_changes = [value]
+  }
+  
+  # Tags are automatically applied via provider default_tags
+}
+
+# プロモーションコード設定
+resource "aws_ssm_parameter" "stripe_first_month_promo_code" {
+  name        = "/${var.environment}/homebiyori/stripe/first_month_promo_code"
+  description = "Stripe Promotion Code for first month 300 JPY discount"
+  type        = "String"
+  value       = "promo_first_month_300yen_placeholder"
+  
+  # 運用時にStripe Dashboard確認後に実際のPromotion Codeに更新
+  lifecycle {
+    ignore_changes = [value]
+  }
+  
+  # Tags are automatically applied via provider default_tags
+}
+
+# Stripe設定フラグ
+resource "aws_ssm_parameter" "stripe_test_mode" {
+  name        = "/${var.environment}/homebiyori/stripe/test_mode"
+  description = "Stripe test mode flag (true for development, false for production)"
+  type        = "String"
+  value       = var.environment == "prod" ? "false" : "true"
+  
+  # Tags are automatically applied via provider default_tags
+}

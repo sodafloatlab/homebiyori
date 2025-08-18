@@ -47,7 +47,7 @@ from .models import (
     SubscriptionPlan,
     SubscriptionStatus,
     PaymentStatus,
-    calculate_ttl_for_plan,
+    get_unified_ttl_days,
     is_active_subscription
 )
 
@@ -108,7 +108,7 @@ class BillingDatabase:
                     user_id=item["user_id"],
                     subscription_id=item.get("subscription_id"),
                     customer_id=item.get("customer_id"),
-                    current_plan=SubscriptionPlan(item.get("current_plan", "free")),
+                    current_plan=SubscriptionPlan(item.get("current_plan", "trial")),
                     status=SubscriptionStatus(item.get("status", "active")),
                     current_period_start=self._parse_jst_datetime(item.get("current_period_start")),
                     current_period_end=self._parse_jst_datetime(item.get("current_period_end")),
@@ -440,21 +440,33 @@ class BillingDatabase:
     # ヘルスチェック
     # =====================================
     
-    async def health_check(self) -> bool:
+    async def health_check(self) -> Dict[str, Any]:
         """
-        データベース接続ヘルスチェック
+        データベース接続ヘルスチェック（統一戻り値型）
         
         Returns:
-            bool: 接続が正常かどうか
+            Dict[str, Any]: ヘルスチェック結果
         """
         try:
             # テーブル存在確認（coreテーブル）
             await self.core_client.describe_table()
-            return True
+            
+            self.logger.info("課金サービス ヘルスチェック成功")
+            return {
+                "status": "healthy",
+                "service": "billing_service",
+                "database": "connected",
+                "core_table": "available"
+            }
             
         except Exception as e:
-            self.logger.error(f"ヘルスチェック失敗: {e}")
-            return False
+            self.logger.error(f"課金サービス ヘルスチェック失敗: {e}")
+            return {
+                "status": "unhealthy",
+                "service": "billing_service", 
+                "database": "error",
+                "error": str(e)
+            }
     
     # =====================================
     # ユーティリティメソッド
@@ -484,6 +496,201 @@ class BillingDatabase:
         except Exception as e:
             self.logger.warning(f"日時パースエラー: datetime_str={datetime_str}, error={e}")
             return None
+
+    # =====================================
+    # トライアル期間管理（新戦略）
+    # =====================================
+    
+    async def check_trial_status(self, user_id: str) -> Dict[str, Any]:
+        """
+        ユーザーのトライアル状態をチェック
+        
+        Args:
+            user_id: ユーザーID
+            
+        Returns:
+            Dict: トライアル状態情報
+                - is_trial_active: トライアル有効フラグ
+                - trial_start_date: トライアル開始日
+                - trial_end_date: トライアル終了日
+                - days_remaining: 残り日数
+                - needs_expiration: 期限切れ処理が必要か
+        """
+        try:
+            subscription = await self.get_user_subscription(user_id)
+            
+            if not subscription:
+                return {
+                    "is_trial_active": False,
+                    "trial_start_date": None,
+                    "trial_end_date": None,
+                    "days_remaining": 0,
+                    "needs_expiration": False
+                }
+            
+            # トライアルプランかチェック
+            if subscription.current_plan != SubscriptionPlan.TRIAL:
+                return {
+                    "is_trial_active": False,
+                    "trial_start_date": None,
+                    "trial_end_date": None,
+                    "days_remaining": 0,
+                    "needs_expiration": False
+                }
+            
+            # トライアル期間計算
+            from homebiyori_common.utils.parameter_store import get_parameter
+            trial_duration_days = int(get_parameter(
+                "/prod/homebiyori/trial/duration_days", 
+                default_value="7"
+            ))
+            
+            current_time = get_current_jst()
+            trial_start = subscription.current_period_start or subscription.created_at
+            trial_end = trial_start + timedelta(days=trial_duration_days)
+            
+            is_trial_active = current_time < trial_end
+            days_remaining = max(0, (trial_end - current_time).days)
+            needs_expiration = current_time >= trial_end and subscription.status == SubscriptionStatus.ACTIVE
+            
+            self.logger.debug(
+                "Trial status checked",
+                extra={
+                    "user_id": user_id[:8] + "****",
+                    "is_trial_active": is_trial_active,
+                    "days_remaining": days_remaining,
+                    "needs_expiration": needs_expiration
+                }
+            )
+            
+            return {
+                "is_trial_active": is_trial_active,
+                "trial_start_date": trial_start.isoformat(),
+                "trial_end_date": trial_end.isoformat(),
+                "days_remaining": days_remaining,
+                "needs_expiration": needs_expiration
+            }
+            
+        except Exception as e:
+            self.logger.error(
+                "Failed to check trial status",
+                extra={"error": str(e), "user_id": user_id[:8] + "****"}
+            )
+            raise DatabaseError(f"Failed to check trial status: {str(e)}")
+    
+    async def expire_trial_subscription(self, user_id: str) -> bool:
+        """
+        トライアル期間終了処理
+        
+        Args:
+            user_id: ユーザーID
+            
+        Returns:
+            bool: 更新成功フラグ
+        """
+        try:
+            subscription = await self.get_user_subscription(user_id)
+            
+            if not subscription or subscription.current_plan != SubscriptionPlan.TRIAL:
+                return False
+            
+            # ステータスをexpiredに変更
+            subscription.status = SubscriptionStatus.EXPIRED
+            subscription.updated_at = get_current_jst()
+            
+            await self.save_user_subscription(subscription)
+            
+            self.logger.info(
+                "Trial subscription expired",
+                extra={"user_id": user_id[:8] + "****"}
+            )
+            
+            return True
+            
+        except Exception as e:
+            self.logger.error(
+                "Failed to expire trial subscription",
+                extra={"error": str(e), "user_id": user_id[:8] + "****"}
+            )
+            return False
+
+    
+    async def check_user_access_allowed(self, user_id: str) -> Dict[str, Any]:
+        """
+        ユーザーのアクセス許可状態をチェック
+        
+        Args:
+            user_id: ユーザーID
+            
+        Returns:
+            Dict: アクセス制御情報
+                - access_allowed: アクセス許可フラグ
+                - access_level: アクセスレベル（full/billing_only/none）
+                - restriction_reason: 制限理由
+                - redirect_url: リダイレクト先URL
+        """
+        try:
+            trial_status = await self.check_trial_status(user_id)
+            subscription = await self.get_user_subscription(user_id)
+            
+            if not subscription:
+                # 未登録ユーザー：新規トライアル作成が必要
+                return {
+                    "access_allowed": True,
+                    "access_level": "full",
+                    "restriction_reason": None,
+                    "redirect_url": None
+                }
+            
+            # 有料プランユーザー（monthly/yearly）：フルアクセス
+            if subscription.current_plan in [SubscriptionPlan.MONTHLY, SubscriptionPlan.YEARLY]:
+                if subscription.status == SubscriptionStatus.ACTIVE:
+                    return {
+                        "access_allowed": True,
+                        "access_level": "full",
+                        "restriction_reason": None,
+                        "redirect_url": None
+                    }
+            
+            # トライアルユーザーの状態チェック
+            if subscription.current_plan == SubscriptionPlan.TRIAL:
+                if trial_status["is_trial_active"]:
+                    # トライアル期間中：フルアクセス
+                    return {
+                        "access_allowed": True,
+                        "access_level": "full",
+                        "restriction_reason": None,
+                        "redirect_url": None
+                    }
+                else:
+                    # トライアル期間終了：課金誘導のみ
+                    return {
+                        "access_allowed": False,
+                        "access_level": "billing_only",
+                        "restriction_reason": "trial_expired",
+                        "redirect_url": "/billing/subscribe"
+                    }
+            
+            # その他の状態（canceled, past_due等）：課金誘導のみ
+            return {
+                "access_allowed": False,
+                "access_level": "billing_only", 
+                "restriction_reason": f"subscription_{subscription.status.value}",
+                "redirect_url": "/billing/subscribe"
+            }
+            
+        except Exception as e:
+            self.logger.error(
+                "Failed to check user access",
+                extra={"error": str(e), "user_id": user_id[:8] + "****"}
+            )
+            # エラー時は安全側に倒してアクセス拒否
+            return {
+                "access_allowed": False,
+                "access_level": "none",
+                "restriction_reason": "system_error",
+                "redirect_url": "/error"
+            }
 
 
 # =====================================

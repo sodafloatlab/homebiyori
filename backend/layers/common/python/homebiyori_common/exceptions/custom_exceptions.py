@@ -252,3 +252,88 @@ class RateLimitError(HomebiyoriError):
             details=error_details,
             user_message="アクセス頻度が高すぎます。しばらくお待ちください"
         )
+
+
+# =====================================
+# サービス固有エラークラス（統一定義）
+# =====================================
+
+class BillingServiceError(HomebiyoriError):
+    """課金サービス基底例外（統一定義）"""
+    
+    def __init__(
+        self,
+        message: str,
+        error_code: str = "BILLING_ERROR",
+        details: Optional[Dict[str, Any]] = None
+    ):
+        super().__init__(
+            message=message,
+            error_code=error_code,
+            http_status=500,
+            details=details,
+            user_message="課金処理でエラーが発生しました"
+        )
+
+
+class StripeAPIError(BillingServiceError):
+    """Stripe API エラー（統一定義）"""
+    
+    def __init__(
+        self,
+        message: str,
+        stripe_error_code: Optional[str] = None,
+        details: Optional[Dict[str, Any]] = None
+    ):
+        error_details = details or {}
+        if stripe_error_code:
+            error_details["stripe_error_code"] = stripe_error_code
+        
+        super().__init__(
+            message=message,
+            error_code="STRIPE_API_ERROR",
+            details=error_details
+        )
+
+
+class PaymentFailedError(BillingServiceError):
+    """支払い失敗エラー（統一定義）"""
+    
+    def __init__(
+        self,
+        message: str,
+        payment_intent_id: Optional[str] = None,
+        details: Optional[Dict[str, Any]] = None
+    ):
+        error_details = details or {}
+        if payment_intent_id:
+            error_details["payment_intent_id"] = payment_intent_id
+        
+        super().__init__(
+            message=message,
+            error_code="PAYMENT_FAILED",
+            details=error_details
+        )
+
+
+class SubscriptionNotFoundError(NotFoundError):
+    """サブスクリプション未発見エラー（統一定義）"""
+    
+    def __init__(
+        self,
+        message: str,
+        user_id: Optional[str] = None,
+        subscription_id: Optional[str] = None,
+        details: Optional[Dict[str, Any]] = None
+    ):
+        error_details = details or {}
+        if user_id:
+            error_details["user_id"] = user_id[:8] + "****"  # プライバシー保護
+        if subscription_id:
+            error_details["subscription_id"] = subscription_id
+        
+        super().__init__(
+            message=message,
+            resource_type="subscription",
+            details=error_details
+        )

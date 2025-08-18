@@ -63,8 +63,11 @@ from homebiyori_common.exceptions import (
     ValidationError,
     DatabaseError,
 )
-from homebiyori_common.utils.middleware import maintenance_check_middleware, get_current_user_id, error_handling_middleware
+from homebiyori_common.middleware import maintenance_check_middleware, get_current_user_id, error_handling_middleware
 from homebiyori_common.utils.datetime_utils import get_current_jst
+
+# アクセス制御ミドルウェア
+from homebiyori_common.middleware import require_basic_access
 
 # ローカルモジュール
 from .models import (
@@ -203,6 +206,7 @@ async def send_deletion_task_to_sqs(user_id: str, deletion_type: str, deletion_r
 
 
 @app.get("/api/user/profile", response_model=UserProfile)
+@require_basic_access()
 async def get_user_profile(user_id: str = Depends(get_current_user_id)):
     """
     現在認証されているユーザーのプロフィール情報取得
@@ -258,6 +262,7 @@ async def get_user_profile(user_id: str = Depends(get_current_user_id)):
 
 
 @app.put("/api/user/profile", response_model=UserProfile)
+@require_basic_access()
 async def update_user_profile(profile_update: UserProfileUpdate, user_id: str = Depends(get_current_user_id)):
     """
     ユーザープロフィール更新
@@ -336,6 +341,7 @@ async def update_user_profile(profile_update: UserProfileUpdate, user_id: str = 
 
 
 @app.put("/api/user/ai-preferences", response_model=AIPreferences)
+@require_basic_access()
 async def update_ai_preferences(ai_preferences: AIPreferences, user_id: str = Depends(get_current_user_id)):
     """
     AI設定（キャラクター・褒めレベル）更新
@@ -540,6 +546,7 @@ async def complete_onboarding(
 
 
 @app.get("/api/user/account-status", response_model=AccountStatus)
+@require_basic_access()
 async def get_account_status(user_id: str = Depends(get_current_user_id)):
     """
     アカウント・サブスクリプション状態取得
@@ -593,6 +600,7 @@ async def get_account_status(user_id: str = Depends(get_current_user_id)):
 
 
 @app.post("/api/user/request-deletion")
+@require_basic_access()
 async def request_account_deletion(
     deletion_request: DeletionRequest, 
     user_id: str = Depends(get_current_user_id)
@@ -662,6 +670,7 @@ async def request_account_deletion(
 
 
 @app.post("/api/user/confirm-deletion")
+@require_basic_access()
 async def confirm_account_deletion(
     confirmation: DeletionConfirmation,
     user_id: str = Depends(get_current_user_id)

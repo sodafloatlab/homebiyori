@@ -260,6 +260,35 @@ class ServiceHTTPClient:
             # エラー時はFalse返却（安全側に倒す）
             return False
 
+    
+    async def check_user_access_control(self, user_id: str) -> dict:
+        """
+        ユーザーのアクセス制御状態をチェック（billing_service経由）
+        
+        Args:
+            user_id: ユーザーID
+            
+        Returns:
+            dict: アクセス制御情報
+        """
+        try:
+            response = await self._make_request(
+                "GET",
+                f"{self.base_urls['billing_service']}/api/billing/access-control",
+                headers={"X-User-ID": user_id}
+            )
+            return response.get("access_control", {})
+            
+        except Exception as e:
+            self.logger.error(f"Failed to check user access control: {e}")
+            # エラー時は安全側に倒してアクセス拒否
+            return {
+                "access_allowed": False,
+                "access_level": "none",
+                "restriction_reason": "system_error",
+                "redirect_url": "/error"
+            }
+
 
 # =====================================
 # ファクトリー関数

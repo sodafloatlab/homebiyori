@@ -38,7 +38,7 @@ from fastapi.responses import JSONResponse
 from typing import List, Optional, Dict, Any
 import os
 import asyncio
-from datetime import datetime
+from datetime import datetime, timedelta
 import uuid
 
 # Lambda Layers からの共通機能インポート
@@ -52,7 +52,8 @@ from homebiyori_common.exceptions import (
     ExternalServiceError
 )
 from homebiyori_common.utils.maintenance import is_maintenance_mode
-from homebiyori_common.utils.middleware import maintenance_check_middleware, get_current_user_id, error_handling_middleware
+from homebiyori_common.middleware import maintenance_check_middleware, get_current_user_id, error_handling_middleware
+from homebiyori_common.middleware import require_basic_access
 
 # 共通Layerからモデル・ユーティリティをインポート
 from homebiyori_common.models import (
@@ -84,8 +85,7 @@ from .langchain_ai import (
     detect_emotion_simple
 )
 from .langchain_memory import (
-    create_conversation_memory,
-    get_user_tier_from_db
+    create_conversation_memory
 )
 
 # 構造化ログ設定
@@ -105,6 +105,54 @@ service_client = get_service_http_client()
 # get_character_theme_color関数は共通Layer FruitInfoモデル移行により不要となったため削除
 
 # FastAPIアプリケーション初期化
+# =====================================
+# ユーティリティ関数
+# =====================================
+
+def calculate_message_ttl(created_at: datetime) -> int:
+    """
+    メッセージTTL計算（新戦略：全ユーザー統一保持期間）
+    
+    Args:
+        created_at: メッセージ作成日時
+        
+    Returns:
+        int: TTL（UNIXタイムスタンプ）
+    """
+    try:
+        # 全ユーザー統一保持期間（Parameter Store管理）
+        from homebiyori_common.utils.parameter_store import get_parameter
+        retention_days = int(get_parameter(
+            "/prod/homebiyori/chat/retention_days", 
+            default_value="180"
+        ))
+        
+        # TTL計算
+        ttl_datetime = created_at + timedelta(days=retention_days)
+        ttl_timestamp = int(ttl_datetime.timestamp())
+        
+        logger.debug(
+            "Calculated message TTL (unified strategy)",
+            extra={
+                "retention_days": retention_days,
+                "ttl_timestamp": ttl_timestamp
+            }
+        )
+        
+        return ttl_timestamp
+        
+    except Exception as e:
+        logger.error(
+            "Failed to calculate message TTL",
+            extra={"error": str(e)}
+        )
+        # エラー時はデフォルト（180日）
+        default_ttl = created_at + timedelta(days=180)
+        return int(default_ttl.timestamp())
+
+# =====================================
+# ミドルウェア・依存関数
+# =====================================
 app = FastAPI(
     title="Homebiyori Chat Service",
     description="チャット機能マイクロサービス - AIキャラクターとの感情的やり取り",
@@ -127,8 +175,9 @@ app.middleware("http")(error_handling_middleware)
 # チャット機能エンドポイント
 # =====================================
 
-@app.post("/api/chat/messages", response_model=ChatResponse)
+@require_basic_access()
 async def send_message(
+    request: Request,
     chat_request: ChatRequest, 
     background_tasks: BackgroundTasks,
     user_id: str = Depends(get_current_user_id)
@@ -137,8 +186,8 @@ async def send_message(
     チャットメッセージ送信・AI応答生成
     
     ■処理フロー■
-    1. ユーザー認証・リクエスト検証
-    2. AI応答生成（Bedrock Claude 3 Haiku）
+    1. ユーザー認証・リクエスト検証（アクセス制御ミドルウェア）
+    2. AI応答生成（Bedrock Amazon Nova Lite）
     3. 感情検出・木の成長計算
     4. 実生成判定・実行
     5. レスポンスデータをDynamoDB保存
@@ -183,10 +232,8 @@ async def send_message(
         interaction_mode = chat_request.interaction_mode or user_ai_preferences["interaction_mode"]
         praise_level = user_ai_preferences["praise_level"]
         
-        # 無料ユーザーのpraise_level制限適用
-        user_tier = "premium" if user_subscription["plan"] in ["monthly", "yearly"] else "free"
-        if user_tier == "free":
-            praise_level = "normal"  # 無料版は常にnormal固定
+        # 新戦略：全ユーザー共通機能（制限なし）
+        # praise_level制限削除 - 全ユーザーがdeep機能利用可能
         
         # ===============================
         # 3. AI応答生成（LangChainベース）
@@ -276,10 +323,7 @@ async def send_message(
         # 6. DynamoDB保存用データ作成
         # ===============================
         # TTL計算（user_serviceから再取得は不要、既に取得済み）
-        ttl_timestamp = await chat_db.calculate_message_ttl(
-            subscription_plan=user_subscription.get("plan", "free"),
-            created_at=timestamp
-        )
+        ttl_timestamp = calculate_message_ttl(created_at=timestamp)
         
         # DynamoDB保存用モデル作成（design_database.md準拠・統合版）
         chat_message = ChatMessage(
@@ -310,19 +354,7 @@ async def send_message(
             await service_client.save_fruit_info(user_id, fruit_info)
         
         # ===============================
-        # 8. バックグラウンド処理追加
-        # ===============================
-        # 統計関連機能削除：update_chat_analytics 呼び出し削除
-        # background_tasks.add_task(
-        #     update_chat_analytics,
-        #     user_id=user_id,
-        #     character=ai_character,
-        #     emotion=detected_emotion,
-        #     stage_changed=stage_changed
-        # )
-        
-        # ===============================
-        # 9. レスポンス構築・返却
+        # 8. レスポンス構築・返却
         # ===============================
         ai_response = AIResponse(
             message=ai_response_text,
@@ -349,7 +381,7 @@ async def send_message(
                 "ai_character": ai_character,
                 "interaction_mode": interaction_mode,
                 "praise_level": praise_level,
-                "user_tier": user_tier,
+                "unified_tier": "unified",  # 新戦略：全ユーザー統一
                 "tree_stage_change": f"{previous_stage} -> {current_stage}",
                 "fruit_generated": fruit_generated,
                 "processing_time_ms": int((get_current_jst() - timestamp).total_seconds() * 1000)
@@ -420,24 +452,33 @@ async def send_group_message(
         )
         
         # ===============================
-        # 1. プレミアムプラン確認（user_serviceから）
+        # 0. アクセス制御チェック（新戦略）
         # ===============================
-        user_subscription = await service_client.get_user_subscription_info(user_id)
-        user_tier = "premium" if user_subscription["plan"] in ["monthly", "yearly"] else "free"
+        access_info = await service_client.check_user_access_control(user_id)
         
-        if user_tier == "free":
-            logger.info(
-                "Free user accessing group chat, redirecting to premium",
-                extra={"user_id": user_id[:8] + "****"}
-            )
-            raise HTTPException(
-                status_code=200,
-                detail={
-                    "redirect_to": "premium",
-                    "message": "グループチャット機能はプレミアムプラン限定です。",
-                    "upgrade_required": True
+        if not access_info["access_allowed"]:
+            logger.warning(
+                "Access denied for group chat",
+                extra={
+                    "user_id": user_id[:8] + "****",
+                    "restriction_reason": access_info["restriction_reason"],
+                    "access_level": access_info["access_level"]
                 }
             )
+            raise HTTPException(
+                status_code=402,  # Payment Required
+                detail={
+                    "error": "access_denied",
+                    "reason": access_info["restriction_reason"],
+                    "message": "グループチャット機能のご利用には有料プランへのアップグレードが必要です。",
+                    "redirect_url": access_info["redirect_url"]
+                }
+            )
+        
+        # ===============================
+        # 1. ユーザーサブスクリプション情報取得（統一戦略）
+        # ===============================
+        user_subscription = await service_client.get_user_subscription_info(user_id)
         
         # メッセージID生成
         message_id = str(uuid.uuid4())
@@ -609,10 +650,7 @@ async def send_group_message(
         # ===============================
         # 8. DynamoDB保存用データ作成
         # ===============================
-        ttl_timestamp = await chat_db.calculate_message_ttl(
-            subscription_plan=user_subscription.get("plan", "premium"),
-            created_at=timestamp
-        )
+        ttl_timestamp = calculate_message_ttl(created_at=timestamp)
         
         # グループチャット用のメッセージ保存（代表応答最適化版）
         chat_message = ChatMessage(
@@ -743,6 +781,29 @@ async def get_chat_history(
                 "limit": limit
             }
         )
+        
+        # ===============================
+        # アクセス制御チェック（新戦略）
+        # ===============================
+        access_info = await service_client.check_user_access_control(user_id)
+        
+        if not access_info["access_allowed"]:
+            logger.warning(
+                "Access denied for chat history",
+                extra={
+                    "user_id": user_id[:8] + "****",
+                    "restriction_reason": access_info["restriction_reason"]
+                }
+            )
+            raise HTTPException(
+                status_code=402,  # Payment Required
+                detail={
+                    "error": "access_denied",
+                    "reason": access_info["restriction_reason"],
+                    "message": "チャット履歴の閲覧には有料プランへのアップグレードが必要です。",
+                    "redirect_url": access_info["redirect_url"]
+                }
+            )
         
         # リクエストパラメータバリデーション
         history_request = ChatHistoryRequest(
@@ -876,10 +937,7 @@ async def send_emotion_stamp(
         interaction_mode = "listen"  # 感情スタンプは基本的に共感モード
         praise_level = user_ai_preferences["praise_level"]
         
-        # 無料ユーザーのpraise_level制限適用
-        user_tier = "premium" if user_subscription["plan"] in ["monthly", "yearly"] else "free"
-        if user_tier == "free":
-            praise_level = "normal"
+        # 新戦略：全ユーザー統一体験（制限なし）
         
         # 感情に応じたメッセージテキスト生成
         emotion_messages = {
@@ -928,10 +986,7 @@ async def send_emotion_stamp(
         )
         
         # TTL計算
-        ttl_timestamp = await chat_db.calculate_message_ttl(
-            subscription_plan=user_subscription.get("plan", "free"),
-            created_at=timestamp
-        )
+        ttl_timestamp = calculate_message_ttl(created_at=timestamp)
         
         # DynamoDB保存用モデル作成（感情スタンプ機能・統合版）
         chat_message = ChatMessage(

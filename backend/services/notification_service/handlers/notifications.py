@@ -16,6 +16,7 @@ from fastapi.security import HTTPBearer
 from homebiyori_common import get_logger
 from homebiyori_common.auth import get_user_id_from_event
 from homebiyori_common.utils.response_utils import success_response, error_response
+from homebiyori_common.middleware import require_basic_access
 
 from ..models.notification_models import (
     UserNotification, NotificationListResponse, NotificationStatsResponse,
@@ -30,6 +31,7 @@ security = HTTPBearer()
 
 
 @router.get("/", response_model=NotificationListResponse)
+@require_basic_access()
 async def get_notifications(
     page: int = Query(1, ge=1, description="ページ番号"),
     page_size: int = Query(20, ge=1, le=100, description="ページサイズ"),
@@ -89,6 +91,7 @@ async def get_notifications(
 
 
 @router.get("/stats", response_model=NotificationStatsResponse)
+@require_basic_access()
 async def get_notification_stats(
     current_user: str = Depends(get_user_id_from_event)
 ):
@@ -123,6 +126,7 @@ async def get_notification_stats(
 
 
 @router.get("/{notification_id}")
+@require_basic_access()
 async def get_notification(
     notification_id: str,
     current_user: str = Depends(get_user_id_from_event)
@@ -164,6 +168,7 @@ async def get_notification(
 
 
 @router.patch("/{notification_id}/read")
+@require_basic_access()
 async def mark_notification_as_read(
     notification_id: str,
     current_user: str = Depends(get_user_id_from_event)
@@ -205,6 +210,7 @@ async def mark_notification_as_read(
 
 
 @router.patch("/{notification_id}/archive")
+@require_basic_access()
 async def archive_notification(
     notification_id: str,
     current_user: str = Depends(get_user_id_from_event)
@@ -246,6 +252,7 @@ async def archive_notification(
 
 
 @router.patch("/bulk/read")
+@require_basic_access()
 async def mark_all_as_read(
     current_user: str = Depends(get_user_id_from_event)
 ):

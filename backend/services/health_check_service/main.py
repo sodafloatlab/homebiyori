@@ -6,7 +6,7 @@ import logging
 
 # Lambda Layer共通ライブラリ
 from homebiyori_common.utils.datetime_utils import get_current_jst
-from homebiyori_common.utils.middleware import error_handling_middleware
+from homebiyori_common.middleware import error_handling_middleware
 
 # ログ設定 - CloudWatch統合対応
 logging.basicConfig(level=logging.INFO)

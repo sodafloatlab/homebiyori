@@ -14,25 +14,10 @@ from pydantic import BaseModel, Field, validator
 from enum import Enum
 
 from homebiyori_common.utils.datetime_utils import get_current_jst
+from homebiyori_common.models import SubscriptionStatus, SubscriptionPlan
 
-
-class SubscriptionStatus(str, Enum):
-    """サブスクリプション状態"""
-    INCOMPLETE = "incomplete"
-    INCOMPLETE_EXPIRED = "incomplete_expired"
-    TRIALING = "trialing"
-    ACTIVE = "active"
-    PAST_DUE = "past_due"
-    CANCELED = "canceled"
-    UNPAID = "unpaid"
-    PAUSED = "paused"
-
-
-class PlanType(str, Enum):
-    """プランタイプ"""
-    FREE = "free"
-    BASIC = "basic"
-    PREMIUM = "premium"
+# PlanType削除: SubscriptionPlanに統一（Issue #15 統一対応）
+# webhook_service固有のレガシー定義を削除
 
 
 class WebhookEventType(str, Enum):
@@ -78,13 +63,13 @@ class StripeSubscription(BaseModel):
         return self.metadata.get("homebiyori_user_id")
     
     @property
-    def plan_type(self) -> PlanType:
+    def plan_type(self) -> SubscriptionPlan:
         """プランタイプを取得"""
-        plan_name = self.metadata.get("plan_type", "free").lower()
+        plan_name = self.metadata.get("plan_type", "trial").lower()
         try:
-            return PlanType(plan_name)
+            return SubscriptionPlan(plan_name)
         except ValueError:
-            return PlanType.FREE
+            return SubscriptionPlan.TRIAL
     
     @property
     def is_active(self) -> bool:
@@ -163,8 +148,8 @@ class WebhookEvent(BaseModel):
 class TTLUpdateMessage(BaseModel):
     """TTL更新SQSメッセージ"""
     user_id: str = Field(..., description="ユーザーID")
-    old_plan: PlanType = Field(..., description="変更前プラン")
-    new_plan: PlanType = Field(..., description="変更後プラン")
+    old_plan: SubscriptionPlan = Field(..., description="変更前プラン")
+    new_plan: SubscriptionPlan = Field(..., description="変更後プラン")
     effective_date: datetime = Field(default_factory=get_current_jst, description="適用日時（JST）")
     subscription_id: str = Field(..., description="Stripe Subscription ID")
     change_reason: str = Field(..., description="変更理由")
