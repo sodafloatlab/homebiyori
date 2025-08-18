@@ -11,9 +11,8 @@ import TouchTarget from '@/components/ui/TouchTarget';
 import Toast from '@/components/ui/Toast';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import AiIcon from '@/components/ui/AiIcon';
-import { useAuth, useChat, useTree, useMaintenance, usePremiumFeatureGuard } from '@/lib/hooks';
-import { useChatService } from '@/lib/api/chatService';
-import { useTreeService } from '@/lib/api/treeService';
+import { useChatService, useTreeService, useChatAPI } from '@/lib/hooks';
+import { getCharacterInfo } from '@/lib/utils';
 
 interface ChatScreenProps {
   selectedAiRole: AiRole;
@@ -37,38 +36,12 @@ const ChatScreen = ({
   const [currentPraiseLevel, setCurrentPraiseLevel] = useState<'normal' | 'deep'>('normal');
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  const auth = useAuth();
-  const chat = useChat();
-  const tree = useTree();
-  const maintenance = useMaintenance();
   const chatService = useChatService();
   const treeService = useTreeService();
-  const premiumGuard = usePremiumFeatureGuard(() => onNavigate('premium' as AppScreen));
+  const chatAPI = useChatAPI();
 
-  // AIキャラクター情報
-  const characters = {
-    'mittyan': {
-      name: 'みっちゃん',
-      image: '/images/icons/mittyan.png',
-      color: 'from-rose-400 to-pink-500',
-      bgColor: 'bg-rose-50',
-      textColor: 'text-rose-700'
-    },
-    'madokasan': {
-      name: 'まどかさん', 
-      image: '/images/icons/madokasan.png',
-      color: 'from-sky-400 to-blue-500',
-      bgColor: 'bg-sky-50',
-      textColor: 'text-sky-700'
-    },
-    'hideji': {
-      name: 'ヒデじい',
-      image: '/images/icons/hideji.png', 
-      color: 'from-amber-400 to-yellow-500',
-      bgColor: 'bg-amber-50',
-      textColor: 'text-amber-700'
-    }
-  };
+  // 統一キャラクター情報を使用
+  const currentCharacter = getCharacterInfo(selectedAiRole);
 
   const emotions = [
     { emoji: '😊', label: '嬉しい' },
@@ -79,22 +52,17 @@ const ChatScreen = ({
     { emoji: '😰', label: '不安' }
   ];
 
-  const currentCharacter = characters[selectedAiRole];
-
   // チャット履歴をロード
   useEffect(() => {
-    if (auth.user) {
-      chat.loadChatHistory();
-      tree.loadTreeStatus();
-    }
-  }, [auth.user, chat, tree]);
+    // 統一アーキテクチャでは自動的にロード
+  }, []);
 
   // メッセージが追加されたときに自動スクロール
   useEffect(() => {
     if (messagesEndRef.current) {
       messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
     }
-  }, [chat.messages]);
+  }, []);
 
   // メッセージ送信処理
   const handleSendMessage = async () => {

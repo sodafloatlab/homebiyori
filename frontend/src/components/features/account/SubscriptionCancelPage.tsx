@@ -8,10 +8,10 @@ import {
   X,
   ArrowLeft
 } from 'lucide-react';
-import { Button } from '../../ui/Button';
+import Button from '../../ui/Button';
 import { WarningButton } from '../../ui/WarningButton';
-import { LoadingSpinner } from '../../ui/LoadingSpinner';
-import { TouchTarget } from '../../ui/TouchTarget';
+import LoadingSpinner from '../../ui/LoadingSpinner';
+import TouchTarget from '../../ui/TouchTarget';
 import { useSubscriptionCancel } from '@/lib/hooks';
 
 interface SubscriptionStatus {
@@ -160,6 +160,7 @@ export function SubscriptionCancelPage({
         </Button>
         <Button
           onClick={handleProceedToConfirmation}
+          variant="primary"
           className="flex-1 bg-orange-500 hover:bg-orange-600"
         >
           解約手続きを続ける
@@ -298,6 +299,7 @@ export function SubscriptionCancelPage({
           onSuccess?.();
           onBack();
         }}
+        variant="primary"
         className="w-full"
       >
         完了

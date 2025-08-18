@@ -1,8 +1,8 @@
 'use client';
 
 import React from 'react';
-import { LoadingSpinner } from './LoadingSpinner';
-import { TouchTarget } from './TouchTarget';
+import LoadingSpinner from './LoadingSpinner';
+import TouchTarget from './TouchTarget';
 
 interface WarningButtonProps {
   children: React.ReactNode;

@@ -15,6 +15,9 @@ interface TouchTargetProps {
   animated?: boolean;
   hapticFeedback?: boolean;
   title?: string;
+  role?: string;
+  tabIndex?: number;
+  'aria-label'?: string;
 }
 
 const TouchTarget = ({
@@ -28,7 +31,10 @@ const TouchTarget = ({
   disabled = false,
   animated = true,
   hapticFeedback = true,
-  title
+  title,
+  role,
+  tabIndex,
+  'aria-label': ariaLabel
 }: TouchTargetProps) => {
   
   // 最小タッチサイズ（44px以上を推奨）
@@ -96,9 +102,10 @@ const TouchTarget = ({
           ease: "easeInOut"
         }}
         // アクセシビリティ
-        role={onClick ? "button" : undefined}
-        tabIndex={onClick ? 0 : undefined}
+        role={role || (onClick ? "button" : undefined)}
+        tabIndex={tabIndex ?? (onClick ? 0 : undefined)}
         title={title}
+        aria-label={ariaLabel}
         onKeyDown={(e) => {
           if (onClick && (e.key === 'Enter' || e.key === ' ')) {
             e.preventDefault();
@@ -117,9 +124,10 @@ const TouchTarget = ({
       onClick={handleClick}
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}
-      role={onClick ? "button" : undefined}
-      tabIndex={onClick ? 0 : undefined}
+      role={role || (onClick ? "button" : undefined)}
+      tabIndex={tabIndex ?? (onClick ? 0 : undefined)}
       title={title}
+      aria-label={ariaLabel}
       onKeyDown={(e) => {
         if (onClick && (e.key === 'Enter' || e.key === ' ')) {
           e.preventDefault();

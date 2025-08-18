@@ -15,7 +15,7 @@ import {
   Zap
 } from 'lucide-react';
 import Button from '../../ui/Button';
-import { TouchTarget } from '../../ui/TouchTarget';
+import TouchTarget from '../../ui/TouchTarget';
 
 interface PremiumLandingPageProps {
   onClose: () => void;

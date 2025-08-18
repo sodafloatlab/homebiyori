@@ -17,14 +17,14 @@ const TopPageWatercolorTree = ({ ageInDays }: Props) => {
     setIsClient(true);
   }, []);
 
-  // 成長段階に応じた実の数を決定（トップページ専用）
+  // 成長段階に応じた実の数を決定（0~5の6段階、芽から実表示）
   const getFruitCount = () => {
-    if (ageInDays <= 100) return 0;     // stage 1: 芽 - 実なし
-    if (ageInDays <= 200) return 2;     // stage 2: 小さな苗 - 2個
-    if (ageInDays <= 300) return 5;     // stage 3: 若木 - 5個
-    if (ageInDays <= 400) return 8;     // stage 4: 中木 - 8個
-    if (ageInDays <= 500) return 12;    // stage 5: 大木 - 12個
-    return 16;                          // stage 6: 完全成長 - 16個
+    if (ageInDays <= 0) return 0;       // stage 0: 土だけ - 実なし
+    if (ageInDays <= 100) return 1;     // stage 1: 芽 - 1個（新規追加）
+    if (ageInDays <= 200) return 3;     // stage 2: 小さな苗 - 3個（+1）
+    if (ageInDays <= 300) return 6;     // stage 3: 若木 - 6個（+1）
+    if (ageInDays <= 400) return 10;    // stage 4: 中木 - 10個（+2）
+    return 15;                          // stage 5: 大木 - 15個（+3）
   };
 
   // トップページ用のデモ実データを生成
@@ -59,24 +59,24 @@ const TopPageWatercolorTree = ({ ageInDays }: Props) => {
     }
   }, [ageInDays, previousAge]);
 
-  // 成長段階を数値で返す関数（6段階）
+  // 成長段階を数値で返す関数（6段階：0-5）
   const getGrowthStage = (days: number) => {
+    if (days <= 0) return 0;    // 土だけ
     if (days <= 100) return 1;  // 芽
     if (days <= 200) return 2;  // 小さな苗
     if (days <= 300) return 3;  // 若木
     if (days <= 400) return 4;  // 中木
-    if (days <= 500) return 5;  // 大木
-    return 6;                   // 完全成長
+    return 5;                   // 大木
   };
 
-  // 画像パスを決定する関数（6段階）
+  // 画像パスを決定する関数（6段階：0-5）
   const getTreeImage = () => {
+    if (ageInDays <= 0) return '/images/trees/tree_0.png';    // 土だけ
     if (ageInDays <= 100) return '/images/trees/tree_1.png';  // 芽
     if (ageInDays <= 200) return '/images/trees/tree_2.png';  // 小さな苗
     if (ageInDays <= 300) return '/images/trees/tree_3.png';  // 若木
     if (ageInDays <= 400) return '/images/trees/tree_4.png';  // 中木
-    if (ageInDays <= 500) return '/images/trees/tree_5.png';  // 大木
-    return '/images/trees/tree_6.png';                        // 完全成長
+    return '/images/trees/tree_5.png';                        // 大木
   };
 
 
@@ -91,14 +91,14 @@ const TopPageWatercolorTree = ({ ageInDays }: Props) => {
     );
   }
 
-  // 成長段階に応じた木のサイズを決定（6段階）
+  // 成長段階に応じた木のサイズを決定（6段階：0-5）
   const getTreeSize = () => {
+    if (ageInDays <= 0) return { width: 200, height: 200 };      // tree_0.png - 土だけ
     if (ageInDays <= 100) return { width: 240, height: 240 };    // tree_1.png - 芽
     if (ageInDays <= 200) return { width: 320, height: 320 };    // tree_2.png - 小さな苗
     if (ageInDays <= 300) return { width: 420, height: 420 };    // tree_3.png - 若木
     if (ageInDays <= 400) return { width: 520, height: 520 };    // tree_4.png - 中木
-    if (ageInDays <= 500) return { width: 680, height: 680 };    // tree_5.png - 大木
-    return { width: 800, height: 800 };                          // tree_6.png - 完全成長
+    return { width: 540, height: 540 };                          // tree_5.png - 大木（少し縮小）
   };
 
   // コンテナの高さは固定（最大サイズに対応、余白を削減）
@@ -106,27 +106,26 @@ const TopPageWatercolorTree = ({ ageInDays }: Props) => {
     return 'h-[700px]'; // 固定サイズ - 拡大表示に対応
   };
 
-  // 成長段階に応じた拡大倍率を決定
+  // 成長段階に応じた拡大倍率を決定（6段階：0-5）
   const getScaleFactor = () => {
-    if (ageInDays <= 400) return 1;    // tree_1-4: 通常サイズ
-    if (ageInDays <= 500) return 1.5;  // tree_5: 1.5倍拡大
-    return 1.5;                        // tree_6: 1.5倍拡大
+    if (ageInDays <= 400) return 1;    // tree_0-4: 通常サイズ
+    return 1.05;                       // tree_5: 1.05倍拡大（縮小）
   };
 
-  // ほめの実の浮遊エリアを成長段階に応じて定義（6段階）
+  // ほめの実の浮遊エリアを成長段階に応じて定義（6段階：0-5）
   const getBubbleAreas = () => {
-    if (ageInDays <= 100) {
-      return { centerX: 50, centerY: 45, radiusX: 15, radiusY: 10 };  // 芽
+    if (ageInDays <= 0) {
+      return { centerX: 50, centerY: 50, radiusX: 0, radiusY: 0 };    // 土だけ - 実なし
+    } else if (ageInDays <= 100) {
+      return { centerX: 50, centerY: 42, radiusX: 12, radiusY: 8 };   // 芽 - 1個用に調整
     } else if (ageInDays <= 200) {
-      return { centerX: 50, centerY: 40, radiusX: 20, radiusY: 15 };  // 小さな苗
+      return { centerX: 50, centerY: 38, radiusX: 22, radiusY: 16 };  // 小さな苗 - 3個用に調整
     } else if (ageInDays <= 300) {
-      return { centerX: 50, centerY: 35, radiusX: 25, radiusY: 20 };  // 若木
+      return { centerX: 50, centerY: 34, radiusX: 28, radiusY: 22 };  // 若木 - 6個用に調整
     } else if (ageInDays <= 400) {
-      return { centerX: 50, centerY: 32, radiusX: 32, radiusY: 28 };  // 中木
-    } else if (ageInDays <= 500) {
-      return { centerX: 50, centerY: 25, radiusX: 50, radiusY: 40 };  // 大木
+      return { centerX: 50, centerY: 30, radiusX: 35, radiusY: 30 };  // 中木 - 10個用に調整
     } else {
-      return { centerX: 50, centerY: 20, radiusX: 60, radiusY: 50 };  // 完全成長
+      return { centerX: 50, centerY: 26, radiusX: 48, radiusY: 38 };  // 大木 - 15個用に調整
     }
   };
 

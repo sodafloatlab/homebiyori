@@ -1,14 +1,16 @@
 import { TREE_GROWTH_THRESHOLDS, CHARACTER_THEME_COLORS, VALIDATION_RULES } from './constants';
 import { AiRole, CharacterInfo } from '@/types';
+import { getCharacterInfo as getSharedCharacterInfo } from './shared/characterInfo';
 
 // ========================================
 // Tree Growth Utilities
 // ========================================
 
 /**
- * 文字数から木の成長段階を計算（6段階）
+ * 文字数から木の成長段階を計算（7段階: 0-6）
  */
 export const calculateTreeStage = (characters: number): number => {
+  if (characters === 0) return 0;  // 0段階目：土だけ
   if (characters < TREE_GROWTH_THRESHOLDS.STAGE_1) return 1;
   if (characters < TREE_GROWTH_THRESHOLDS.STAGE_2) return 2;
   if (characters < TREE_GROWTH_THRESHOLDS.STAGE_3) return 3;
@@ -26,7 +28,12 @@ export const calculateProgressToNextStage = (characters: number): number => {
   
   if (currentStage >= 6) return 1; // 最大成長
   
-  const currentThreshold = currentStage === 1 ? 0 : thresholds[currentStage - 2];
+  // 0段階目の場合：次は1段階目（1文字で発芽）
+  if (currentStage === 0) {
+    return characters === 0 ? 0 : 1; // 1文字でも入力があれば100%
+  }
+  
+  const currentThreshold = currentStage === 1 ? 1 : thresholds[currentStage - 2];
   const nextThreshold = thresholds[currentStage - 1];
   
   return (characters - currentThreshold) / (nextThreshold - currentThreshold);
@@ -56,29 +63,9 @@ export const getCharacterThemeColor = (
 };
 
 /**
- * キャラクター情報を取得
+ * キャラクター情報を取得 (統一版)
  */
-export const getCharacterInfo = (aiRole: AiRole): CharacterInfo => {
-  const characterMap = {
-    mittyan: {
-      name: 'みっちゃん',
-      image: '/images/icons/mittyan.png',
-      color: 'rose' as const
-    },
-    madokasan: {
-      name: 'まどかさん',
-      image: '/images/icons/madokasan.png',
-      color: 'sky' as const
-    },
-    hideji: {
-      name: 'ヒデじい',
-      image: '/images/icons/hideji.png',
-      color: 'amber' as const
-    }
-  };
-  
-  return characterMap[aiRole];
-};
+export const getCharacterInfo = getSharedCharacterInfo;
 
 // ========================================
 // Message Utilities
@@ -230,21 +217,6 @@ export const cn = (...classes: (string | undefined | null | false)[]): string =>
   return classes.filter(Boolean).join(' ');
 };
 
-/**
- * Tailwind CSS クラスをマージ（重複削除）
- */
-export const mergeTailwindClasses = (...classes: string[]): string => {
-  const classMap = new Map();
-  
-  classes.join(' ').split(' ').forEach(cls => {
-    if (cls) {
-      const prefix = cls.split('-')[0];
-      classMap.set(prefix, cls);
-    }
-  });
-  
-  return Array.from(classMap.values()).join(' ');
-};
 
 // ========================================
 // Storage Utilities

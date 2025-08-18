@@ -70,7 +70,7 @@ const WatercolorTree = ({ stage, ageInDays, size = 'medium', isBackground = fals
     return calculateTreeStage(days);
   };
 
-  // 画像パスを決定する関数（6段階）
+  // 画像パスを決定する関数（7段階: 0-6）
   const getTreeImage = () => {
     const currentStage = effectiveStage;
     return `/images/trees/tree_${currentStage}.png`;
@@ -95,16 +95,17 @@ const WatercolorTree = ({ stage, ageInDays, size = 'medium', isBackground = fals
     );
   }
 
-  // 成長段階に応じた木のサイズを決定（6段階）
+  // 成長段階に応じた木のサイズを決定（7段階: 0-6）
   const getTreeSize = () => {
     switch (effectiveStage) {
+      case 0: return { width: 200, height: 200 };    // tree_0.png - 土だけ
       case 1: return { width: 240, height: 240 };    // tree_1.png - 芽
       case 2: return { width: 320, height: 320 };    // tree_2.png - 小さな苗
       case 3: return { width: 420, height: 420 };    // tree_3.png - 若木
       case 4: return { width: 520, height: 520 };    // tree_4.png - 中木
       case 5: return { width: 680, height: 680 };    // tree_5.png - 大木
       case 6: return { width: 800, height: 800 };    // tree_6.png - 完全成長
-      default: return { width: 240, height: 240 };
+      default: return { width: 200, height: 200 };
     }
   };
 
@@ -113,16 +114,17 @@ const WatercolorTree = ({ stage, ageInDays, size = 'medium', isBackground = fals
     return 'h-[600px]'; // 固定サイズ - 最大の木（800px）にフィット
   };
 
-  // ほめの実の浮遊エリアを成長段階に応じて定義（6段階）
+  // ほめの実の浮遊エリアを成長段階に応じて定義（7段階: 0-6）
   const getBubbleAreas = () => {
     switch (effectiveStage) {
+      case 0: return { centerX: 50, centerY: 60, radiusX: 10, radiusY: 5 };   // 土だけ（実なし推奨）
       case 1: return { centerX: 50, centerY: 45, radiusX: 15, radiusY: 10 };  // 芽
       case 2: return { centerX: 50, centerY: 40, radiusX: 20, radiusY: 15 };  // 小さな苗
       case 3: return { centerX: 50, centerY: 35, radiusX: 25, radiusY: 20 };  // 若木
       case 4: return { centerX: 50, centerY: 32, radiusX: 32, radiusY: 28 };  // 中木
       case 5: return { centerX: 50, centerY: 25, radiusX: 50, radiusY: 40 };  // 大木
       case 6: return { centerX: 50, centerY: 20, radiusX: 60, radiusY: 50 };  // 完全成長
-      default: return { centerX: 50, centerY: 45, radiusX: 15, radiusY: 10 };
+      default: return { centerX: 50, centerY: 60, radiusX: 10, radiusY: 5 };
     }
   };
 

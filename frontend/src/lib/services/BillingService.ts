@@ -1,21 +1,199 @@
-interface CreateSubscriptionRequest {
+/**
+ * Billing Service - Issue #15 新戦略対応版
+ * 
+ * ■変更概要■
+ * - フリーミアム廃止 → 1週間トライアル + 必須有料化
+ * - 初回300円 → 2ヶ月目以降580円/月の戦略対応
+ * - 全機能統一体験（機能制限なし）
+ * - 期限切れユーザーは課金画面のみアクセス可能
+ */
+
+// =====================================
+// 型定義（新戦略）
+// =====================================
+
+export interface TrialStatus {
+  is_trial_active: boolean;
+  trial_start_date: string | null;
+  trial_end_date: string | null;
+  days_remaining: number;
+  needs_expiration: boolean;
+}
+
+export interface AccessControl {
+  access_allowed: boolean;
+  access_level: 'full' | 'billing_only' | 'none';
+  restriction_reason: string | null;
+  redirect_url: string | null;
+}
+
+export interface SubscriptionGuidance {
+  guidance_message: {
+    title: string;
+    description: string;
+    benefits: string[];
+  };
+  trial_info: TrialStatus;
+  plan_options: PlanOption[];
+  access_info: AccessControl;
+  next_steps: {
+    primary_action: string;
+    secondary_action: string;
+    billing_portal_available: boolean;
+  };
+}
+
+export interface PlanOption {
+  plan_id: 'monthly' | 'yearly';
+  name: string;
+  price: number;
+  special_price?: number;
+  is_promotion: boolean;
+  promotion_description?: string;
+  savings_description?: string;
+  billing_cycle: 'monthly' | 'yearly';
+  monthly_equivalent?: number;
+  features: string[];
+}
+
+export interface CheckoutSessionRequest {
   plan: 'monthly' | 'yearly';
-  price_id?: string; // Stripe Price ID (optional)
+  payment_method_id?: string;
+  coupon_code?: string;
 }
 
-interface CreateSubscriptionResponse {
-  client_secret: string;
-  subscription_id: string;
-  redirect_url?: string; // Stripe Checkout URL
+export interface CheckoutSessionResponse {
+  checkout_url: string;
+  session_id: string;
+  plan: string;
+  applied_promotions: string[];
 }
 
-interface SubscriptionStatus {
-  status: 'active' | 'inactive' | 'cancelled' | 'past_due' | 'trialing';
-  current_plan: string | null;
+export interface CheckoutSuccessRequest {
+  session_id: string;
+}
+
+export interface CheckoutSuccessResponse {
+  success: boolean;
+  message: string;
+  subscription: {
+    plan: string;
+    status: string;
+    current_period_end: string;
+    features_unlocked: string[];
+  };
+  next_steps: {
+    dashboard_url: string;
+    billing_portal_url: string;
+  };
+}
+
+export interface DetailedSubscriptionStatus {
+  subscription: UserSubscription | null;
+  trial_status: TrialStatus;
+  access_control: AccessControl;
+  plan_details: {
+    current_plan: string;
+    plan_name: string;
+    is_trial: boolean;
+    is_premium: boolean;
+  };
+  billing_info?: {
+    next_billing_date: string | null;
+    recent_payments: PaymentHistory[];
+    billing_portal_available: boolean;
+  };
+  recommendations: Recommendation[];
+  timestamp: string;
+}
+
+export interface UserSubscription {
+  user_id: string;
+  subscription_id: string | null;
+  customer_id: string | null;
+  current_plan: 'trial' | 'monthly' | 'yearly';
+  status: 'active' | 'canceled' | 'past_due' | 'unpaid' | 'incomplete' | 'trialing' | 'expired';
+  current_period_start: string | null;
   current_period_end: string | null;
   cancel_at_period_end: boolean;
-  monthly_amount: number | null;
+  canceled_at: string | null;
+  trial_start_date: string | null;
+  trial_end_date: string | null;
+  ttl_days: number;
+  created_at: string;
+  updated_at: string;
 }
+
+export interface PaymentHistory {
+  payment_id: string;
+  user_id: string;
+  subscription_id: string;
+  stripe_payment_intent_id: string;
+  amount: number;
+  currency: string;
+  status: 'succeeded' | 'failed' | 'pending' | 'canceled';
+  billing_period_start: string;
+  billing_period_end: string;
+  payment_method_type: string | null;
+  card_last4: string | null;
+  card_brand: string | null;
+  description: string | null;
+  failure_reason: string | null;
+  paid_at: string | null;
+  created_at: string;
+}
+
+export interface Recommendation {
+  type: 'upgrade_required' | 'trial_ending' | 'payment_failed';
+  title: string;
+  description: string;
+  action_url: string;
+}
+
+export interface CancelSubscriptionRequest {
+  cancel_at_period_end?: boolean;
+  cancellation_reason?: string;
+}
+
+export interface BillingPortalRequest {
+  return_url: string;
+}
+
+export interface BillingPortalResponse {
+  portal_url: string;
+}
+
+export interface SubscriptionBenefits {
+  premium_features: {
+    [key: string]: {
+      title: string;
+      description: string;
+      icon: string;
+    };
+  };
+  plan_comparison: {
+    trial: {
+      name: string;
+      duration: string;
+      price: string;
+      features: string[];
+    };
+    premium: {
+      name: string;
+      duration: string;
+      price: string;
+      features: string[];
+    };
+  };
+  success_stories: Array<{
+    comment: string;
+    user_type: string;
+  }>;
+}
+
+// =====================================
+// APIクライアントインターface
+// =====================================
 
 interface APIClient {
   get<T>(url: string): Promise<T>;
@@ -23,6 +201,10 @@ interface APIClient {
   put<T>(url: string, data: any): Promise<T>;
   delete<T>(url: string): Promise<T>;
 }
+
+// =====================================
+// BillingService実装（新戦略）
+// =====================================
 
 export class BillingService {
   private apiClient: APIClient;
@@ -33,169 +215,217 @@ export class BillingService {
     this.baseURL = baseURL;
   }
 
-  /**
-   * サブスクリプション作成 - Stripe Checkout Session
-   * バックエンドAPI: POST /billing/subscription/create
-   */
-  async createSubscription(request: CreateSubscriptionRequest): Promise<CreateSubscriptionResponse> {
-    try {
-      const response = await this.apiClient.post<{
-        client_secret: string;
-        subscription_id: string;
-        redirect_url?: string;
-      }>(`${this.baseURL}/subscription/create`, {
-        plan: request.plan,
-        price_id: request.price_id
-      });
-
-      return {
-        client_secret: response.client_secret,
-        subscription_id: response.subscription_id,
-        redirect_url: response.redirect_url
-      };
-    } catch (error) {
-      throw new Error(`サブスクリプション作成に失敗しました: ${error}`);
-    }
-  }
+  // =====================================
+  // サブスクリプション管理
+  // =====================================
 
   /**
    * サブスクリプション状態取得
-   * バックエンドAPI: GET /billing/subscription/status
+   * バックエンドAPI: GET /api/billing/subscription
    */
-  async getSubscriptionStatus(): Promise<SubscriptionStatus | null> {
+  async getSubscription(): Promise<UserSubscription> {
     try {
-      const response = await this.apiClient.get<{
-        subscription: {
-          status: 'active' | 'inactive' | 'cancelled' | 'past_due' | 'trialing';
-          current_plan: string | null;
-          current_period_end: string | null;
-          cancel_at_period_end: boolean;
-          monthly_amount: number | null;
-        } | null;
-      }>(`${this.baseURL}/subscription/status`);
-
-      return response.subscription;
+      return await this.apiClient.get<UserSubscription>(`${this.baseURL}/subscription`);
     } catch (error) {
-      throw new Error(`サブスクリプション状態の取得に失敗しました: ${error}`);
+      throw new Error(`サブスクリプション情報の取得に失敗しました: ${error}`);
     }
   }
 
   /**
-   * サブスクリプション解約
-   * バックエンドAPI: POST /billing/subscription/cancel
+   * 詳細サブスクリプション状態取得
+   * バックエンドAPI: GET /api/billing/subscription-status
    */
-  async cancelSubscription(reason?: string): Promise<{ success: boolean; message: string }> {
+  async getDetailedSubscriptionStatus(): Promise<DetailedSubscriptionStatus> {
     try {
-      const response = await this.apiClient.post<{
-        success: boolean;
-        message: string;
-      }>(`${this.baseURL}/subscription/cancel`, {
-        cancellation_reason: reason || null
-      });
-
-      return response;
+      return await this.apiClient.get<DetailedSubscriptionStatus>(`${this.baseURL}/subscription-status`);
     } catch (error) {
-      throw new Error(`サブスクリプション解約に失敗しました: ${error}`);
+      throw new Error(`詳細サブスクリプション状態の取得に失敗しました: ${error}`);
     }
   }
 
   /**
-   * 顧客ポータル URL取得 (Stripe Customer Portal)
-   * バックエンドAPI: POST /billing/customer-portal
+   * トライアル状態確認
+   * バックエンドAPI: GET /api/billing/trial-status
    */
-  async getCustomerPortalUrl(): Promise<{ url: string }> {
+  async getTrialStatus(): Promise<{ trial_status: TrialStatus; current_time: string }> {
     try {
-      const response = await this.apiClient.post<{
-        url: string;
-      }>(`${this.baseURL}/customer-portal`, {});
-
-      return response;
+      return await this.apiClient.get<{ trial_status: TrialStatus; current_time: string }>(`${this.baseURL}/trial-status`);
     } catch (error) {
-      throw new Error(`顧客ポータルURL取得に失敗しました: ${error}`);
+      throw new Error(`トライアル状態の確認に失敗しました: ${error}`);
     }
   }
 
   /**
-   * 料金プラン一覧取得
-   * バックエンドAPI: GET /billing/plans
+   * アクセス制御チェック
+   * バックエンドAPI: GET /api/billing/access-control
    */
-  async getPlans(): Promise<Array<{
-    id: string;
-    name: string;
-    price: number;
-    currency: string;
-    interval: 'month' | 'year';
-    features: string[];
-  }>> {
+  async checkAccessControl(): Promise<{ access_control: AccessControl; current_time: string }> {
     try {
-      const response = await this.apiClient.get<{
-        plans: Array<{
-          id: string;
-          name: string;
-          price: number;
-          currency: string;
-          interval: 'month' | 'year';
-          features: string[];
-        }>;
-      }>(`${this.baseURL}/plans`);
-
-      return response.plans;
+      return await this.apiClient.get<{ access_control: AccessControl; current_time: string }>(`${this.baseURL}/access-control`);
     } catch (error) {
-      throw new Error(`料金プラン取得に失敗しました: ${error}`);
+      throw new Error(`アクセス制御の確認に失敗しました: ${error}`);
+    }
+  }
+
+  // =====================================
+  // 課金誘導・チェックアウト
+  // =====================================
+
+  /**
+   * 課金誘導情報取得
+   * バックエンドAPI: GET /api/billing/subscription-guidance
+   */
+  async getSubscriptionGuidance(): Promise<SubscriptionGuidance> {
+    try {
+      return await this.apiClient.get<SubscriptionGuidance>(`${this.baseURL}/subscription-guidance`);
+    } catch (error) {
+      throw new Error(`課金誘導情報の取得に失敗しました: ${error}`);
     }
   }
 
   /**
-   * プラン変更
-   * バックエンドAPI: POST /billing/subscription/change-plan
+   * チェックアウトセッション作成
+   * バックエンドAPI: POST /api/billing/checkout-session
    */
-  async changePlan(planId: string): Promise<{ success: boolean; message: string }> {
+  async createCheckoutSession(request: CheckoutSessionRequest): Promise<CheckoutSessionResponse> {
     try {
-      const response = await this.apiClient.post<{
-        success: boolean;
-        message: string;
-      }>(`${this.baseURL}/subscription/change-plan`, {
-        plan_id: planId
-      });
-
-      return response;
+      return await this.apiClient.post<CheckoutSessionResponse>(`${this.baseURL}/checkout-session`, request);
     } catch (error) {
-      throw new Error(`プラン変更に失敗しました: ${error}`);
+      throw new Error(`チェックアウトセッションの作成に失敗しました: ${error}`);
     }
   }
 
   /**
-   * 請求履歴取得
-   * バックエンドAPI: GET /billing/invoices
+   * チェックアウト成功処理
+   * バックエンドAPI: POST /api/billing/checkout-success
    */
-  async getInvoices(): Promise<Array<{
-    id: string;
-    amount: number;
-    currency: string;
-    status: string;
-    created: string;
-    pdf_url?: string;
-  }>> {
+  async handleCheckoutSuccess(request: CheckoutSuccessRequest): Promise<CheckoutSuccessResponse> {
     try {
-      const response = await this.apiClient.get<{
-        invoices: Array<{
-          id: string;
-          amount: number;
-          currency: string;
-          status: string;
-          created: string;
-          pdf_url?: string;
-        }>;
-      }>(`${this.baseURL}/invoices`);
-
-      return response.invoices;
+      return await this.apiClient.post<CheckoutSuccessResponse>(`${this.baseURL}/checkout-success`, request);
     } catch (error) {
-      throw new Error(`請求履歴取得に失敗しました: ${error}`);
+      throw new Error(`チェックアウト成功処理に失敗しました: ${error}`);
+    }
+  }
+
+  /**
+   * サブスクリプション特典情報取得
+   * バックエンドAPI: GET /api/billing/subscription-benefits
+   */
+  async getSubscriptionBenefits(): Promise<SubscriptionBenefits> {
+    try {
+      return await this.apiClient.get<SubscriptionBenefits>(`${this.baseURL}/subscription-benefits`);
+    } catch (error) {
+      throw new Error(`サブスクリプション特典情報の取得に失敗しました: ${error}`);
+    }
+  }
+
+  // =====================================
+  // サブスクリプション操作
+  // =====================================
+
+  /**
+   * サブスクリプションキャンセル
+   * バックエンドAPI: POST /api/billing/subscription/cancel
+   */
+  async cancelSubscription(request: CancelSubscriptionRequest): Promise<{ success: boolean; message: string; cancel_at_period_end: boolean; effective_until: string | null }> {
+    try {
+      return await this.apiClient.post<{ success: boolean; message: string; cancel_at_period_end: boolean; effective_until: string | null }>(`${this.baseURL}/subscription/cancel`, request);
+    } catch (error) {
+      throw new Error(`サブスクリプションのキャンセルに失敗しました: ${error}`);
+    }
+  }
+
+  /**
+   * 課金ポータルセッション作成
+   * バックエンドAPI: POST /api/billing/portal
+   */
+  async createBillingPortalSession(request: BillingPortalRequest): Promise<BillingPortalResponse> {
+    try {
+      return await this.apiClient.post<BillingPortalResponse>(`${this.baseURL}/portal`, request);
+    } catch (error) {
+      throw new Error(`課金ポータルセッションの作成に失敗しました: ${error}`);
+    }
+  }
+
+  /**
+   * 支払い履歴取得
+   * バックエンドAPI: GET /api/billing/history
+   */
+  async getPaymentHistory(limit: number = 20, nextToken?: string): Promise<PaymentHistory[]> {
+    try {
+      const params = new URLSearchParams();
+      params.append('limit', limit.toString());
+      if (nextToken) {
+        params.append('next_token', nextToken);
+      }
+      
+      return await this.apiClient.get<PaymentHistory[]>(`${this.baseURL}/history?${params}`);
+    } catch (error) {
+      throw new Error(`支払い履歴の取得に失敗しました: ${error}`);
+    }
+  }
+
+  // =====================================
+  // ユーティリティメソッド
+  // =====================================
+
+  /**
+   * アクセス許可チェック（ページガード用）
+   */
+  async canAccessFeature(): Promise<boolean> {
+    try {
+      const { access_control } = await this.checkAccessControl();
+      return access_control.access_allowed;
+    } catch (error) {
+      console.error('アクセス許可チェック失敗:', error);
+      return false;
+    }
+  }
+
+  /**
+   * トライアル期間残り日数取得
+   */
+  async getTrialDaysRemaining(): Promise<number> {
+    try {
+      const { trial_status } = await this.getTrialStatus();
+      return trial_status.days_remaining;
+    } catch (error) {
+      console.error('トライアル期間確認失敗:', error);
+      return 0;
+    }
+  }
+
+  /**
+   * 課金誘導が必要かどうか判定
+   */
+  async needsBillingUpgrade(): Promise<boolean> {
+    try {
+      const { access_control } = await this.checkAccessControl();
+      return access_control.restriction_reason === 'trial_expired';
+    } catch (error) {
+      console.error('課金誘導判定失敗:', error);
+      return false;
+    }
+  }
+
+  /**
+   * プレミアムユーザーかどうか判定
+   */
+  async isPremiumUser(): Promise<boolean> {
+    try {
+      const subscription = await this.getSubscription();
+      return subscription.current_plan === 'monthly' || subscription.current_plan === 'yearly';
+    } catch (error) {
+      console.error('プレミアムユーザー判定失敗:', error);
+      return false;
     }
   }
 }
 
-// シングルトンインスタンス用のファクトリ関数
+// =====================================
+// ファクトリー関数・シングルトン
+// =====================================
+
 export function createBillingService(apiClient: APIClient): BillingService {
   return new BillingService(apiClient);
 }
@@ -203,10 +433,3 @@ export function createBillingService(apiClient: APIClient): BillingService {
 // デフォルトのサービスインスタンス
 import apiClient from '@/lib/api';
 export const billingService = createBillingService(apiClient);
-
-// 型エクスポート
-export type {
-  CreateSubscriptionRequest,
-  CreateSubscriptionResponse,
-  SubscriptionStatus
-};

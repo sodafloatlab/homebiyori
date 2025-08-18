@@ -1,22 +1,9 @@
 // ========================================
-// Core Types (Demo互換 + バックエンド統合)
+// 最終統一型定義システム
 // ========================================
 
-export type AiRole = 'mittyan' | 'madokasan' | 'hideji';
-export type MoodType = 'praise' | 'listen';
-export type AppScreen = 'landing' | 'auth' | 'character-selection' | 'chat' | 'tree' | 'group-chat' | 'notifications' | 'premium' | 'subscription-cancel' | 'terms-of-service' | 'privacy-policy' | 'commercial-transaction' | 'contact' | 'faq';
-export type UserPlan = 'free' | 'premium';
-export type ChatMode = 'normal' | 'deep';
-
-// ========================================
-// API Integration Types (バックエンド統合)
-// ========================================
-
-// バックエンドのAICharacter enumと統合
-export type AICharacter = 'mittyan' | 'madokasan' | 'hideji';
-
-// バックエンドのPraiseLevelと統合
-export type PraiseLevel = 'normal' | 'deep';
+// 統一型システムからの完全エクスポート
+export * from './unified';
 
 // API レスポンス共通型
 export interface APIResponse<T = any> {
@@ -101,7 +88,7 @@ export interface CharacterInfo {
   color: 'rose' | 'sky' | 'amber';
 }
 
-export type TreeStage = 1 | 2 | 3 | 4 | 5 | 6;
+export type TreeStage = 0 | 1 | 2 | 3 | 4 | 5 | 6;
 
 export interface Fruit {
   fruit_id: string;

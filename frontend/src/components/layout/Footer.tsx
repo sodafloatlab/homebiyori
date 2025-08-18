@@ -1,42 +1,55 @@
 'use client';
 
 import React from 'react';
+import { useRouter } from 'next/navigation';
 import { FileText, Shield, Building2, Heart, Mail, HelpCircle } from 'lucide-react';
 import Typography from '@/components/ui/Typography';
 import TouchTarget from '@/components/ui/TouchTarget';
 
 interface FooterProps {
-  onNavigate: (screen: string) => void;
+  onNavigate?: (screen: string) => void;
 }
 
 const Footer = ({ onNavigate }: FooterProps) => {
+  const router = useRouter();
+
   const legalLinks = [
     {
       label: '利用規約',
       screen: 'terms-of-service',
+      route: '/legal/terms',
       icon: <FileText className="w-4 h-4" />
     },
     {
       label: 'プライバシーポリシー',
       screen: 'privacy-policy',
+      route: '/legal/privacy',
       icon: <Shield className="w-4 h-4" />
     },
     {
       label: '特定商取引法表記',
       screen: 'commercial-transaction',
+      route: '/legal/commercial',
       icon: <Building2 className="w-4 h-4" />
     },
     {
       label: 'よくある質問',
       screen: 'faq',
+      route: '/faq',
       icon: <HelpCircle className="w-4 h-4" />
     },
     {
       label: 'お問い合わせ',
       screen: 'contact',
+      route: '/contact',
       icon: <Mail className="w-4 h-4" />
     }
   ];
+
+  const handleLinkClick = (link: typeof legalLinks[0]) => {
+    // 常にNext.jsルーターを使用して直接ページへ遷移
+    router.push(link.route);
+  };
 
   return (
     <footer className="bg-gradient-to-r from-emerald-800 to-green-800 text-white py-12 mt-auto">
@@ -66,7 +79,7 @@ const Footer = ({ onNavigate }: FooterProps) => {
               {legalLinks.map((link) => (
                 <div key={link.screen} className="block">
                   <TouchTarget
-                    onClick={() => onNavigate(link.screen)}
+                    onClick={() => handleLinkClick(link)}
                     className="inline-flex items-center space-x-2 text-white hover:text-emerald-200 transition-colors p-2 rounded-md hover:bg-emerald-900/20"
                   >
                     <span className="text-white">{link.icon}</span>

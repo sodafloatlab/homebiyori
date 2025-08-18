@@ -1,10 +1,10 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Button } from '../../ui/Button';
+import Button from '../../ui/Button';
 import { ConfirmationDialog } from '../../ui/ConfirmationDialog';
-import { LoadingSpinner } from '../../ui/LoadingSpinner';
-import { TouchTarget } from '../../ui/TouchTarget';
+import LoadingSpinner from '../../ui/LoadingSpinner';
+import TouchTarget from '../../ui/TouchTarget';
 
 interface UserProfile {
   userId: string;
@@ -268,6 +268,7 @@ export function AccountSettingsPage({
                     onClick={handleSave}
                     disabled={saving}
                     loading={saving}
+                    variant="primary"
                     className="flex-1"
                   >
                     更新
@@ -284,6 +285,7 @@ export function AccountSettingsPage({
               ) : (
                 <Button
                   onClick={() => setEditMode(true)}
+                  variant="outline"
                   className="w-full"
                 >
                   編集

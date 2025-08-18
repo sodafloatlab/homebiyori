@@ -24,7 +24,7 @@ const AuthScreen = ({ onNavigate, onAuthSuccess }: AuthScreenProps) => {
 
   // 認証状態が変更された時の処理
   useEffect(() => {
-    if (auth.isLoggedIn && auth.profile) {
+    if (auth.isAuthenticated && auth.profile) {
       setToastMessage({
         type: 'success',
         title: 'ログイン成功！',
@@ -36,7 +36,7 @@ const AuthScreen = ({ onNavigate, onAuthSuccess }: AuthScreenProps) => {
         onAuthSuccess(auth.profile);
       }, 1500);
     }
-  }, [auth.isLoggedIn, auth.profile, onAuthSuccess]);
+  }, [auth.isAuthenticated, auth.profile, onAuthSuccess]);
 
   // Google OAuth ログイン処理
   const handleGoogleLogin = async () => {
@@ -72,7 +72,7 @@ const AuthScreen = ({ onNavigate, onAuthSuccess }: AuthScreenProps) => {
       if (code) {
         try {
           // OAuth認証完了後の処理
-          await auth.checkAuthStatus();
+          await auth.handleAuthCallback();
         } catch (error) {
           console.error('Auth callback error:', error);
         }

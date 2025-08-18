@@ -206,7 +206,7 @@ export function AccountDeletionConfirmPage({
               <Button onClick={onBack} variant="secondary" className="flex-1">
                 戻る
               </Button>
-              <Button onClick={() => onNext()} className="flex-1">
+              <Button onClick={() => onNext()} variant="primary" className="flex-1">
                 次へ
               </Button>
             </div>
@@ -302,7 +302,7 @@ export function AccountDeletionConfirmPage({
               <Button onClick={onBack} variant="secondary" className="flex-1">
                 戻る
               </Button>
-              <Button onClick={handleStep2Next} className="flex-1">
+              <Button onClick={handleStep2Next} variant="primary" className="flex-1">
                 次へ
               </Button>
             </div>

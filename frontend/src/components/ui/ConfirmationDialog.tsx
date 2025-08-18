@@ -1,9 +1,9 @@
 'use client';
 
 import React from 'react';
-import { Button } from './Button';
+import Button from './Button';
 import { WarningButton } from './WarningButton';
-import { LoadingSpinner } from './LoadingSpinner';
+import LoadingSpinner from './LoadingSpinner';
 
 interface ConfirmationDialogProps {
   isOpen: boolean;
