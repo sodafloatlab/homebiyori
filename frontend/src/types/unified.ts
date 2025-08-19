@@ -48,9 +48,9 @@ export type PraiseLevel = PraiseLevelUnified;
 // ============================================
 
 /**
- * 木の成長段階統一型（0-5の6段階）
+ * 木の成長段階統一型（0-6の7段階）
  */
-export type TreeStageUnified = 0 | 1 | 2 | 3 | 4 | 5;
+export type TreeStageUnified = 0 | 1 | 2 | 3 | 4 | 5 | 6;
 
 /**
  * レガシー型エイリアス
@@ -77,6 +77,7 @@ export type EmotionType = EmotionTypeUnified;
 export type AppScreenUnified = 
   | 'landing' 
   | 'auth' 
+  | 'user-onboarding'
   | 'character-selection' 
   | 'chat' 
   | 'tree' 
@@ -217,7 +218,7 @@ export const isPraiseLevel = (value: any): value is PraiseLevelUnified => {
 };
 
 export const isTreeStage = (value: any): value is TreeStageUnified => {
-  return typeof value === 'number' && value >= 0 && value <= 5;
+  return typeof value === 'number' && value >= 0 && value <= 6;
 };
 
 export const isUserPlan = (value: any): value is UserPlanUnified => {

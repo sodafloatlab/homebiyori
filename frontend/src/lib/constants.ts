@@ -27,6 +27,27 @@ export const AI_CHARACTER_NAMES = {
   [AI_CHARACTERS.HIDEJI]: 'ヒデじい',
 } as const;
 
+// 型エイリアス（互換性のため）
+export type AICharacterType = keyof typeof AI_CHARACTERS;
+export const AI_CHARACTER_TYPES = AI_CHARACTERS;
+
+// インタラクションモード
+export const INTERACTION_MODES = {
+  PRAISE: 'praise',
+  LISTEN: 'listen',
+} as const;
+
+export type InteractionMode = typeof INTERACTION_MODES[keyof typeof INTERACTION_MODES];
+
+// 褒めレベル
+export const PRAISE_LEVELS = {
+  LIGHT: 'light',
+  NORMAL: 'normal', 
+  DEEP: 'deep',
+} as const;
+
+export type PraiseLevel = typeof PRAISE_LEVELS[keyof typeof PRAISE_LEVELS];
+
 // 木の成長段階（7段階: 0-6）
 export const TREE_STAGES = {
   SOIL: 0,        // 土だけ
@@ -55,11 +76,17 @@ export const UI_LIMITS = {
   MIN_TOUCH_TARGET: 44, // px
 } as const;
 
+// UI設定（レガシー互換）
+export const UI_CONFIG = UI_LIMITS;
+
 // ローカルストレージキー
 export const STORAGE_KEYS = {
   AUTH_TOKEN: 'homebiyori_auth_token',
   USER_PREFERENCES: 'homebiyori_user_prefs',
   LAST_CHARACTER: 'homebiyori_last_character',
+  USER_PROFILE: 'homebiyori_user_profile',
+  CHAT_DRAFT: 'homebiyori_chat_draft',
+  THEME_PREFERENCE: 'homebiyori_theme_preference',
 } as const;
 
 // 通知タイプ
@@ -153,23 +180,4 @@ export const AI_GREETINGS = {
 // バックエンド互換定数 (Backend Compatible Enums)
 // ============================================
 
-/**
- * バックエンドとの整合性を保つため、enumとして定義
- * 型システムでは統一型を使用し、これらは定数として使用
- */
-export const INTERACTION_MODES = {
-  PRAISE: 'praise',
-  LISTEN: 'listen'
-} as const;
-
-export const PRAISE_LEVELS = {
-  LIGHT: 'light',
-  NORMAL: 'normal',
-  DEEP: 'deep'
-} as const;
-
-export const AI_CHARACTER_TYPES = {
-  MITTYAN: 'mittyan',
-  MADOKASAN: 'madokasan',
-  HIDEJI: 'hideji'
-} as const;
+// 重複定義削除済み - 上部の定義を使用

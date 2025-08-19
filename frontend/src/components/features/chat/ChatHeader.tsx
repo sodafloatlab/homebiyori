@@ -4,7 +4,8 @@ import React from 'react';
 import { Zap } from 'lucide-react';
 import Image from 'next/image';
 import TouchTarget from '@/components/ui/TouchTarget';
-import { AICharacterType, InteractionMode, PraiseLevel } from '@/lib/constants';
+import { AI_CHARACTER_TYPES, INTERACTION_MODES, PRAISE_LEVELS } from '@/lib/constants';
+import type { AICharacterType, InteractionMode, PraiseLevel } from '@/lib/constants';
 
 interface ChatHeaderProps {
   // 1:1チャット用プロパティ

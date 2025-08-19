@@ -4,7 +4,8 @@ import React, { useState, useEffect } from 'react';
 import { AppScreen, AppState, AiRole, MoodType } from '@/types';
 import { useAuth, useChat, useTree, useNotifications, useMaintenance } from '@/lib/hooks';
 import TopPage from './TopPage';
-import AuthScreen from './AuthScreen';
+import AuthScreen from './auth/AuthScreen';
+import UserOnboardingScreen from './auth/UserOnboardingScreen';
 import CharacterSelection from './CharacterSelection';
 import ChatScreen from './ChatScreen';
 import TreeView from './TreeView';
@@ -45,7 +46,7 @@ const MainApp = () => {
           if (auth.profile?.onboarding_completed) {
             setCurrentScreen('character-selection'); // または最後に使用した画面
           } else {
-            setCurrentScreen('character-selection'); // 初回設定
+            setCurrentScreen('user-onboarding'); // 初回オンボーディング
           }
           
           // データを並行読み込み
@@ -84,7 +85,7 @@ const MainApp = () => {
     
     const hash = window.location.hash.replace('#', '');
     const validScreens: AppScreen[] = [
-      'landing', 'auth', 'character-selection', 'chat', 'tree', 
+      'landing', 'auth', 'user-onboarding', 'character-selection', 'chat', 'tree', 
       'group-chat', 'notifications', 'premium', 'subscription-cancel', 'terms-of-service', 
       'privacy-policy', 'commercial-transaction', 'contact', 'faq'
     ];
@@ -169,8 +170,13 @@ const MainApp = () => {
     if (userProfile.onboarding_completed) {
       handleNavigate('character-selection');
     } else {
-      handleNavigate('character-selection');
+      handleNavigate('user-onboarding');
     }
+  };
+
+  // オンボーディング完了時
+  const handleOnboardingComplete = () => {
+    handleNavigate('character-selection');
   };
 
   // 現在の画面に応じてコンポーネントをレンダリング
@@ -189,6 +195,14 @@ const MainApp = () => {
           <AuthScreen 
             onNavigate={handleNavigate}
             onAuthSuccess={handleAuthSuccess}
+          />
+        );
+
+      case 'user-onboarding':
+        return (
+          <UserOnboardingScreen
+            onNavigate={handleNavigate}
+            onComplete={handleOnboardingComplete}
           />
         );
         

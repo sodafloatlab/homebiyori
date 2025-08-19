@@ -17,7 +17,7 @@ interface AuthScreenProps {
 
 const AuthScreen = ({ onNavigate, onAuthSuccess }: AuthScreenProps) => {
   const [showToast, setShowToast] = useState(false);
-  const [toastMessage, setToastMessage] = useState({ type: 'success' as const, title: '', message: '' });
+  const [toastMessage, setToastMessage] = useState<{ type: 'success' | 'error' | 'warning' | 'info', title: string, message: string }>({ type: 'success', title: '', message: '' });
 
   const auth = useAuth();
   const maintenance = useMaintenance();

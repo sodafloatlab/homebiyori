@@ -57,8 +57,18 @@ export { billingService } from './BillingService';
 // 統一サービスエイリアス (最終形)
 // ============================================
 
-// Chat Service統一エイリアス
-export const ChatService = chatAPI;
+// Chat Service統一エイリアス（遅延初期化）
+export const getChatService = () => {
+  const { apiServices } = require('./api/APIServiceManager');
+  return apiServices.chat;
+};
 
-// Tree Service統一エイリアス  
-export const TreeService = treeAPI;
+// Tree Service統一エイリアス（遅延初期化）
+export const getTreeService = () => {
+  const { apiServices } = require('./api/APIServiceManager');
+  return apiServices.tree;
+};
+
+// 後方互換性のためのエイリアス（Getter形式）
+export const ChatService = getChatService;
+export const TreeService = getTreeService;

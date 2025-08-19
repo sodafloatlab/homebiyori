@@ -126,9 +126,7 @@ export class UserService {
     reason?: string;
     feedback?: string;
   }): Promise<void> {
-    await apiClient.delete('/user/account', { 
-      data: params 
-    });
+    await apiClient.delete('/user/account', params);
   }
 
   /**

@@ -13,7 +13,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { AuthService } from '@/lib/auth';
 import useAuthStore from '@/stores/authStore';
-import type { AuthUser, UserProfile } from '@/types';
+import { UserService } from '@/lib/services';
+import type { AuthUser, UserProfile, UpdateUserProfileRequest } from '@/types';
 
 interface UseAuthReturn {
   user: AuthUser | null;
@@ -25,6 +26,8 @@ interface UseAuthReturn {
   signOut: () => Promise<void>;
   refreshAuth: () => Promise<void>;
   handleAuthCallback: () => Promise<void>;
+  updateProfile: (updates: Partial<UpdateUserProfileRequest>) => Promise<void>;
+  checkAuthStatus: () => Promise<boolean>;
   clearError: () => void;
 }
 
@@ -141,6 +144,38 @@ export function useAuth(): UseAuthReturn {
     }
   }, [setUser, setProfile, logout]);
 
+  const updateProfile = useCallback(async (updates: Partial<UpdateUserProfileRequest>) => {
+    try {
+      setError(null);
+      
+      const updatedProfile = await UserService.updateProfile(updates);
+      setProfile(updatedProfile);
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'プロフィールの更新に失敗しました';
+      setError(errorMessage);
+      throw err;
+    }
+  }, [setProfile]);
+
+  const checkAuthStatus = useCallback(async (): Promise<boolean> => {
+    try {
+      const authStatus = await AuthService.checkAuthStatus();
+      
+      if (authStatus) {
+        setUser(authStatus.user);
+        setProfile(authStatus.profile);
+        return true;
+      } else {
+        logout();
+        return false;
+      }
+    } catch (err) {
+      console.error('Auth status check failed:', err);
+      logout();
+      return false;
+    }
+  }, [setUser, setProfile, logout]);
+
   const clearError = useCallback(() => {
     setError(null);
   }, []);
@@ -155,6 +190,8 @@ export function useAuth(): UseAuthReturn {
     signOut,
     refreshAuth,
     handleAuthCallback,
+    updateProfile,
+    checkAuthStatus,
     clearError
   };
 }

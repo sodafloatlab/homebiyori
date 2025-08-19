@@ -5,6 +5,25 @@
 // 統一型システムからの完全エクスポート
 export * from './unified';
 
+// 統一型システムからの型インポート（内部使用）
+import type { 
+  AiRole, 
+  MoodType, 
+  UserPlan, 
+  ChatMode, 
+  AICharacter, 
+  PraiseLevel, 
+  AppScreen,
+  TreeStage 
+} from './unified';
+
+// API型定義からの再エクスポート
+export type { 
+  UpdateUserProfileRequest,
+  CreateUserProfileRequest,
+  UpdateAIPreferencesRequest 
+} from './api';
+
 // API レスポンス共通型
 export interface APIResponse<T = any> {
   data?: T;
@@ -88,7 +107,7 @@ export interface CharacterInfo {
   color: 'rose' | 'sky' | 'amber';
 }
 
-export type TreeStage = 0 | 1 | 2 | 3 | 4 | 5 | 6;
+// TreeStage型はunified.tsから自動エクスポート
 
 export interface Fruit {
   fruit_id: string;
