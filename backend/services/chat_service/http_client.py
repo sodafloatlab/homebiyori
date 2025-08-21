@@ -70,11 +70,17 @@ class ServiceHTTPClient:
     async def update_tree_stats(
         self, 
         user_id: str, 
-        added_characters: int
+        added_characters: int,
+        jwt_token: str = ""
     ) -> Dict[str, Any]:
         """木の成長統計更新（成長計算結果を返却）"""
         try:
             logger.debug(f"Calling tree_service for tree growth update: user_id={user_id[:8]}****")
+            
+            # JWT トークンがある場合はAuthorization ヘッダーに追加
+            headers = {}
+            if jwt_token:
+                headers["Authorization"] = f"Bearer {jwt_token}"
             
             response = await self._make_request(
                 service="tree_service",
@@ -83,7 +89,8 @@ class ServiceHTTPClient:
                 data={
                     "user_id": user_id,
                     "added_characters": added_characters
-                }
+                },
+                headers=headers
             )
             
             logger.info(f"Tree stats updated via tree_service: user_id={user_id[:8]}****")
@@ -95,10 +102,15 @@ class ServiceHTTPClient:
             logger.error(f"Failed to update tree stats via tree_service: {str(e)}")
             raise Exception(f"Tree service unavailable for stats update: {str(e)}")
     
-    async def save_fruit_info(self, user_id: str, fruit_info: FruitInfo) -> None:
+    async def save_fruit_info(self, user_id: str, fruit_info: FruitInfo, jwt_token: str = "") -> None:
         """実情報保存"""
         try:
             logger.debug(f"Calling tree_service for fruit save: user_id={user_id[:8]}****")
+            
+            # JWT トークンがある場合はAuthorization ヘッダーに追加
+            headers = {}
+            if jwt_token:
+                headers["Authorization"] = f"Bearer {jwt_token}"
             
             fruit_data = {
                 "user_id": user_id,
@@ -113,7 +125,8 @@ class ServiceHTTPClient:
                 service="tree_service",
                 endpoint="/api/tree/fruits",
                 method="POST",
-                data=fruit_data
+                data=fruit_data,
+                headers=headers
             )
             
             logger.info(f"Fruit saved via tree_service: user_id={user_id[:8]}****")

@@ -168,6 +168,56 @@ app.middleware("http")(error_handling_middleware)
 # チャット機能エンドポイント
 # =====================================
 
+def _extract_jwt_from_request(request: Request) -> str:
+    """
+    API Gatewayイベントから元のJWTトークンを抽出
+    
+    Args:
+        request: FastAPI Request オブジェクト
+        
+    Returns:
+        str: JWTトークン（Bearer prefix除去済み）
+        
+    Notes:
+        - API Gateway + Lambda Proxy統合での認証トークン取得
+        - テスト環境では空文字列を返す
+    """
+    try:
+        # FastAPI Request から Lambda event を取得
+        event = request.scope.get("aws.event", {})
+        
+        if not event:
+            # テスト環境では Lambda event が存在しない
+            if os.getenv("ENVIRONMENT") in ["test", "development"]:
+                logger.debug("Lambda event not found in test environment")
+                return ""
+            else:
+                logger.warning("Lambda event not found in production environment")
+                return ""
+        
+        # API Gateway headers から Authorization ヘッダーを取得
+        headers = event.get("headers", {})
+        auth_header = headers.get("authorization") or headers.get("Authorization", "")
+        
+        if not auth_header:
+            logger.warning("Authorization header not found in request")
+            return ""
+            
+        # Bearer prefix を除去
+        if auth_header.startswith("Bearer "):
+            jwt_token = auth_header.replace("Bearer ", "")
+            logger.debug("JWT token extracted successfully from request")
+            return jwt_token
+        else:
+            logger.warning("Authorization header does not contain Bearer token")
+            return ""
+            
+    except Exception as e:
+        logger.error(f"Failed to extract JWT token from request: {e}")
+        return ""
+
+
+
 @require_basic_access()
 async def send_message(
     request: Request,
@@ -206,6 +256,9 @@ async def send_message(
         message_id = str(uuid.uuid4())
         timestamp = get_current_jst()
         
+        # JWTトークン取得（tree_service通信用）
+        jwt_token = _extract_jwt_from_request(request)
+        
         # ===============================
         # 1. AI応答生成（LangChainベース）
         # ===============================
@@ -230,12 +283,12 @@ async def send_message(
         detected_emotion, emotion_score = detect_emotion_simple(chat_request.message)
         
         # ===============================
-        # 2. 木の成長計算（tree_serviceで実行）
+        # 2. 木の成長計算（tree_serviceで実行）+ JWT転送
         # ===============================
         message_character_count = len(chat_request.message)
         
-        # tree_serviceで成長計算を実行し、結果を取得
-        growth_info = await service_client.update_tree_stats(user_id, message_character_count)
+        # tree_serviceで成長計算を実行し、結果を取得（JWT転送）
+        growth_info = await service_client.update_tree_stats(user_id, message_character_count, jwt_token)
         
         # TreeGrowthInfo構築（tree_serviceレスポンス構造に合わせて修正）
         tree_growth = TreeGrowthInfo(
@@ -320,9 +373,9 @@ async def send_message(
         # ===============================
         await chat_db.save_chat_message(chat_message)
         
-        # 実が生成された場合は実テーブルにも保存（tree_serviceで実行）
+        # 実が生成された場合は実テーブルにも保存（tree_serviceで実行）+ JWT転送
         if fruit_generated and fruit_info:
-            await service_client.save_fruit_info(user_id, fruit_info)
+            await service_client.save_fruit_info(user_id, fruit_info, jwt_token)
         
         # ===============================
         # 6. レスポンス構築・返却
@@ -393,6 +446,7 @@ async def send_message(
 @require_basic_access()
 async def send_group_message(
     group_chat_request: GroupChatRequest, 
+    request: Request,
     user_id: str = Depends(get_current_user_id)
 ):
     """
@@ -423,6 +477,9 @@ async def send_group_message(
                 "message_length": len(group_chat_request.message)
             }
         )
+        
+        # JWT トークン抽出（tree_service通信用）
+        jwt_token = _extract_jwt_from_request(request)
         
         # メッセージID生成
         message_id = str(uuid.uuid4())
@@ -517,8 +574,8 @@ async def send_group_message(
         # ===============================
         message_character_count = len(group_chat_request.message)
         
-        # tree_serviceで成長処理を実行し、成長判定も含めて取得
-        growth_info = await service_client.update_tree_stats(user_id, message_character_count)
+        # tree_serviceで成長処理を実行し、成長判定も含めて取得（JWT転送対応）
+        growth_info = await service_client.update_tree_stats(user_id, message_character_count, jwt_token)
         
         # TreeGrowthInfo構築（tree_serviceレスポンス構造に合わせて修正）
         tree_growth = TreeGrowthInfo(
@@ -602,7 +659,7 @@ async def send_group_message(
         await chat_db.save_chat_message(chat_message)
         
         if fruit_generated and fruit_info:
-            await service_client.save_fruit_info(user_id, fruit_info)
+            await service_client.save_fruit_info(user_id, fruit_info, jwt_token)
         
         # ===============================
         # 8. レスポンス構築・返却
