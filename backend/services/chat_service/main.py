@@ -42,7 +42,7 @@ from datetime import datetime, timedelta
 import uuid
 
 # Lambda Layers からの共通機能インポート
-from homebiyori_common.auth import get_user_id_from_event
+from homebiyori_common.auth import get_user_id_from_event, extract_jwt_from_request
 from homebiyori_common.logger import get_logger
 from homebiyori_common.exceptions import (
     ValidationError,
@@ -168,54 +168,6 @@ app.middleware("http")(error_handling_middleware)
 # チャット機能エンドポイント
 # =====================================
 
-def _extract_jwt_from_request(request: Request) -> str:
-    """
-    API Gatewayイベントから元のJWTトークンを抽出
-    
-    Args:
-        request: FastAPI Request オブジェクト
-        
-    Returns:
-        str: JWTトークン（Bearer prefix除去済み）
-        
-    Notes:
-        - API Gateway + Lambda Proxy統合での認証トークン取得
-        - テスト環境では空文字列を返す
-    """
-    try:
-        # FastAPI Request から Lambda event を取得
-        event = request.scope.get("aws.event", {})
-        
-        if not event:
-            # テスト環境では Lambda event が存在しない
-            if os.getenv("ENVIRONMENT") in ["test", "development"]:
-                logger.debug("Lambda event not found in test environment")
-                return ""
-            else:
-                logger.warning("Lambda event not found in production environment")
-                return ""
-        
-        # API Gateway headers から Authorization ヘッダーを取得
-        headers = event.get("headers", {})
-        auth_header = headers.get("authorization") or headers.get("Authorization", "")
-        
-        if not auth_header:
-            logger.warning("Authorization header not found in request")
-            return ""
-            
-        # Bearer prefix を除去
-        if auth_header.startswith("Bearer "):
-            jwt_token = auth_header.replace("Bearer ", "")
-            logger.debug("JWT token extracted successfully from request")
-            return jwt_token
-        else:
-            logger.warning("Authorization header does not contain Bearer token")
-            return ""
-            
-    except Exception as e:
-        logger.error(f"Failed to extract JWT token from request: {e}")
-        return ""
-
 
 
 @require_basic_access()
@@ -257,7 +209,7 @@ async def send_message(
         timestamp = get_current_jst()
         
         # JWTトークン取得（tree_service通信用）
-        jwt_token = _extract_jwt_from_request(request)
+        jwt_token = extract_jwt_from_request(request)
         
         # ===============================
         # 1. AI応答生成（LangChainベース）
@@ -479,7 +431,7 @@ async def send_group_message(
         )
         
         # JWT トークン抽出（tree_service通信用）
-        jwt_token = _extract_jwt_from_request(request)
+        jwt_token = extract_jwt_from_request(request)
         
         # メッセージID生成
         message_id = str(uuid.uuid4())

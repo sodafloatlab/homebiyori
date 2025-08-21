@@ -203,6 +203,68 @@ def verify_jwt_token(token: str) -> Dict[str, Any]:
         logger.error("JWT token verification failed", extra={"error": str(e)})
         raise CognitoAuthError(f"JWTトークン解析エラー: {str(e)}")
 
+def extract_jwt_from_request(request) -> str:
+    """
+    FastAPI RequestからCognito JWTトークンを抽出
+    
+    API Gateway + Lambda Proxy統合においてCognitoで認証されたJWTトークンを
+    サービス間通信で再利用するために抽出します。
+    
+    Args:
+        request: FastAPI Request オブジェクト（starlette.requests.Request）
+        
+    Returns:
+        str: JWTトークン（Bearer prefix除去済み）、取得できない場合は空文字列
+        
+    Notes:
+        - API Gateway + Lambda Proxy統合での認証トークン取得
+        - テスト・開発環境では空文字列を返す（Lambdaイベントなし）
+        - 本番環境でAPI Gateway経由でのみ有効
+        
+    Example:
+        >>> from homebiyori_common.auth import extract_jwt_from_request
+        >>> jwt_token = extract_jwt_from_request(request)
+        >>> if jwt_token:
+        >>>     headers = {"Authorization": f"Bearer {jwt_token}"}
+    """
+    try:
+        import os
+        
+        # FastAPI Request から Lambda event を取得
+        event = request.scope.get("aws.event", {})
+        
+        if not event:
+            # テスト・開発環境では Lambda event が存在しない
+            if os.getenv("ENVIRONMENT") in ["test", "development"]:
+                logger.debug("Lambda event not found in test/development environment")
+                return ""
+            else:
+                logger.warning("Lambda event not found in production environment")
+                return ""
+        
+        # API Gateway headers から Authorization ヘッダーを取得
+        headers = event.get("headers", {})
+        auth_header = headers.get("authorization") or headers.get("Authorization", "")
+        
+        if not auth_header:
+            logger.warning("Authorization header not found in request")
+            return ""
+            
+        # Bearer prefix を除去
+        if auth_header.startswith("Bearer "):
+            jwt_token = auth_header.replace("Bearer ", "")
+            logger.debug("JWT token extracted successfully from request")
+            return jwt_token
+        else:
+            logger.warning("Authorization header does not contain Bearer token")
+            return ""
+            
+    except Exception as e:
+        logger.error("Failed to extract JWT token from request", extra={
+            "error": str(e)
+        })
+        return ""
+
 
 def _safe_event_structure(event: Dict[str, Any]) -> Dict[str, Any]:
     """

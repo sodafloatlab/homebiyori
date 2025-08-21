@@ -11,6 +11,7 @@ from .cognito_utils import (
     get_user_id_from_event,
     get_user_email_from_event,
     extract_user_claims,
+    extract_jwt_from_request,
     CognitoAuthError
 )
 # jwt_validator module removed due to non-usage
@@ -19,5 +20,6 @@ __all__ = [
     "get_user_id_from_event",
     "get_user_email_from_event", 
     "extract_user_claims",
+    "extract_jwt_from_request",
     "CognitoAuthError"
 ]
