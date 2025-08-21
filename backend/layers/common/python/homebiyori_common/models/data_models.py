@@ -150,8 +150,6 @@ class TreeGrowthInfo(BaseModel):
     current_total: int = Field(description="現在の累計文字数")
     added_characters: int = Field(description="今回追加された文字数")
     stage_changed: bool = Field(description="段階が変化したかどうか")
-    characters_to_next: int = Field(description="次段階まで必要な文字数")
-    progress_percentage: float = Field(description="現段階内での進捗パーセンテージ")
     growth_celebration: Optional[str] = Field(None, description="段階変化時のお祝いメッセージ")
 
 

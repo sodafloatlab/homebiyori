@@ -461,7 +461,7 @@ class ChatServiceDatabase:
     # ユーザー情報管理（user_serviceに移譲）
     # =====================================
     
-    # get_user_subscription_info 関数は user_service/http_client 経由で呼び出し
+    # Issue #15統一戦略により、サブスクリプション情報取得機能は削除済み
     # get_user_ai_preferences 関数は user_service/http_client 経由で呼び出し
 
     async def health_check(self) -> Dict[str, Any]:

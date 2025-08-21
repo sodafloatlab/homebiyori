@@ -86,31 +86,93 @@ class ParameterStoreClient:
         logger.info("Parameter Store cache cleared")
     
     # === LLM設定管理 ===
-    def get_llm_config(self, user_tier: str) -> Dict[str, Any]:
+    def get_llm_config(self) -> Dict[str, Any]:
         """
-        ユーザープラン別LLM設定を取得（新戦略：全ユーザー統一設定）
+        統一LLM設定を取得（Issue #15統一戦略）
         
-        Args:
-            user_tier: ユーザープラン ('free' or 'premium') - 統一設定のため実質無視
-            
+        【統一戦略】
+        - user_tier概念削除：全ユーザー統一設定
+        - LangChain Memory統合：メモリ管理設定も含む
+        - AI応答生成統合：コア・要約両方の設定を提供
+        
         Returns:
-            LLM設定辞書
+            統一LLM設定辞書（LangChain Memory用設定含む）
         """
         try:
-            # 新戦略：全ユーザー統一設定パス
+            # 統一設定パス
             unified_path = f"{self._base_path}/llm/unified"
             
-            # 各設定値を取得
+            # ===== AI応答生成用LLM設定 =====
+            # ユーザーへの直接応答を生成するメインLLMの設定
             model_id = self.get_parameter(f"{unified_path}/model-id")
-            max_tokens = int(self.get_parameter(f"{unified_path}/max-tokens"))
-            temperature = float(self.get_parameter(f"{unified_path}/temperature"))
+            max_tokens = int(self.get_parameter(f"{unified_path}/max-tokens"))        # 例: 500トークン（ユーザー応答用）
+            temperature = float(self.get_parameter(f"{unified_path}/temperature"))   # 例: 0.7（自然な応答のため）
             
-            # Amazon Nova Lite用設定（anthropic_versionは不要）
+            # ===== LangChain Memory管理用設定 =====
+            # 会話履歴の要約・管理専用LLMの設定（背景処理用）
+            langchainmemory_max_tokens = int(self.get_parameter(f"{unified_path}/langchainmemory-max-tokens"))      # 例: 8000トークン（大量履歴処理用）
+            langchainmemory_buffer_messages = int(self.get_parameter(f"{unified_path}/langchainmemory-buffer-messages"))  # 例: 30件（直近履歴保持数）
+            
+            # ===== DynamoDB取得制御設定（新規追加） =====
+            # DynamoDBから初期読み込みするメッセージの最大件数
+            # ・用途: _load_messagesでの初期データ取得量制御
+            # ・目的: ConversationSummaryBufferMemoryの初期化時に必要十分なデータを取得
+            # ・buffer_messagesとの関係: buffer_messages ≤ db_fetch_limit が推奨
+            langchainmemory_db_fetch_limit = int(self.get_parameter(f"{unified_path}/langchainmemory-db-fetch-limit"))  # 例: 100件（DB取得制限）
+            
+            # ===== LangChain Memory要約専用LLM設定（model_kwargs統合） =====
+            # 会話履歴要約生成専用の細かいパラメータ設定
+            langchainmemory_summary_max_tokens = int(self.get_parameter(f"{unified_path}/langchainmemory-summary-max-tokens"))  # 例: 150トークン（要約生成用）
+            langchainmemory_summary_temperature = float(self.get_parameter(f"{unified_path}/langchainmemory-summary-temperature"))  # 例: 0.3（精度重視）
+            
+            # 【DB取得件数と短期記憶件数の使い分け】
+            # ・db_fetch_limit: DynamoDBから取得する会話履歴の最大件数（例: 100件）
+            #   - _load_messagesで使用
+            #   - ConversationSummaryBufferMemoryの初期化に必要な十分なデータを取得
+            #   - 要約処理やコンテキスト構築に必要な過去のデータを含む
+            # 
+            # ・buffer_messages: ConversationSummaryBufferMemoryが短期記憶として保持する直近件数（例: 30件）
+            #   - max_messagesパラメータとして使用
+            #   - 要約時も要約せずにそのまま保持される最新の会話
+            #   - ユーザーとの直近の文脈として重要なメッセージ
+            #
+            # 【推奨設定関係】
+            # buffer_messages ≤ db_fetch_limit であることが効率的
+            # 例: buffer_messages=30, db_fetch_limit=100 → 30件は短期記憶、残り70件は要約対象候補
+            
+            # 【使い分けの理由】
+            # ・AI応答用: ユーザーが読む最終応答の生成（品質重視・適度な長さ）
+            # ・LangChain Memory用: 過去の会話を効率的に要約・管理（処理能力重視・長文OK）
+            # ・LangChain Memory用はバックグラウンド処理のため、より大きなトークン制限を設定
+            # ・AI応答用は即座にユーザーに表示されるため、適切な長さに制限
+            #
+            # 【Parameter Store設定構造（DB取得制御追加版）】
+            # /prod/homebiyori/llm/unified/
+            # ├── model-id                              # 共通モデル（Claude 3 HaikuまたはNova Lite）
+            # ├── max-tokens                            # AI応答用（例: 500）
+            # ├── temperature                           # AI応答用（例: 0.7）
+            # ├── langchainmemory-max-tokens           # LangChain Memory管理用（例: 8000）
+            # ├── langchainmemory-buffer-messages      # LangChain Memory履歴保持数（例: 30）
+            # ├── langchainmemory-db-fetch-limit       # DynamoDB取得件数制限（例: 100）
+            # ├── langchainmemory-summary-max-tokens   # LangChain Memory要約生成用（例: 150）
+            # └── langchainmemory-summary-temperature  # LangChain Memory要約精度用（例: 0.3）
+            
             config = {
-                "model_id": model_id,
-                "max_tokens": max_tokens,
-                "temperature": temperature,
-                "region_name": os.getenv('AWS_REGION', 'us-east-1')
+                # ===== AI応答生成用設定 =====
+                "model_id": model_id,           # 共通モデル（Claude 3 HaikuまたはNova Lite）
+                "max_tokens": max_tokens,       # ユーザー応答用制限（例: 500トークン）
+                "temperature": temperature,     # 自然な応答のための温度設定（例: 0.7）
+                "region_name": os.getenv('AWS_REGION', 'us-east-1'),
+                
+                # ===== LangChain Memory管理用設定 =====
+                "langchainmemory_max_tokens": langchainmemory_max_tokens,         # 履歴管理用制限（例: 8000トークン）
+                "langchainmemory_buffer_messages": langchainmemory_buffer_messages, # 直近履歴保持数（例: 30件）
+                "langchainmemory_db_fetch_limit": langchainmemory_db_fetch_limit,   # DB取得件数制限（例: 100件）
+                "summary_enabled": True,  # 統一戦略：全員要約機能有効
+                
+                # ===== LangChain Memory要約専用LLM設定 =====
+                "langchainmemory_summary_max_tokens": langchainmemory_summary_max_tokens,     # 要約生成用制限（例: 150トークン）
+                "langchainmemory_summary_temperature": langchainmemory_summary_temperature   # 要約精度重視（例: 0.3）
             }
             
             # Amazon NovaモデルかAnthropicモデルかを判定してパラメータを調整
@@ -118,13 +180,18 @@ class ParameterStoreClient:
                 config["anthropic_version"] = "bedrock-2023-05-31"
             
             logger.info(
-                f"Retrieved unified LLM config (requested tier: {user_tier})",
+                "Retrieved unified LLM config with DB fetch limit control (Issue #15 strategy)",
                 extra={
-                    "user_tier": user_tier,
                     "model_id": model_id,
                     "max_tokens": max_tokens,
                     "temperature": temperature,
-                    "is_anthropic": "anthropic.claude" in model_id
+                    "langchainmemory_max_tokens": langchainmemory_max_tokens,
+                    "langchainmemory_buffer_messages": langchainmemory_buffer_messages,
+                    "langchainmemory_db_fetch_limit": langchainmemory_db_fetch_limit,
+                    "langchainmemory_summary_max_tokens": langchainmemory_summary_max_tokens,
+                    "langchainmemory_summary_temperature": langchainmemory_summary_temperature,
+                    "is_anthropic": "anthropic.claude" in model_id,
+                    "strategy": "unified configuration with separated DB fetch and buffer controls"
                 }
             )
             
@@ -132,7 +199,7 @@ class ParameterStoreClient:
             
         except Exception as e:
             logger.error(
-                f"Failed to get unified LLM config (requested tier: {user_tier}): {e}",
+                f"Failed to get unified LLM config: {e}",
                 exc_info=True
             )
             raise
@@ -374,18 +441,19 @@ def get_parameter_store_client() -> ParameterStoreClient:
         _parameter_store_client = ParameterStoreClient()
     return _parameter_store_client
 
-def get_llm_config(user_tier: str) -> Dict[str, Any]:
+def get_llm_config() -> Dict[str, Any]:
     """
-    ユーザープラン別LLM設定を取得（簡便関数）
+    統一LLM設定を取得（Issue #15統一戦略対応 - 便利関数）
     
-    Args:
-        user_tier: ユーザープラン ('free' or 'premium')
-        
+    【統一戦略】
+    - user_tier概念削除：全ユーザー統一設定
+    - Parameter Store集約管理：LangChain Memory設定も含む
+    
     Returns:
-        LLM設定辞書
+        統一LLM設定辞書（LangChain Memory用設定含む）
     """
     client = get_parameter_store_client()
-    return client.get_llm_config(user_tier)
+    return client.get_llm_config()
 
 # === 統一Parameter Store取得関数（便利関数群） ===
 

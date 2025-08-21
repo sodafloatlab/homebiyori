@@ -166,6 +166,90 @@ resource "aws_ssm_parameter" "ai_unified_temperature" {
 }
 
 # ========================================
+# LangChain Memory管理設定（統合版）
+# ========================================
+
+# LangChain Memory用最大トークン数
+resource "aws_ssm_parameter" "langchainmemory_max_tokens" {
+  name        = "/${var.environment}/homebiyori/llm/unified/langchainmemory-max-tokens"
+  description = "Maximum tokens for LangChain ConversationSummaryBufferMemory management (summary trigger threshold)"
+  type        = "String"
+  value       = "8000"
+  
+  # LangChain Memory履歴管理用トークン上限（要約トリガー）
+  # Tags are automatically applied via provider default_tags
+}
+
+# LangChain Memory用バッファメッセージ数
+resource "aws_ssm_parameter" "langchainmemory_buffer_messages" {
+  name        = "/${var.environment}/homebiyori/llm/unified/langchainmemory-buffer-messages"
+  description = "Number of recent messages to keep in buffer without summarization (short-term memory)"
+  type        = "String"
+  value       = "30"
+  
+  # 短期記憶として要約せずに保持する直近メッセージ件数
+  # Tags are automatically applied via provider default_tags
+}
+
+# DynamoDB取得件数制御（新規追加）
+resource "aws_ssm_parameter" "langchainmemory_db_fetch_limit" {
+  name        = "/${var.environment}/homebiyori/llm/unified/langchainmemory-db-fetch-limit"
+  description = "Maximum number of messages to fetch from DynamoDB for LangChain Memory initialization"
+  type        = "String"
+  value       = "100"
+  
+  # _load_messagesでの初期データ取得量制御（ハードコード削除）
+  # 推奨: buffer_messages ≤ db_fetch_limit
+  # Tags are automatically applied via provider default_tags
+}
+
+# LangChain Memory要約専用最大トークン数
+resource "aws_ssm_parameter" "langchainmemory_summary_max_tokens" {
+  name        = "/${var.environment}/homebiyori/llm/unified/langchainmemory-summary-max-tokens"
+  description = "Maximum tokens for LangChain Memory summary generation (background processing)"
+  type        = "String"
+  value       = "150"
+  
+  # 会話履歴要約生成用トークン制限（ユーザーには直接表示されない）
+  # Tags are automatically applied via provider default_tags
+}
+
+# LangChain Memory要約専用温度設定
+resource "aws_ssm_parameter" "langchainmemory_summary_temperature" {
+  name        = "/${var.environment}/homebiyori/llm/unified/langchainmemory-summary-temperature"
+  description = "Temperature setting for LangChain Memory summary generation (precision-focused)"
+  type        = "String"
+  value       = "0.3"
+  
+  # 要約精度重視の低温度設定（事実に忠実な要約生成）
+  # Tags are automatically applied via provider default_tags
+}
+
+# ========================================
+# 機能フラグ制御（LangChain Memory統合）
+# ========================================
+
+# 機能フラグJSON（要約機能制御含む）
+resource "aws_ssm_parameter" "feature_flags" {
+  name        = "/${var.environment}/homebiyori/features/flags"
+  description = "Feature flags for dynamic feature control (JSON format)"
+  type        = "String"
+  value       = jsonencode({
+    summary_enabled      = true   # LangChain Memory要約機能有効フラグ
+    group_chat_enabled   = true   # グループチャット機能
+    premium_features     = true   # プレミアム機能（統一戦略により全員有効）
+    maintenance_mode     = false  # メンテナンスモード
+  })
+  
+  # 運用時の機能制御調整に備えて動的変更を許可
+  lifecycle {
+    ignore_changes = [value]
+  }
+  
+  # Tags are automatically applied via provider default_tags
+}
+
+# ========================================
 # Stripe統合設定（新戦略）
 # ========================================
 

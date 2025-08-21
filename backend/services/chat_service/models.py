@@ -41,9 +41,9 @@ class GroupAIResponse(BaseModel):
 class ChatRequest(BaseModel):
     """チャット送信リクエスト"""
     message: str = Field(..., min_length=1, max_length=2000, description="ユーザーメッセージ")
-    ai_character: AICharacterType = Field(default=AICharacterType.MITTYAN, description="AIキャラクター")
-    interaction_mode: InteractionMode = Field(default=InteractionMode.PRAISE, description="対話モード")
-    praise_level: PraiseLevel = Field(default=PraiseLevel.NORMAL, description="褒めレベル")
+    ai_character: AICharacterType = Field(..., description="AIキャラクター")
+    interaction_mode: InteractionMode = Field(..., description="対話モード")
+    praise_level: PraiseLevel = Field(..., description="褒めレベル")
     context_length: int = Field(10, ge=1, le=50, description="文脈履歴取得件数")
 
 
@@ -60,7 +60,8 @@ class GroupChatRequest(BaseModel):
         max_length=3, 
         description="アクティブなAIキャラクターリスト"
     )
-    interaction_mode: Optional[InteractionMode] = Field(None, description="対話モード（省略時はプロフィール設定値使用）")
+    interaction_mode: InteractionMode = Field(..., description="対話モード")
+    praise_level: PraiseLevel = Field(..., description="褒めレベル")
     context_length: int = Field(10, ge=1, le=50, description="文脈履歴取得件数")
     
     @field_validator("active_characters")
@@ -76,6 +77,7 @@ class GroupChatRequest(BaseModel):
                 "message": "今日は子供と公園で遊んで楽しかったです",
                 "active_characters": ["mittyan", "madokasan", "hideji"],
                 "interaction_mode": "praise",
+                "praise_level": "normal",
                 "context_length": 10
             }
         }

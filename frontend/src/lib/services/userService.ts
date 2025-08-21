@@ -49,6 +49,15 @@ export class UserService {
   }
 
   /**
+   * 対話モードを更新（praise/listen）
+   */
+  static async updateInteractionMode(interactionMode: 'praise' | 'listen'): Promise<void> {
+    await apiClient.patch('/user/ai-preferences', { 
+      interaction_mode: interactionMode 
+    });
+  }
+
+  /**
    * オンボーディング完了を記録
    */
   static async completeOnboarding(): Promise<void> {

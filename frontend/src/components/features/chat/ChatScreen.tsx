@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Send, Crown, Users, ArrowLeft, RotateCcw, Settings } from 'lucide-react';
+import { Send, Crown, Users, ArrowLeft, RotateCcw, Settings, MessageCircle } from 'lucide-react';
 import Image from 'next/image';
 import { AiRole, MoodType, AppScreen, ChatMessage, TreeStage, AICharacter, PraiseLevel } from '@/types';
 import Typography from '@/components/ui/Typography';
@@ -11,6 +11,7 @@ import TouchTarget from '@/components/ui/TouchTarget';
 import Toast from '@/components/ui/Toast';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import AiIcon from '@/components/ui/AiIcon';
+import InteractionModeToggle from './InteractionModeToggle';
 import { useChatService, useTreeService, useChatAPI } from '@/lib/hooks';
 import { getCharacterInfo } from '@/lib/utils';
 
@@ -19,6 +20,7 @@ interface ChatScreenProps {
   currentMood: MoodType;
   onNavigate: (screen: AppScreen) => void;
   onCharacterChange: () => void;
+  onMoodChange?: (mood: MoodType) => void;
 }
 
 type EmotionType = '嬉しい' | '悲しい' | '困った' | '疲れた' | '愛情' | '不安';
@@ -27,7 +29,8 @@ const ChatScreen = ({
   selectedAiRole, 
   currentMood, 
   onNavigate,
-  onCharacterChange
+  onCharacterChange,
+  onMoodChange
 }: ChatScreenProps) => {
   const [inputText, setInputText] = useState('');
   const [isTyping, setIsTyping] = useState(false);
@@ -42,6 +45,36 @@ const ChatScreen = ({
 
   // 統一キャラクター情報を使用
   const currentCharacter = getCharacterInfo(selectedAiRole);
+
+  // 仮実装: 実際のhooksやstoreで置き換え予定
+  const chat = {
+    messages: [] as ChatMessage[],
+    addMessage: (message: ChatMessage) => {
+      console.log('Message added:', message);
+    },
+    clearMessages: () => {
+      console.log('Messages cleared');
+    }
+  };
+
+  const tree = {
+    treeStatus: { fruits_count: 0 },
+    loadTreeStatus: async () => {
+      console.log('Tree status loaded');
+    }
+  };
+
+  const maintenance = {
+    isMaintenanceMode: false
+  };
+
+  const premiumGuard = {
+    isPremiumUser: true,
+    checkPremiumFeature: (feature: string) => {
+      console.log('Premium feature check:', feature);
+      return true;
+    }
+  };
 
   const emotions = [
     { emoji: '😊', label: '嬉しい' },
@@ -76,13 +109,11 @@ const ChatScreen = ({
       // ユーザーメッセージをローカルに追加
       const userMessage: ChatMessage = {
         id: `user-${Date.now()}`,
-        content: messageText,
-        role: 'user',
-        timestamp: new Date().toISOString(),
-        metadata: {
-          mood: currentMood,
-          ai_character: selectedAiRole
-        }
+        text: messageText,
+        sender: 'user',
+        timestamp: Date.now(),
+        aiRole: selectedAiRole,
+        mood: currentMood
       };
       
       chat.addMessage(userMessage);
@@ -109,15 +140,12 @@ const ChatScreen = ({
       // AI応答をローカルに追加
       const aiMessage: ChatMessage = {
         id: `ai-${Date.now()}`,
-        content: response.ai_response,
-        role: 'assistant',
-        timestamp: new Date().toISOString(),
-        metadata: {
-          mood: currentMood,
-          ai_character: selectedAiRole,
-          fruit_generated: response.fruit_generated,
-          emotion_detected: response.emotion_detected
-        }
+        text: response.ai_response,
+        sender: 'ai',
+        timestamp: Date.now(),
+        aiRole: selectedAiRole,
+        mood: currentMood,
+        emotion: response.emotion_detected
       };
       
       chat.addMessage(aiMessage);
@@ -160,14 +188,12 @@ const ChatScreen = ({
       // 感情スタンプメッセージをローカルに追加
       const emotionMessage: ChatMessage = {
         id: `emotion-${Date.now()}`,
-        content: emoji,
-        role: 'user',
-        timestamp: new Date().toISOString(),
-        metadata: {
-          mood: currentMood,
-          ai_character: selectedAiRole,
-          emotion_stamp: label
-        }
+        text: emoji,
+        sender: 'user',
+        timestamp: Date.now(),
+        aiRole: selectedAiRole,
+        mood: currentMood,
+        emotion: label
       };
       
       chat.addMessage(emotionMessage);
@@ -184,14 +210,12 @@ const ChatScreen = ({
       // AI応答をローカルに追加
       const aiMessage: ChatMessage = {
         id: `ai-emotion-${Date.now()}`,
-        content: response.ai_response,
-        role: 'assistant',
-        timestamp: new Date().toISOString(),
-        metadata: {
-          mood: currentMood,
-          ai_character: selectedAiRole,
-          emotion_response: true
-        }
+        text: response.ai_response,
+        sender: 'ai',
+        timestamp: Date.now(),
+        aiRole: selectedAiRole,
+        mood: currentMood,
+        emotion: label
       };
       
       chat.addMessage(aiMessage);
@@ -210,7 +234,7 @@ const ChatScreen = ({
   };
 
   // タイムスタンプのフォーマット
-  const formatTimestamp = (timestamp: string) => {
+  const formatTimestamp = (timestamp: number | string) => {
     const date = new Date(timestamp);
     return date.toLocaleTimeString('ja-JP', { 
       hour: '2-digit', 
@@ -222,7 +246,7 @@ const ChatScreen = ({
   // 木の成長段階の計算
   const getTreeStage = (): TreeStage => {
     if (!tree.treeStatus) return 1;
-    const totalMessages = chat.messages.filter(m => m.role === 'user').length;
+    const totalMessages = chat.messages.filter(m => m.sender === 'user').length;
     
     if (totalMessages >= 50) return 6;
     if (totalMessages >= 40) return 5;
@@ -230,6 +254,13 @@ const ChatScreen = ({
     if (totalMessages >= 20) return 3;
     if (totalMessages >= 10) return 2;
     return 1;
+  };
+
+  // 対話モード変更ハンドラ
+  const handleMoodChange = (newMood: MoodType) => {
+    if (onMoodChange) {
+      onMoodChange(newMood);
+    }
   };
 
   const treeStage = getTreeStage();
@@ -306,9 +337,9 @@ const ChatScreen = ({
                       initial={{ opacity: 0, y: 20 }}
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0, y: -20 }}
-                      className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                      className={`flex ${message.sender === 'user' ? 'justify-end' : 'justify-start'}`}
                     >
-                      {message.role === 'assistant' && (
+                      {message.sender === 'ai' && (
                         <div className="flex items-end space-x-2 max-w-[80%]">
                           <div className="flex-shrink-0">
                             <AiIcon
@@ -322,22 +353,22 @@ const ChatScreen = ({
                               {currentCharacter.name} • {formatTimestamp(message.timestamp)}
                             </div>
                             <div className={`${currentCharacter.bgColor} p-3 rounded-2xl rounded-bl-sm border border-white/30 shadow-sm`}>
-                              <span className="text-gray-800 font-medium">{message.content}</span>
+                              <span className="text-gray-800 font-medium">{message.text}</span>
                             </div>
                           </div>
                         </div>
                       )}
                       
-                      {message.role === 'user' && (
+                      {message.sender === 'user' && (
                         <div className="max-w-[80%]">
                           <div className="text-xs text-gray-500 text-right mb-1">
                             {formatTimestamp(message.timestamp)}
                           </div>
                           <div className="bg-emerald-600 text-white p-3 rounded-2xl rounded-br-sm border border-emerald-700 shadow-sm">
-                            {message.metadata?.emotion_stamp ? (
-                              <span className="text-2xl">{message.content}</span>
+                            {message.emotion ? (
+                              <span className="text-2xl">{message.text}</span>
                             ) : (
-                              <span className="font-medium">{message.content}</span>
+                              <span className="font-medium">{message.text}</span>
                             )}
                           </div>
                         </div>
@@ -447,7 +478,7 @@ const ChatScreen = ({
                     総メッセージ数
                   </Typography>
                   <Typography variant="h4" color="primary">
-                    {chat.messages.filter(m => m.role === 'user').length}
+                    {chat.messages.filter(m => m.sender === 'user').length}
                   </Typography>
                 </div>
                 <div>
@@ -471,53 +502,12 @@ const ChatScreen = ({
               </Button>
             </div>
 
-            {/* ディープモード切り替え */}
-            <div className="bg-white/90 backdrop-blur-sm rounded-2xl shadow-lg p-6 border border-white/20">
-              <Typography variant="h4" color="primary" className="mb-3 flex items-center">
-                <MessageCircle className="w-5 h-5 mr-2" />
-                褒めレベル設定
-              </Typography>
-              <div className="space-y-3">
-                <div className="flex items-center space-x-4">
-                  <TouchTarget
-                    onClick={() => setCurrentPraiseLevel('normal')}
-                    className={`flex-1 p-3 rounded-lg border-2 text-center transition-all ${
-                      currentPraiseLevel === 'normal'
-                        ? 'border-emerald-500 bg-emerald-50 text-emerald-700'
-                        : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300'
-                    }`}
-                  >
-                    <div className="font-semibold text-sm">ノーマル</div>
-                    <div className="text-xs opacity-75">優しく簡潔に</div>
-                  </TouchTarget>
-                  <TouchTarget
-                    onClick={() => {
-                      if (premiumGuard.checkPremiumFeature('deep_mode')) {
-                        setCurrentPraiseLevel('deep');
-                      }
-                    }}
-                    className={`flex-1 p-3 rounded-lg border-2 text-center transition-all relative ${
-                      currentPraiseLevel === 'deep' && premiumGuard.isPremiumUser
-                        ? 'border-amber-500 bg-amber-50 text-amber-700'
-                        : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300'
-                    }`}
-                  >
-                    <div className="font-semibold text-sm flex items-center justify-center">
-                      ディープ
-                      {!premiumGuard.isPremiumUser && (
-                        <Crown className="w-3 h-3 ml-1 text-amber-500" />
-                      )}
-                    </div>
-                    <div className="text-xs opacity-75">深く共感して</div>
-                  </TouchTarget>
-                </div>
-                {!premiumGuard.isPremiumUser && (
-                  <Typography variant="small" color="secondary" className="text-center">
-                    ディープモードはプレミアム限定機能です
-                  </Typography>
-                )}
-              </div>
-            </div>
+            {/* 対話モード切り替え */}
+            <InteractionModeToggle
+              currentMode={currentMood}
+              onModeChange={handleMoodChange}
+              className="mb-6"
+            />
 
             {/* グループチャット案内 */}
             {premiumGuard.isPremiumUser ? (

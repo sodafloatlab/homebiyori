@@ -64,8 +64,9 @@ export interface UpdateUserProfileRequest {
 }
 
 export interface UpdateAIPreferencesRequest {
-  ai_character: AICharacter;
-  praise_level: PraiseLevel;
+  ai_character?: AICharacter;
+  praise_level?: PraiseLevel;
+  interaction_mode?: 'praise' | 'listen';
 }
 
 // ========================================

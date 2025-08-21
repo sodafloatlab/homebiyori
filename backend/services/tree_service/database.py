@@ -180,7 +180,26 @@ class TreeDatabase:
             new_total_characters = current_total_characters + added_characters
             
             now = get_current_jst()
+            previous_stage = current_tree_data.get("current_stage", 0)
             new_stage = get_tree_stage(new_total_characters)
+            stage_changed = new_stage > previous_stage
+            
+            # 成長お祝いメッセージ生成（段階変化時）
+            growth_celebration = None
+            if stage_changed:
+                # 段階設定（tree_serviceでも統一管理）
+                stage_config = {
+                    0: {"name": "土", "description": "まだ何も植えられていない土の状態です"},
+                    1: {"name": "芽", "description": "小さな芽が顔を出しました"},
+                    2: {"name": "若葉", "description": "緑の若葉が育ってきました"},
+                    3: {"name": "若木", "description": "しっかりとした木に成長しました"},
+                    4: {"name": "中木", "description": "葉がたくさん茂った立派な木になりました"},
+                    5: {"name": "成木", "description": "大きくて立派な木になりました"},
+                    6: {"name": "大樹", "description": "立派な大樹になりました"}
+                }
+                
+                stage_info = stage_config.get(new_stage, {"name": "新しい段階", "description": ""})
+                growth_celebration = f"おめでとうございます！木が{stage_info['name']}に成長しました！{stage_info['description']}"
             
             pk = f"USER#{user_id}"
             sk = "TREE"
@@ -210,15 +229,20 @@ class TreeDatabase:
             
             self.logger.info(
                 f"木成長更新完了: user_id={user_id}, "
-                f"added={added_characters}, total={new_total_characters}, stage={new_stage}"
+                f"added={added_characters}, total={new_total_characters}, "
+                f"stage={previous_stage}→{new_stage}, changed={stage_changed}"
             )
             
-            # 更新情報を返却
+            # 更新情報を返却（成長検知結果を含む）
             return {
                 "user_id": user_id,
                 "added_characters": added_characters,
+                "previous_total": current_total_characters,
                 "new_total_characters": new_total_characters,
+                "previous_stage": previous_stage,
                 "current_stage": new_stage,
+                "stage_changed": stage_changed,
+                "growth_celebration": growth_celebration,
                 "updated_at": to_jst_string(now)
             }
             

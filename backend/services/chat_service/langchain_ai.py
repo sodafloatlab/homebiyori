@@ -15,8 +15,7 @@ from langchain_core.messages import HumanMessage, SystemMessage
 
 from .langchain_memory import (
     HomebiyoriConversationMemory,
-    create_conversation_memory,
-    get_user_tier_from_db
+    create_conversation_memory
 )
 
 logger = logging.getLogger(__name__)
@@ -28,7 +27,9 @@ class HomebiyoriAIChain:
     """
     
     def __init__(self):
-        self.prompt_base_path = Path(__file__).parent.parent.parent.parent / ".kiro" / "specs" / "homebi-yori" / "prompt"
+        # プロンプトファイルパスを chat_service/prompts に変更（実環境対応）
+        # .kiroディレクトリは実環境では参照できないため、chat_service内にコピー済み
+        self.prompt_base_path = Path(__file__).parent / "prompts"
         self.prompt_cache = {}
         self.llm_cache = {}
         
@@ -62,53 +63,80 @@ class HomebiyoriAIChain:
             logger.error(f"Failed to load prompt templates: {e}", exc_info=True)
             raise
     
-    def _get_llm(self, user_tier: str) -> ChatBedrock:
-        """プラン別LLM取得（Parameter Store統合、キャッシュあり）"""
-        if user_tier not in self.llm_cache:
-            # Parameter StoreからLLM設定を取得
+    def _get_llm(self) -> ChatBedrock:
+        """統一LLM取得（Issue #15統一戦略対応版）
+        
+        【Issue #15統一戦略】
+        全ユーザーに統一機能を提供（user_tier概念削除）
+        - 旧方針: free/premiumで異なるモデル使用
+        - 新方針: 全員統一でプレミアム相当モデル使用
+        
+        【LangChain統合】
+        ChatBedrockインスタンスのキャッシュ管理とParameter Store統合
+        """
+        if not hasattr(self, '_unified_llm'):
+            # Parameter StoreからLLM設定を取得（homebiyori_common Layer）
             from homebiyori_common.utils import get_llm_config
             
-            config = get_llm_config(user_tier)
+            # Issue #15統一戦略：Parameter Store統一設定使用
+            config = get_llm_config()  # 統一設定（user_tier概念削除）
             
-            # Amazon Nova Lite vs Anthropic Claude用の設定分岐
-            model_kwargs = {
-                "max_tokens": config["max_tokens"],
-                "temperature": config["temperature"]
-            }
-            
-            # Anthropic Claudeモデルの場合のみanthropic_versionを追加
-            if "anthropic_version" in config:
-                model_kwargs["anthropic_version"] = config["anthropic_version"]
-            
-            self.llm_cache[user_tier] = ChatBedrock(
-                model_id=config["model_id"],
-                region_name=config["region_name"],
-                model_kwargs=model_kwargs
-            )
-            
-            logger.info(
-                f"Initialized LLM for {user_tier} tier",
-                extra={
-                    "user_tier": user_tier,
-                    "model_id": config["model_id"],
-                    "max_tokens": config["max_tokens"],
-                    "is_anthropic": "anthropic_version" in config
-                }
-            )
+        # ===== AI応答生成専用LLM設定 =====
+        # 【重要】ここではユーザー向け応答生成用の設定を使用
+        # ・目的: ユーザーが直接読む褒め応答の生成
+        # ・特徴: 自然で親しみやすい応答・適度な創造性・読みやすい長さ
+        model_kwargs = {
+            "max_tokens": config["max_tokens"],     # ユーザー応答用制限（例: 500トークン）
+            "temperature": config["temperature"]    # 自然な応答のための温度設定（例: 0.7）
+        }
         
-        return self.llm_cache[user_tier]
+        # 【LangChain Memory要約との使い分け】
+        # ・AI応答生成（ここ）: ユーザー向け最終応答（max_tokens=500, temperature=0.7）
+        # ・Memory要約（langchain_memory.py）: 内部履歴要約（max_tokens=150, temperature=0.3）
+        # ・目的と用途に応じて同じモデルでも異なるパラメータを使用
+        
+        # LangChain ChatBedrock: Anthropic Claudeモデルの場合のみanthropic_versionを追加
+        if "anthropic_version" in config:
+            model_kwargs["anthropic_version"] = config["anthropic_version"]
+        
+        # LangChain ChatBedrock初期化
+        self._unified_llm = ChatBedrock(
+            model_id=config["model_id"],
+            region_name=config["region_name"],
+            model_kwargs=model_kwargs
+        )
+        
+        logger.info(
+            "Initialized unified LLM for all users (Issue #15 strategy)",
+            extra={
+                "model_id": config["model_id"],
+                "max_tokens": config["max_tokens"],
+                "temperature": config["temperature"],
+                "strategy": "unified premium-equivalent functionality"
+            }
+        )
+    
+        return self._unified_llm
     
     def _build_prompt_template(
         self,
         character: str,
         mood: str,
-        user_tier: str,
         praise_level: str = "normal",
         group_context: Optional[List[str]] = None
     ) -> PromptTemplate:
-        """プロンプトテンプレート構築"""
-        # 無料版でのpraise_level制限を適用
-        effective_praise_level = "normal" if user_tier == "free" else praise_level
+        """LangChainプロンプトテンプレート構築（Issue #15統一戦略対応版）
+        
+        【Issue #15統一戦略】
+        user_tier概念削除、全ユーザー統一機能提供
+        - 旧方針: 無料版でpraise_level制限（normalのみ）
+        - 新方針: 全員deepレベルまで利用可能
+        
+        【LangChain統合】
+        PromptTemplateインスタンス生成とキャッシュ機能
+        """
+        # Issue #15統一戦略：全ユーザー統一でpraise_level制限なし
+        effective_praise_level = praise_level  # 統一戦略：制限なし
         cache_key = f"{character}_{mood}_{effective_praise_level}"
         
         base_prompt = self.prompt_cache.get(cache_key)
@@ -122,7 +150,7 @@ class HomebiyoriAIChain:
             character_names = {
                 "mittyan": "みっちゃん",
                 "madokasan": "まどかさん", 
-                "hideji": "ひでじい"
+                "hideji": "ヒデじい"
             }
             
             other_characters = [char for char in group_context if char != character]
@@ -161,7 +189,7 @@ class HomebiyoriAIChain:
         character_names = {
             "mittyan": "みっちゃん",
             "madokasan": "まどかさん", 
-            "hideji": "ひでじい"
+            "hideji": "ヒデじい"
         }
         
         mood_text = "褒めて欲しい" if mood == "praise" else "話を聞いて欲しい"
@@ -198,29 +226,31 @@ class HomebiyoriAIChain:
             生成されたAI応答テキスト
         """
         try:
-            # ユーザープラン取得
-            user_tier = await get_user_tier_from_db(user_id)
+            # Issue #15統一戦略：user_tier取得処理削除
             
-            # 会話メモリ初期化
+            # 会話メモリ初期化（統一戦略対応）
             memory = create_conversation_memory(
                 user_id=user_id,
-                user_tier=user_tier,
                 character=character
             )
             
-            # LLM取得
-            llm = self._get_llm(user_tier)
+            # 統一LLM取得
+            llm = self._get_llm()
             
             # プロンプトテンプレート構築（グループコンテキスト対応）
             prompt_template = self._build_prompt_template(
                 character=character,
                 mood=mood,
-                user_tier=user_tier,
                 praise_level=praise_level,
                 group_context=group_context
             )
             
             # LangChain ConversationChain構築
+            # ここで渡される 'memory.memory' (ConversationSummaryBufferMemoryのインスタンス) は、
+            # 会話履歴の読み込みと保存を自動的に管理します。
+            # 'ainvoke' メソッドが呼び出されると、ConversationChainは内部的にこのメモリから
+            # 履歴を取得し、プロンプトテンプレート内の '{history}' プレースホルダーに自動挿入します。
+            # そのため、'ainvoke' にはユーザーの現在の入力 ('input') のみを渡せば十分です。
             conversation_chain = ConversationChain(
                 llm=llm,
                 memory=memory.memory,  # ConversationSummaryBufferMemoryを使用
@@ -232,9 +262,9 @@ class HomebiyoriAIChain:
             response = await conversation_chain.ainvoke({"input": user_message})
             ai_response = response["response"]
             
-            # 応答品質検証
+            # 応答品質検証（統一戦略対応）
             validated_response = self._validate_response_quality(
-                ai_response, user_tier, character
+                ai_response, character
             )
             
             # メモリ統計ログ出力
@@ -246,10 +276,10 @@ class HomebiyoriAIChain:
                     "user_id": user_id[:8] + "****",
                     "character": character,
                     "interaction_mode": mood,
-                    "user_tier": user_tier,
                     "group_context": group_context,
                     "response_length": len(validated_response),
-                    "memory_stats": memory_stats
+                    "memory_stats": memory_stats,
+                    "strategy": "unified functionality for all users"
                 }
             )
             
@@ -263,29 +293,53 @@ class HomebiyoriAIChain:
                     "user_id": user_id[:8] + "****",
                     "character": character,
                     "interaction_mode": mood,
-                    "group_context": group_context
+                    "group_context": group_context,
+                    "strategy": "Issue #15 unified fallback"
                 },
                 exc_info=True
             )
-            # フォールバック応答
-            return self._get_fallback_response(user_tier, character)
+            # フォールバック応答（統一戦略対応）
+            return self._get_fallback_response(character)
     
-    def _validate_response_quality(self, response: str, user_tier: str, character: str) -> str:
-        """AI応答の品質を検証し、必要に応じて調整"""
+    def _validate_response_quality(self, response: str, character: str) -> str:
+        """AI応答の品質を検証（Issue #15統一戦略対応版）
+        
+        【Issue #15統一戦略】
+        user_tier概念削除、全ユーザー統一品質管理
+        - 旧方針: free版は150文字制限、premium版は柔軟
+        - 新方針: 全員統一でプレミアム相当品質（柔軟な調整）
+        
+        【技術判断】
+        自作機能：応答品質検証とフォーマット調整
+        """
         try:
-            if user_tier == "free":
-                # 無料版：厳格な文字数制限
-                if len(response) > 150:
-                    # 150文字で切り詰め
-                    truncated = response[:147] + "..."
-                    logger.info(f"Response truncated for free tier: {len(response)} -> {len(truncated)} chars")
-                    return truncated
-            else:
-                # プレミアム版：柔軟な調整
-                if len(response) < 50:
-                    logger.warning(f"Response too short for premium tier: {len(response)} chars")
-                elif len(response) > 500:
-                    logger.warning(f"Response very long for premium tier: {len(response)} chars")
+            # Issue #15統一戦略：全員プレミアム相当の品質管理
+            
+            if len(response) < 50:
+                logger.warning(
+                    f"Response potentially too short: {len(response)} chars",
+                    extra={
+                        "character": character,
+                        "strategy": "Issue #15 unified quality standard"
+                    }
+                )
+            elif len(response) > 500:
+                logger.warning(
+                    f"Response very long: {len(response)} chars",
+                    extra={
+                        "character": character,
+                        "strategy": "Issue #15 unified quality standard"
+                    }
+                )
+            
+            logger.debug(
+                f"Response quality validated for unified strategy",
+                extra={
+                    "response_length": len(response),
+                    "character": character,
+                    "quality_standard": "premium-equivalent for all users"
+                }
+            )
             
             return response
             
@@ -293,20 +347,16 @@ class HomebiyoriAIChain:
             logger.error(f"Failed to validate response quality: {e}")
             return response
     
-    def _get_fallback_response(self, user_tier: str, character: str) -> str:
-        """エラー時のフォールバック応答"""
+    def _get_fallback_response(self, character: str) -> str:
+        """エラー時のフォールバック応答（Issue #15統一戦略対応）"""
         fallback_responses = {
             "mittyan": "あらあら〜、ちょっと調子が悪いみたいやわ。もう一度話しかけてくれる？",
             "madokasan": "すみません！システムの調子が悪いようです。もう一度お試しください！",
             "hideji": "おや、ちょっと具合が悪いようじゃな。もう一度話しかけてくれるかの〜"
         }
         
-        base_response = fallback_responses.get(character, "申し訳ございません。もう一度お試しください。")
-        
-        if user_tier == "free" and len(base_response) > 150:
-            return base_response[:147] + "..."
-        
-        return base_response
+        # Issue #15統一戦略：全員統一でフル応答を返す（文字数制限なし）
+        return fallback_responses.get(character, "申し訳ございません。もう一度お試しください。")
 
 
 # グローバルインスタンス

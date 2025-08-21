@@ -21,8 +21,8 @@ class ServiceHTTPClient:
     
     def __init__(self):
         self.base_urls = {
-            "user_service": os.environ.get("USER_SERVICE_URL", "http://localhost:8001"),
             "tree_service": os.environ.get("TREE_SERVICE_URL", "http://localhost:8002")
+            # user_service URL削除（AI設定取得不要のため）
         }
         self.timeout = 30.0  # 30秒タイムアウト
     
@@ -64,128 +64,8 @@ class ServiceHTTPClient:
             raise Exception(f"{service} service unavailable: {str(e)}")
     
     # =====================================
-    # User Service呼び出し
-    # =====================================
-    
-    async def get_user_subscription_info(self, user_id: str) -> Dict[str, str]:
-        """ユーザーのサブスクリプション情報取得"""
-        try:
-            logger.debug(f"Calling user_service for subscription info: user_id={user_id[:8]}****")
-            
-            response = await self._make_request(
-                service="user_service",
-                endpoint=f"/api/user/subscription-status?user_id={user_id}",
-                method="GET"
-            )
-            
-            # user_serviceのレスポンス形式をchat_serviceの期待形式に変換
-            subscription_data = response.get("subscription_status", {})
-            
-            return {
-                "plan": subscription_data.get("current_plan", "free"),
-                "status": subscription_data.get("status", "active"),
-                "expires_at": subscription_data.get("current_period_end")
-            }
-            
-        except Exception as e:
-            logger.error(f"Failed to get subscription info from user_service: {str(e)}")
-            # フォールバック: デフォルト値返却
-            return {
-                "plan": "free",
-                "status": "active", 
-                "expires_at": None
-            }
-    
-    async def get_user_ai_preferences(self, user_id: str) -> Dict[str, str]:
-        """ユーザーのAI設定情報取得"""
-        try:
-            logger.debug(f"Calling user_service for AI preferences: user_id={user_id[:8]}****")
-            
-            response = await self._make_request(
-                service="user_service",
-                endpoint=f"/api/user/profile?user_id={user_id}",
-                method="GET"
-            )
-            
-            # プロフィールからAI設定を抽出
-            profile_data = response.get("profile", {})
-            
-            return {
-                "ai_character": profile_data.get("ai_character", "mittyan"),
-                "praise_level": profile_data.get("praise_level", "normal"),
-                "interaction_mode": profile_data.get("interaction_mode", "praise")
-            }
-            
-        except Exception as e:
-            logger.error(f"Failed to get AI preferences from user_service: {str(e)}")
-            # フォールバック: デフォルト設定返却
-            return {
-                "ai_character": "mittyan",
-                "praise_level": "normal",
-                "interaction_mode": "praise"
-            }
-    
-    async def update_user_interaction_mode(
-        self, 
-        user_id: str, 
-        interaction_mode: str,
-        user_note: Optional[str] = None
-    ) -> None:
-        """ユーザーの対話モード更新"""
-        try:
-            logger.debug(f"Calling user_service for interaction mode update: user_id={user_id[:8]}****")
-            
-            await self._make_request(
-                service="user_service",
-                endpoint="/api/user/interaction-mode",
-                method="PUT",
-                data={
-                    "user_id": user_id,
-                    "interaction_mode": interaction_mode,
-                    "user_note": user_note
-                }
-            )
-            
-            logger.info(f"Interaction mode updated via user_service: user_id={user_id[:8]}****")
-            
-        except Exception as e:
-            logger.error(f"Failed to update interaction mode via user_service: {str(e)}")
-            raise Exception(f"User service unavailable for interaction mode update: {str(e)}")
-    
-    # =====================================
     # Tree Service呼び出し
     # =====================================
-    
-    async def get_user_tree_stats(self, user_id: str) -> Dict[str, int]:
-        """ユーザーの木の成長統計取得"""
-        try:
-            logger.debug(f"Calling tree_service for tree stats: user_id={user_id[:8]}****")
-            
-            response = await self._make_request(
-                service="tree_service",
-                endpoint=f"/api/tree/status?user_id={user_id}",
-                method="GET"
-            )
-            
-            # tree_serviceのレスポンス形式をchat_serviceの期待形式に変換
-            tree_data = response.get("tree", {})
-            
-            return {
-                "total_characters": tree_data.get("total_characters", 0),
-                "current_stage": tree_data.get("current_stage", 0),
-                "message_count": tree_data.get("total_messages", 0),
-                "last_message_date": tree_data.get("last_message_date")
-            }
-            
-        except Exception as e:
-            logger.error(f"Failed to get tree stats from tree_service: {str(e)}")
-            # フォールバック: デフォルト値返却
-            return {
-                "total_characters": 0,
-                "current_stage": 0,
-                "message_count": 0,
-                "last_message_date": None
-            }
     
     async def update_tree_stats(
         self, 
@@ -198,7 +78,7 @@ class ServiceHTTPClient:
             
             response = await self._make_request(
                 service="tree_service",
-                endpoint="/api/tree/growth",
+                endpoint="/api/tree/update-growth",
                 method="PUT",
                 data={
                     "user_id": user_id,
@@ -241,54 +121,6 @@ class ServiceHTTPClient:
         except Exception as e:
             logger.error(f"Failed to save fruit via tree_service: {str(e)}")
             raise Exception(f"Tree service unavailable for fruit save: {str(e)}")
-    
-    async def can_generate_fruit(self, user_id: str) -> bool:
-        """実生成可能判定（tree_serviceで1日1回制限チェック）"""
-        try:
-            logger.debug(f"Calling tree_service for fruit generation check: user_id={user_id[:8]}****")
-            
-            response = await self._make_request(
-                service="tree_service",
-                endpoint=f"/api/tree/can-generate-fruit?user_id={user_id}",
-                method="GET"
-            )
-            
-            return response.get("can_generate", False)
-            
-        except Exception as e:
-            logger.error(f"Failed to check fruit generation from tree_service: {str(e)}")
-            # エラー時はFalse返却（安全側に倒す）
-            return False
-
-    
-    async def check_user_access_control(self, user_id: str) -> dict:
-        """
-        ユーザーのアクセス制御状態をチェック（billing_service経由）
-        
-        Args:
-            user_id: ユーザーID
-            
-        Returns:
-            dict: アクセス制御情報
-        """
-        try:
-            response = await self._make_request(
-                "GET",
-                f"{self.base_urls['billing_service']}/api/billing/access-control",
-                headers={"X-User-ID": user_id}
-            )
-            return response.get("access_control", {})
-            
-        except Exception as e:
-            self.logger.error(f"Failed to check user access control: {e}")
-            # エラー時は安全側に倒してアクセス拒否
-            return {
-                "access_allowed": False,
-                "access_level": "none",
-                "restriction_reason": "system_error",
-                "redirect_url": "/error"
-            }
-
 
 # =====================================
 # ファクトリー関数

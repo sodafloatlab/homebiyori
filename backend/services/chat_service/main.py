@@ -33,7 +33,7 @@ Homebiyori（ほめびより）のチャット機能マイクロサービス。
 - tree-service統合: 成長計算機能の統合
 """
 
-from fastapi import FastAPI, HTTPException, Request, BackgroundTasks, Depends
+from fastapi import FastAPI, HTTPException, Request, Depends
 from fastapi.responses import JSONResponse
 from typing import List, Optional, Dict, Any
 import os
@@ -96,13 +96,6 @@ chat_db = get_chat_database()
 
 # サービス間HTTP通信クライアント初期化
 service_client = get_service_http_client()
-
-
-# =====================================
-# ヘルパー関数（最小限）
-# =====================================
-
-# get_character_theme_color関数は共通Layer FruitInfoモデル移行により不要となったため削除
 
 # FastAPIアプリケーション初期化
 # =====================================
@@ -179,7 +172,6 @@ app.middleware("http")(error_handling_middleware)
 async def send_message(
     request: Request,
     chat_request: ChatRequest, 
-    background_tasks: BackgroundTasks,
     user_id: str = Depends(get_current_user_id)
 ):
     """
@@ -195,8 +187,7 @@ async def send_message(
     
     ■パフォーマンス最適化■
     - DynamoDB直接保存による高速化
-    - BackgroundTasks活用による非同期後処理
-    - TTL計算の事前実行
+    - リクエスト必須化による外部API呼び出し削減
     """
     
     try:
@@ -206,6 +197,7 @@ async def send_message(
                 "user_id": user_id[:8] + "****",
                 "ai_character": chat_request.ai_character,
                 "interaction_mode": chat_request.interaction_mode,
+                "praise_level": chat_request.praise_level,
                 "message_length": len(chat_request.message)
             }
         )
@@ -215,29 +207,16 @@ async def send_message(
         timestamp = get_current_jst()
         
         # ===============================
-        # 1. 現在の木の状態取得（tree_serviceから）
+        # 1. AI応答生成（LangChainベース）
         # ===============================
-        current_tree_stats = await service_client.get_user_tree_stats(user_id)
-        previous_total = current_tree_stats.get("total_characters", 0)
-        previous_stage = calculate_tree_stage(previous_total)
-        
-        # ===============================
-        # 2. ユーザーAI設定情報取得（user_serviceから）
-        # ===============================
-        user_ai_preferences = await service_client.get_user_ai_preferences(user_id)
-        user_subscription = await service_client.get_user_subscription_info(user_id)
-        
-        # AI設定の決定（リクエスト優先、なければプロフィール設定）
-        ai_character = chat_request.ai_character or user_ai_preferences["ai_character"]
-        interaction_mode = chat_request.interaction_mode or user_ai_preferences["interaction_mode"]
-        praise_level = user_ai_preferences["praise_level"]
+        # リクエスト必須化により外部API呼び出し不要
+        ai_character = chat_request.ai_character
+        interaction_mode = chat_request.interaction_mode
+        praise_level = chat_request.praise_level
         
         # 新戦略：全ユーザー共通機能（制限なし）
         # praise_level制限削除 - 全ユーザーがdeep機能利用可能
         
-        # ===============================
-        # 3. AI応答生成（LangChainベース）
-        # ===============================
         # LangChainベースでAI応答生成（Memory統合済み）
         ai_response_text = await generate_ai_response_langchain(
             user_message=chat_request.message,
@@ -251,27 +230,26 @@ async def send_message(
         detected_emotion, emotion_score = detect_emotion_simple(chat_request.message)
         
         # ===============================
-        # 4. 木の成長計算（tree_serviceで実行）
+        # 2. 木の成長計算（tree_serviceで実行）
         # ===============================
         message_character_count = len(chat_request.message)
         
         # tree_serviceで成長計算を実行し、結果を取得
         growth_info = await service_client.update_tree_stats(user_id, message_character_count)
         
+        # TreeGrowthInfo構築（tree_serviceレスポンス構造に合わせて修正）
         tree_growth = TreeGrowthInfo(
             previous_stage=growth_info.get("previous_stage", 0),
             current_stage=growth_info.get("current_stage", 0),
             previous_total=growth_info.get("previous_total", 0),
-            current_total=growth_info.get("current_total", 0),
+            current_total=growth_info.get("new_total_characters", 0),
             added_characters=message_character_count,
             stage_changed=growth_info.get("stage_changed", False),
-            characters_to_next=growth_info.get("characters_to_next", 0),
-            progress_percentage=growth_info.get("progress_percentage", 0.0),
             growth_celebration=growth_info.get("growth_celebration")
         )
         
         # ===============================
-        # 5. 実生成判定・実行
+        # 3. 実生成判定・実行
         # ===============================
         fruit_generated = False
         fruit_info = None
@@ -282,47 +260,43 @@ async def send_message(
             detected_emotion in [EmotionType.JOY, EmotionType.GRATITUDE, EmotionType.ACCOMPLISHMENT, 
                                EmotionType.RELIEF, EmotionType.EXCITEMENT]):
             
-            # tree_serviceで実生成可能判定
-            can_generate = await service_client.can_generate_fruit(user_id)
-            
-            if can_generate:
-                try:
-                    # 実生成（共通Layer FruitInfoモデル準拠）
-                    fruit_info = FruitInfo(
-                        user_id=user_id,
-                        user_message=chat_request.message,
-                        ai_response=ai_response_text,
-                        ai_character=ai_character,
-                        interaction_mode=chat_request.interaction_mode,
-                        detected_emotion=detected_emotion
-                    )
-                    
-                    fruit_generated = True
-                    
-                    logger.info(
-                        "Fruit generated successfully",
-                        extra={
-                            "user_id": user_id[:8] + "****",
-                            "fruit_id": fruit_info.fruit_id,
-                            "emotion": detected_emotion,
-                            "score": emotion_score
-                        }
-                    )
-                    
-                except Exception as e:
-                    logger.error(
-                        "Fruit generation failed",
-                        extra={
-                            "error": str(e),
-                            "user_id": user_id[:8] + "****"
-                        }
-                    )
-                    # 実生成失敗は致命的エラーではないため、処理継続
+            # 実生成チェックはsave_fruit_info内で実行（重複チェック削除）
+            try:
+                # 実生成（共通Layer FruitInfoモデル準拠）
+                fruit_info = FruitInfo(
+                    user_id=user_id,
+                    user_message=chat_request.message,
+                    ai_response=ai_response_text,
+                    ai_character=ai_character,
+                    interaction_mode=interaction_mode,
+                    detected_emotion=detected_emotion
+                )
+                
+                fruit_generated = True
+                
+                logger.info(
+                    "Fruit generated successfully",
+                    extra={
+                        "user_id": user_id[:8] + "****",
+                        "fruit_id": fruit_info.fruit_id,
+                        "emotion": detected_emotion,
+                        "score": emotion_score
+                    }
+                )
+                
+            except Exception as e:
+                logger.error(
+                    "Fruit generation failed",
+                    extra={
+                        "error": str(e),
+                        "user_id": user_id[:8] + "****"
+                    }
+                )
+                # 実生成失敗は致命的エラーではないため、処理継続
         
         # ===============================
-        # 6. DynamoDB保存用データ作成
+        # 4. DynamoDB保存用データ作成
         # ===============================
-        # TTL計算（user_serviceから再取得は不要、既に取得済み）
         ttl_timestamp = calculate_message_ttl(created_at=timestamp)
         
         # DynamoDB保存用モデル作成（design_database.md準拠・統合版）
@@ -333,7 +307,7 @@ async def send_message(
             user_message=chat_request.message,
             ai_response=ai_response_text,
             ai_character=ai_character,
-            praise_level=chat_request.praise_level,
+            praise_level=praise_level,
             interaction_mode=interaction_mode,
             growth_points_gained=message_character_count,
             tree_stage_at_time=tree_growth.current_stage,
@@ -342,19 +316,16 @@ async def send_message(
         )
         
         # ===============================
-        # 7. DynamoDB保存実行
+        # 5. DynamoDB保存実行
         # ===============================
         await chat_db.save_chat_message(chat_message)
-        
-        # 木の統計情報更新（tree_serviceで実行）
-        await service_client.update_tree_stats(user_id, new_total_characters, current_stage)
         
         # 実が生成された場合は実テーブルにも保存（tree_serviceで実行）
         if fruit_generated and fruit_info:
             await service_client.save_fruit_info(user_id, fruit_info)
         
         # ===============================
-        # 8. レスポンス構築・返却
+        # 6. レスポンス構築・返却
         # ===============================
         ai_response = AIResponse(
             message=ai_response_text,
@@ -382,7 +353,7 @@ async def send_message(
                 "interaction_mode": interaction_mode,
                 "praise_level": praise_level,
                 "unified_tier": "unified",  # 新戦略：全ユーザー統一
-                "tree_stage_change": f"{previous_stage} -> {current_stage}",
+                "tree_stage": f"{tree_growth.previous_stage} -> {tree_growth.current_stage}",
                 "fruit_generated": fruit_generated,
                 "processing_time_ms": int((get_current_jst() - timestamp).total_seconds() * 1000)
             }
@@ -419,26 +390,26 @@ async def send_message(
         raise HTTPException(status_code=500, detail="Internal server error")
 
 @app.post("/api/chat/group-messages", response_model=GroupChatResponse)
+@require_basic_access()
 async def send_group_message(
     group_chat_request: GroupChatRequest, 
-    background_tasks: BackgroundTasks,
     user_id: str = Depends(get_current_user_id)
 ):
     """
     グループチャットメッセージ送信・複数AI応答生成
     
     ■処理フロー■
-    1. ユーザー認証・リクエスト検証（プレミアムプラン確認含む）
-    2. 複数AI応答生成（Bedrock Claude 3 Haiku）
+    1. ユーザー認証・リクエスト検証（アクセス制御ミドルウェア）
+    2. 複数AI応答生成（Bedrock Amazon Nova Lite）
     3. 感情検出・木の成長計算
     4. 実生成判定・実行
     5. レスポンスデータをDynamoDB保存
     6. 複数AI統合レスポンス返却
     
     ■パフォーマンス最適化■
-    - 並行AI応答生成による処理時間短縮
+    - 並列AI応答生成による処理時間短縮
     - DynamoDB直接保存による高速化
-    - BackgroundTasks活用による非同期後処理
+    - リクエスト必須化による外部API呼び出し削減
     """
     
     try:
@@ -447,70 +418,38 @@ async def send_group_message(
             extra={
                 "user_id": user_id[:8] + "****",
                 "active_characters": group_chat_request.active_characters,
+                "interaction_mode": group_chat_request.interaction_mode,
+                "praise_level": group_chat_request.praise_level,
                 "message_length": len(group_chat_request.message)
             }
         )
-        
-        # ===============================
-        # 0. アクセス制御チェック（新戦略）
-        # ===============================
-        access_info = await service_client.check_user_access_control(user_id)
-        
-        if not access_info["access_allowed"]:
-            logger.warning(
-                "Access denied for group chat",
-                extra={
-                    "user_id": user_id[:8] + "****",
-                    "restriction_reason": access_info["restriction_reason"],
-                    "access_level": access_info["access_level"]
-                }
-            )
-            raise HTTPException(
-                status_code=402,  # Payment Required
-                detail={
-                    "error": "access_denied",
-                    "reason": access_info["restriction_reason"],
-                    "message": "グループチャット機能のご利用には有料プランへのアップグレードが必要です。",
-                    "redirect_url": access_info["redirect_url"]
-                }
-            )
-        
-        # ===============================
-        # 1. ユーザーサブスクリプション情報取得（統一戦略）
-        # ===============================
-        user_subscription = await service_client.get_user_subscription_info(user_id)
         
         # メッセージID生成
         message_id = str(uuid.uuid4())
         timestamp = get_current_jst()
         
         # ===============================
-        # 2. 現在の木の状態取得（tree_serviceから）
+        # 1. リクエスト必須化により設定値を直接使用
         # ===============================
-        current_tree_stats = await service_client.get_user_tree_stats(user_id)
-        previous_total = current_tree_stats.get("total_characters", 0)
-        previous_stage = calculate_tree_stage(previous_total)
+        # リクエスト必須化により外部API呼び出し不要
+        interaction_mode = group_chat_request.interaction_mode
+        praise_level = group_chat_request.praise_level
+        
+        # 新戦略：全ユーザー統一体験（制限なし）
         
         # ===============================
-        # 3. ユーザーAI設定情報取得（user_serviceから）
-        # ===============================
-        user_ai_preferences = await service_client.get_user_ai_preferences(user_id)
-        interaction_mode = group_chat_request.interaction_mode or user_ai_preferences["interaction_mode"]
-        praise_level = user_ai_preferences["praise_level"]  # プレミアムユーザーは設定値使用
-        
-        # ===============================
-        # 4. 複数AI応答生成（並行実行）
+        # 2. 複数AI応答生成（並列実行）
         # ===============================
         ai_responses = []
         
-        # 並行処理用のタスクを作成
+        # 並列処理用のタスクを作成
         async def generate_single_ai_response(character):
             try:
                 response_text = await generate_ai_response_langchain(
                     user_message=group_chat_request.message,
                     user_id=user_id,
                     character=character,
-                    mood=interaction_mode,
+                    interaction_mode=interaction_mode,
                     praise_level=praise_level,
                     group_context=group_chat_request.active_characters  # グループコンテキスト追加
                 )
@@ -543,7 +482,7 @@ async def send_group_message(
                     confidence=0.5
                 )
         
-        # 全てのアクティブキャラクターに対して並行処理実行
+        # 全てのアクティブキャラクターに対して並列処理実行
         tasks = [generate_single_ai_response(char) for char in group_chat_request.active_characters]
         ai_responses = await asyncio.gather(*tasks)
         
@@ -569,40 +508,31 @@ async def send_group_message(
                 representative_character = ai_resp.character
         
         # ===============================
-        # 5. 感情検出（ユーザーメッセージから）
+        # 3. 感情検出（ユーザーメッセージから）
         # ===============================
         detected_emotion, emotion_score = detect_emotion_simple(group_chat_request.message)
         
         # ===============================
-        # 6. 木の成長計算
+        # 4. 木の成長計算（tree_service統合）
         # ===============================
         message_character_count = len(group_chat_request.message)
-        new_total_characters = previous_total + message_character_count
-        current_stage = calculate_tree_stage(new_total_characters)
-        characters_to_next = get_characters_to_next_stage(new_total_characters)
-        stage_changed = current_stage > previous_stage
-        progress_percentage = calculate_progress_percentage(new_total_characters)
         
-        # 段階変化時のお祝いメッセージ（グループチャット用）
-        growth_celebration = None
-        if stage_changed:
-            stage_config = TREE_STAGE_CONFIG.get(current_stage, {})
-            growth_celebration = f"みんなでお祝いです！木が{stage_config.get('name', '新しい段階')}に成長しました！{stage_config.get('description', '')}"
+        # tree_serviceで成長処理を実行し、成長判定も含めて取得
+        growth_info = await service_client.update_tree_stats(user_id, message_character_count)
         
+        # TreeGrowthInfo構築（tree_serviceレスポンス構造に合わせて修正）
         tree_growth = TreeGrowthInfo(
-            previous_stage=previous_stage,
-            current_stage=current_stage,
-            previous_total=previous_total,
-            current_total=new_total_characters,
+            previous_stage=growth_info.get("previous_stage", 0),
+            current_stage=growth_info.get("current_stage", 0),
+            previous_total=growth_info.get("previous_total", 0),
+            current_total=growth_info.get("new_total_characters", 0),  # 修正：tree_serviceの実際のキー名
             added_characters=message_character_count,
-            stage_changed=stage_changed,
-            characters_to_next=characters_to_next,
-            progress_percentage=progress_percentage,
-            growth_celebration=growth_celebration
+            stage_changed=growth_info.get("stage_changed", False),
+            growth_celebration=growth_info.get("growth_celebration")
         )
         
         # ===============================
-        # 7. 実生成判定・実行（グループチャット特別処理）
+        # 5. 実生成判定・実行（グループチャット特別処理）
         # ===============================
         fruit_generated = False
         fruit_info = None
@@ -613,42 +543,38 @@ async def send_group_message(
             detected_emotion in [EmotionType.JOY, EmotionType.GRATITUDE, EmotionType.ACCOMPLISHMENT, 
                                EmotionType.RELIEF, EmotionType.EXCITEMENT]):
             
-            last_fruit_date = await service_client.get_last_fruit_date(user_id)
-            
-            can_generate = await service_client.can_generate_fruit(user_id)
-            
-            if can_generate:
-                try:
-                    # 代表キャラクターを使用（実の生成担当：is_representative基準）
-                    fruit_info = FruitInfo(
-                        user_id=user_id,
-                        user_message=group_chat_request.message,
-                        ai_response=representative_response,  # 代表応答
-                        ai_character=representative_character,  # 代表キャラクター
-                        interaction_mode=group_chat_request.interaction_mode or InteractionMode.PRAISE,
-                        detected_emotion=detected_emotion
-                    )
-                    
-                    fruit_generated = True
-                    
-                    logger.info(
-                        "Group chat fruit generated with representative character",
-                        extra={
-                            "user_id": user_id[:8] + "****",
-                            "representative_character": representative_character,
-                            "active_characters": group_chat_request.active_characters,
-                            "growth_optimization": "is_representative_based"
-                        }
-                    )
-                    
-                except Exception as e:
-                    logger.error(
-                        "Group chat fruit generation failed",
-                        extra={"error": str(e), "user_id": user_id[:8] + "****"}
-                    )
+            # 実生成チェックはsave_fruit_info内で実行（重複チェック削除）
+            try:
+                # 代表キャラクターを使用（実の生成担当：is_representative基準）
+                fruit_info = FruitInfo(
+                    user_id=user_id,
+                    user_message=group_chat_request.message,
+                    ai_response=representative_response,  # 代表応答
+                    ai_character=representative_character,  # 代表キャラクター
+                    interaction_mode=interaction_mode,
+                    detected_emotion=detected_emotion
+                )
+                
+                fruit_generated = True
+                
+                logger.info(
+                    "Group chat fruit generated with representative character",
+                    extra={
+                        "user_id": user_id[:8] + "****",
+                        "representative_character": representative_character,
+                        "active_characters": group_chat_request.active_characters,
+                        "growth_optimization": "is_representative_based"
+                    }
+                )
+                
+            except Exception as e:
+                logger.error(
+                    "Group chat fruit generation failed",
+                    extra={"error": str(e), "user_id": user_id[:8] + "****"}
+                )
         
         # ===============================
-        # 8. DynamoDB保存用データ作成
+        # 6. DynamoDB保存用データ作成
         # ===============================
         ttl_timestamp = calculate_message_ttl(created_at=timestamp)
         
@@ -660,39 +586,26 @@ async def send_group_message(
             user_message=group_chat_request.message,
             ai_response=representative_response,  # 代表応答（LangChain文脈用）
             ai_character=representative_character,
-            praise_level=PraiseLevel.NORMAL,  # グループチャットはnormal固定
+            praise_level=praise_level,
             interaction_mode=interaction_mode,
             active_characters=group_chat_request.active_characters,
             group_ai_responses=group_ai_responses,  # 最適化されたGroupAIResponseリスト
             growth_points_gained=message_character_count,
-            tree_stage_at_time=current_stage,
+            tree_stage_at_time=tree_growth.current_stage,
             created_at=timestamp,
             expires_at=ttl_timestamp
         )
         
         # ===============================
-        # 9. DynamoDB保存実行
+        # 7. DynamoDB保存実行
         # ===============================
         await chat_db.save_chat_message(chat_message)
-        await service_client.update_tree_stats(user_id, new_total_characters, current_stage)
         
         if fruit_generated and fruit_info:
             await service_client.save_fruit_info(user_id, fruit_info)
         
         # ===============================
-        # 10. バックグラウンド処理追加
-        # ===============================
-        # 統計関連機能削除：update_chat_analytics 呼び出し削除
-        # background_tasks.add_task(
-        #     update_chat_analytics,
-        #     user_id=user_id,
-        #     character="GROUP",
-        #     emotion=detected_emotion,
-        #     stage_changed=stage_changed
-        # )
-        
-        # ===============================
-        # 11. レスポンス構築・返却
+        # 8. レスポンス構築・返却
         # ===============================
         response = GroupChatResponse(
             message_id=message_id,
@@ -711,6 +624,9 @@ async def send_group_message(
                 "message_id": message_id,
                 "active_characters": group_chat_request.active_characters,
                 "responses_count": len(ai_responses),
+                "praise_level": praise_level,
+                "interaction_mode": interaction_mode,
+                "unified_tier": "unified",  # 新戦略：全ユーザー統一
                 "fruit_generated": fruit_generated,
                 "processing_time_ms": int((get_current_jst() - timestamp).total_seconds() * 1000)
             }
@@ -752,6 +668,7 @@ async def send_group_message(
 
 
 @app.get("/api/chat/history", response_model=ChatHistoryResponse)
+@require_basic_access()
 async def get_chat_history(
     user_id: str = Depends(get_current_user_id),
     start_date: Optional[str] = None,
@@ -781,29 +698,6 @@ async def get_chat_history(
                 "limit": limit
             }
         )
-        
-        # ===============================
-        # アクセス制御チェック（新戦略）
-        # ===============================
-        access_info = await service_client.check_user_access_control(user_id)
-        
-        if not access_info["access_allowed"]:
-            logger.warning(
-                "Access denied for chat history",
-                extra={
-                    "user_id": user_id[:8] + "****",
-                    "restriction_reason": access_info["restriction_reason"]
-                }
-            )
-            raise HTTPException(
-                status_code=402,  # Payment Required
-                detail={
-                    "error": "access_denied",
-                    "reason": access_info["restriction_reason"],
-                    "message": "チャット履歴の閲覧には有料プランへのアップグレードが必要です。",
-                    "redirect_url": access_info["redirect_url"]
-                }
-            )
         
         # リクエストパラメータバリデーション
         history_request = ChatHistoryRequest(
@@ -854,56 +748,10 @@ async def get_chat_history(
 # 気分・感情アイコン機能エンドポイント（チャット機能として復活）
 # =====================================
 
-@app.put("/api/chat/mood")
-async def update_mood(
-    interaction_mode: InteractionMode,
-    user_id: str = Depends(get_current_user_id)
-):
-    """
-    気分変更エンドポイント（チャット機能の一部）
-    
-    ■機能概要■
-    - ユーザーの対話モード（praise/listen）をリアルタイム変更
-    - 「ほめほめ」「聞いて」のトグルボタン対応
-    - DynamoDBユーザープロフィールに永続化
-    """
-    try:
-        logger.info(
-            "Processing mood update",
-            extra={
-                "user_id": user_id[:8] + "****",
-                "interaction_mode": interaction_mode
-            }
-        )
-        
-        # user_serviceに気分更新を委譲
-        await service_client.update_user_interaction_mode(
-            user_id=user_id,
-            interaction_mode=interaction_mode.value
-        )
-        
-        return {
-            "success": True,
-            "updated_mode": interaction_mode.value,
-            "message": f"対話モードを「{interaction_mode.value}」に変更しました",
-            "timestamp": get_current_jst().isoformat()
-        }
-        
-    except Exception as e:
-        logger.error(
-            "Failed to update mood",
-            extra={
-                "error": str(e),
-                "user_id": user_id[:8] + "****"
-            }
-        )
-        raise HTTPException(status_code=500, detail="気分変更に失敗しました")
-
-
 @app.post("/api/chat/emotions")
+@require_basic_access()
 async def send_emotion_stamp(
     emotion_request: EmotionStampRequest,
-    background_tasks: BackgroundTasks,
     user_id: str = Depends(get_current_user_id)
 ):
     """
@@ -930,7 +778,6 @@ async def send_emotion_stamp(
         
         # ユーザーAI設定情報取得（user_serviceから）
         user_ai_preferences = await service_client.get_user_ai_preferences(user_id)
-        user_subscription = await service_client.get_user_subscription_info(user_id)
         
         # AI設定の決定（リクエスト優先、なければプロフィール設定）
         ai_character = emotion_request.ai_character or user_ai_preferences["ai_character"]
@@ -958,31 +805,25 @@ async def send_emotion_stamp(
             user_message=user_message,
             user_id=user_id,
             character=ai_character,
-            mood=interaction_mode,
+            interaction_mode=interaction_mode,
             praise_level=praise_level
         )
         
-        # 木の成長計算
-        current_tree_stats = await service_client.get_user_tree_stats(user_id)
-        previous_total = current_tree_stats.get("total_characters", 0)
-        previous_stage = calculate_tree_stage(previous_total)
-        
+        # 木の成長計算（tree_service統合）
         message_character_count = len(user_message)
-        new_total_characters = previous_total + message_character_count
-        current_stage = calculate_tree_stage(new_total_characters)
-        characters_to_next = get_characters_to_next_stage(new_total_characters)
-        stage_changed = current_stage > previous_stage
-        progress_percentage = calculate_progress_percentage(new_total_characters)
         
+        # tree_serviceで成長処理を実行し、成長判定も含めて取得
+        growth_info = await service_client.update_tree_stats(user_id, message_character_count)
+        
+        # TreeGrowthInfo構築（tree_serviceレスポンス構造に合わせて修正）
         tree_growth = TreeGrowthInfo(
-            previous_stage=previous_stage,
-            current_stage=current_stage,
-            previous_total=previous_total,
-            current_total=new_total_characters,
+            previous_stage=growth_info.get("previous_stage", 0),
+            current_stage=growth_info.get("current_stage", 0),
+            previous_total=growth_info.get("previous_total", 0),
+            current_total=growth_info.get("new_total_characters", 0),  # 修正：tree_serviceの実際のキー名
             added_characters=message_character_count,
-            stage_changed=stage_changed,
-            characters_to_next=characters_to_next,
-            progress_percentage=progress_percentage
+            stage_changed=growth_info.get("stage_changed", False),
+            growth_celebration=growth_info.get("growth_celebration")
         )
         
         # TTL計算
@@ -996,18 +837,16 @@ async def send_emotion_stamp(
             user_message=f"[感情スタンプ: {emotion_request.emotion.value}]",
             ai_response=ai_response_text,
             ai_character=ai_character,
-            praise_level=PraiseLevel.NORMAL,  # 感情スタンプはnormal固定
+            praise_level=praise_level,  # 修正：決定されたpraise_levelを使用
             interaction_mode=interaction_mode,
             growth_points_gained=message_character_count,
-            tree_stage_at_time=current_stage,
+            tree_stage_at_time=tree_growth.current_stage,
             created_at=timestamp,
             expires_at=ttl_timestamp
         )
         
         # DynamoDB保存実行
         await chat_db.save_chat_message(chat_message)
-        
-        # 木の統計情報は既に update_tree_stats で更新済み
         
         # レスポンス構築
         ai_response = AIResponse(
@@ -1033,7 +872,9 @@ async def send_emotion_stamp(
                 "user_id": user_id[:8] + "****",
                 "message_id": message_id,
                 "emotion": emotion_request.emotion,
-                "ai_character": ai_character
+                "ai_character": ai_character,
+                "praise_level": praise_level,
+                "unified_tier": "unified"  # 新戦略：全ユーザー統一
             }
         )
         
@@ -1050,12 +891,6 @@ async def send_emotion_stamp(
         )
         raise HTTPException(status_code=500, detail="感情スタンプの処理に失敗しました")
 
-
-# =====================================
-# バックグラウンド処理関数
-# =====================================
-
-# 統計関連機能削除：update_chat_analytics 関数削除
 
 # =====================================
 # ヘルスチェック
