@@ -109,6 +109,38 @@ def get_plan_price(plan: SubscriptionPlan) -> int:
     config = PLAN_CONFIGS.get(plan, PLAN_CONFIGS[SubscriptionPlan.TRIAL])
     return config["price"]
 
+def get_plan_name(plan: SubscriptionPlan) -> str:
+    """
+    プランの名前を取得
+    
+    Args:
+        plan: 名前を取得するプラン
+        
+    Returns:
+        str: プラン名
+    """
+    # プラン設定（統一定義）
+    PLAN_CONFIGS = {
+        SubscriptionPlan.TRIAL: {
+            "name": "1週間無料トライアル",
+            "price": 0,
+            "description": "7日間無料体験、全機能利用可能"
+        },
+        SubscriptionPlan.MONTHLY: {
+            "name": "月額プラン",
+            "price": 580,  # 円（新価格）
+            "description": "月額580円、全機能利用可能"
+        },
+        SubscriptionPlan.YEARLY: {
+            "name": "年額プラン",
+            "price": 5800,  # 円（年額）
+            "description": "年額5800円、全機能利用可能"
+        }
+    }
+    
+    config = PLAN_CONFIGS.get(plan, PLAN_CONFIGS[SubscriptionPlan.TRIAL])
+    return config["name"]
+
 
 def get_stripe_price_id(plan: SubscriptionPlan) -> Optional[str]:
     """

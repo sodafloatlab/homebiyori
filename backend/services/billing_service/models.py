@@ -8,7 +8,7 @@ JST時刻統一、DynamoDB効率的保存を提供。
 
 ■課金システム設計■
 月額プレミアムプラン:
-- 価格: 980円/月（税込）
+- 価格: 580円/月（税込）
 - TTL: 180日（フリープランの6倍）
 - 特典: 長期保存、将来的に限定機能追加予定
 
@@ -45,39 +45,21 @@ class CreateSubscriptionRequest(BaseModel):
     payment_method_id: Optional[str] = Field(None, description="Stripe支払い方法ID")
     # coupon_code削除: Stripe側制御のため不要
 
-class CreateSubscriptionResponse(BaseModel):
-    """サブスクリプション作成レスポンス"""
-    subscription_id: str = Field(description="サブスクリプションID")
-    client_secret: Optional[str] = Field(None, description="Stripe Client Secret（3Dセキュア等）")
-    status: SubscriptionStatus = Field(description="サブスクリプション状態")
-    current_period_end: datetime = Field(description="現在の課金期間終了日（JST）")
-    
-    model_config = ConfigDict(
-        json_encoders={datetime: to_jst_string}
-    )
+# CreateSubscriptionResponse 削除（2024-08-22）
+# 理由: StripeCheckout方式に統一。create_subscriptionエンドポイント削除に伴い不要
 
-class CancelSubscriptionRequest(BaseModel):
-    """サブスクリプションキャンセルリクエスト"""
-    cancel_at_period_end: bool = Field(
-        default=True, 
-        description="期間終了時にキャンセルするか（即座にキャンセルしない）"
-    )
-    cancellation_reason: Optional[str] = Field(
-        None, 
-        max_length=500, 
-        description="キャンセル理由（アンケート用）"
-    )
+# CancelSubscriptionRequest 削除（2024-08-22）
+# 理由: Portal経由でのサブスクリプション管理に統一。cancel_subscriptionエンドポイント削除に伴い不要
 
-class UpdatePaymentMethodRequest(BaseModel):
-    """支払い方法更新リクエスト"""
-    payment_method_id: str = Field(..., description="新しいStripe支払い方法ID")
+# UpdatePaymentMethodRequest 削除（2024-08-22）
+# 理由: StripeCheckout方式に統一。支払い方法更新はPortal経由で管理。update_payment_methodエンドポイント削除に伴い不要
 
 # =====================================
 # データ永続化モデル
 # =====================================
 
 class UserSubscription(BaseModel):
-    """ユーザーサブスクリプション情報"""
+    """ユーザーサブスクリプション情報（設計書準拠版）"""
     user_id: str = Field(description="ユーザーID（Cognito sub）")
     subscription_id: Optional[str] = Field(None, description="StripeサブスクリプションID")
     customer_id: Optional[str] = Field(None, description="Stripe顧客ID")
@@ -110,7 +92,7 @@ class UserSubscription(BaseModel):
         description="キャンセル日時（JST）"
     )
     
-    # 新戦略：トライアル期間管理
+    # 新戦略：トライアル期間管理（設計書準拠）
     trial_start_date: Optional[datetime] = Field(
         None, 
         description="トライアル開始日（JST）"
@@ -118,12 +100,6 @@ class UserSubscription(BaseModel):
     trial_end_date: Optional[datetime] = Field(
         None, 
         description="トライアル終了日（JST）"
-    )
-    
-    # TTL設定（新戦略では統一）
-    ttl_days: int = Field(
-        default=180, 
-        description="データ保持期間（日数）：全プラン統一"
     )
     
     # メタデータ
@@ -140,38 +116,22 @@ class UserSubscription(BaseModel):
         json_encoders={datetime: to_jst_string}
     )
 
-class PaymentHistory(BaseModel):
-    """支払い履歴"""
-    payment_id: str = Field(default_factory=lambda: str(uuid.uuid4()), description="支払いID")
-    user_id: str = Field(description="ユーザーID")
-    subscription_id: str = Field(description="サブスクリプションID")
-    stripe_payment_intent_id: str = Field(description="Stripe PaymentIntent ID")
-    
-    # 支払い情報
-    amount: int = Field(description="支払い金額（円）")
-    currency: str = Field(default="jpy", description="通貨")
-    status: PaymentStatus = Field(description="支払い状態")
-    
-    # 期間情報
-    billing_period_start: datetime = Field(description="課金期間開始（JST）")
-    billing_period_end: datetime = Field(description="課金期間終了（JST）")
-    
-    # 支払い方法
-    payment_method_type: Optional[str] = Field(None, description="支払い方法タイプ（card等）")
-    card_last4: Optional[str] = Field(None, description="カード下4桁")
-    card_brand: Optional[str] = Field(None, description="カードブランド")
-    
-    # 詳細情報
-    description: Optional[str] = Field(None, description="支払い説明")
-    failure_reason: Optional[str] = Field(None, description="失敗理由")
-    
-    # タイムスタンプ（JST）
-    paid_at: Optional[datetime] = Field(None, description="支払い完了日時（JST）")
-    created_at: datetime = Field(default_factory=get_current_jst, description="作成日時（JST）")
-    
-    model_config = ConfigDict(
-        json_encoders={datetime: to_jst_string}
-    )
+# PaymentHistoryモデルはwebhook_serviceに移管されました
+# 理由: 責任分離の原則に基づき、決済情報の管理はwebhook_serviceが完全担当
+# 移管日: 2024-08-22
+# 
+# ■責任分離後の役割■
+# billing_service: サブスクリプション管理（Stripe API呼び出し）
+# - サブスクリプション作成・更新・キャンセル
+# - 顧客管理（Customer CRUD）
+# - 課金ポータルセッション作成
+# 
+# webhook_service: 決済情報管理（Stripe Webhook受信）
+# - PaymentHistory完全管理
+# - Stripe Webhookイベント処理
+# - 決済完了・失敗の状態更新
+#
+# PaymentHistory関連の実装はwebhook_serviceで行ってください
 
 class BillingPortalRequest(BaseModel):
     """課金ポータルセッション作成リクエスト"""
@@ -182,39 +142,80 @@ class BillingPortalResponse(BaseModel):
     portal_url: str = Field(description="Stripe課金ポータルURL")
 
 # =====================================
+# サブスクリプションキャンセル（解約理由収集用）
+# =====================================
+
+class CancelSubscriptionRequest(BaseModel):
+    """
+    サブスクリプションキャンセルリクエスト（解約理由収集機能付き）
+    
+    ■設計方針■
+    - Portal経由ではなくAPI実行でキャンセルを行う
+    - 解約理由の収集がサービス改善に重要なため
+    - design_database.md準拠の個別フィールド構造で受信
+    """
+    cancel_at_period_end: bool = Field(
+        default=True,
+        description="期間終了時にキャンセルするか（即座にキャンセルの場合はFalse）"
+    )
+    
+    # 解約理由（個別フィールド）- design_database.md準拠
+    reason_category: Optional[str] = Field(
+        default=None,
+        description="解約理由カテゴリ（price|features|usability|competitors|other）",
+        max_length=50
+    )
+    reason_text: Optional[str] = Field(
+        default=None,
+        description="具体的な解約理由",
+        max_length=200
+    )
+    satisfaction_score: Optional[int] = Field(
+        default=None,
+        description="満足度スコア（1-5）",
+        ge=1,
+        le=5
+    )
+    improvement_suggestions: Optional[str] = Field(
+        default=None,
+        description="改善提案・フィードバック",
+        max_length=300
+    )
+
+    class Config:
+        from_attributes = True
+        json_encoders = {
+            datetime: lambda v: v.isoformat()
+        }
+
+
+class CancelSubscriptionResponse(BaseModel):
+    """サブスクリプションキャンセル結果レスポンス"""
+    success: bool = Field(description="キャンセル成功フラグ")
+    message: str = Field(description="キャンセル結果メッセージ")
+    canceled_at: Optional[datetime] = Field(
+        default=None,
+        description="キャンセル実行日時（即座キャンセルの場合）"
+    )
+    will_cancel_at_period_end: bool = Field(
+        default=False,
+        description="期間終了時にキャンセル予定かどうか"
+    )
+
+    class Config:
+        from_attributes = True
+        json_encoders = {
+            datetime: lambda v: v.isoformat()
+        }
+
+# =====================================
 # 統計・分析モデル
 # =====================================
 
-class SubscriptionAnalytics(BaseModel):
-    """サブスクリプション分析データ"""
-    user_id: str = Field(description="ユーザーID")
-    analysis_period: str = Field(description="分析期間")
-    
-    # 利用統計
-    total_paid_amount: int = Field(ge=0, description="総支払い額（円）")
-    subscription_start_date: Optional[datetime] = Field(None, description="サブスクリプション開始日")
-    subscription_duration_days: int = Field(ge=0, description="継続日数")
-    
-    # 課金履歴統計
-    successful_payments: int = Field(ge=0, description="成功した支払い回数")
-    failed_payments: int = Field(ge=0, description="失敗した支払い回数")
-    average_payment_amount: float = Field(ge=0, description="平均支払い額")
-    
-    # サブスクリプション変更履歴
-    plan_changes: List[Dict[str, Any]] = Field(
-        default_factory=list, 
-        description="プラン変更履歴"
-    )
-    
-    # 分析メタデータ
-    analyzed_at: datetime = Field(
-        default_factory=get_current_jst, 
-        description="分析実行時刻（JST）"
-    )
-    
-    model_config = ConfigDict(
-        json_encoders={datetime: to_jst_string}
-    )
+# SubscriptionAnalyticsクラスは削除されました
+# 理由: Stripe管理コンソールで同等の統計情報を確認可能なため
+# 削除日: 2024-08-21
+# Issue #15 統一戦略の一環として、重複機能を削除し、アーキテクチャをシンプル化
 
 # エラーハンドリングクラスは homebiyori_common.exceptions からインポート
 # 統一定義により重複削除（Issue #15 サービス間記載統一）

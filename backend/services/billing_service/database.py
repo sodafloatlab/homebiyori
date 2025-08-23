@@ -42,11 +42,8 @@ from homebiyori_common.utils.datetime_utils import get_current_jst, to_jst_strin
 # ローカルモジュール
 from .models import (
     UserSubscription,
-    PaymentHistory,
-    SubscriptionAnalytics,
     SubscriptionPlan,
     SubscriptionStatus,
-    PaymentStatus,
     get_unified_ttl_days,
     is_active_subscription
 )
@@ -61,24 +58,27 @@ class BillingDatabase:
     ■主要機能■
     1. サブスクリプション状態管理
     2. 支払い履歴記録・取得
-    3. 課金分析データ管理
-    4. キャンセル理由記録
+    3. キャンセル理由記録
+    
+    ■統計・分析機能について■
+    統計情報はStripe管理コンソールでより詳細に確認可能なため、
+    当サービスでは重複実装を避け、コアな課金機能に特化
     """
     
     def __init__(self):
         """
-        データベースクライアント初期化（4テーブル統合対応）
+        データベースクライアント初期化（billing_service必要テーブルのみ）
     
-        ■4テーブル統合対応■
-        - core: サブスクリプション情報（SUBSCRIPTION）、通知（NOTIFICATION#timestamp）
-        - chats: チャット履歴（TTL管理）
-        - fruits: 実の情報（永続保存）
-        - feedback: フィードバック（分析用）
+        ■billing_service用テーブル■
+        - core: サブスクリプション情報（SUBSCRIPTION）
+        - feedback: 解約理由フィードバック（分析用）
+        
+        ■不要テーブル（責任分離）■
+        - chats: chat_serviceが管理
+        - fruits: tree_serviceが管理
         """
-        # 4つのテーブル用のクライアントを初期化：環境変数からテーブル名取得
+        # billing_serviceに必要なテーブルのみ初期化
         self.core_client = DynamoDBClient(os.environ["CORE_TABLE_NAME"])
-        self.chats_client = DynamoDBClient(os.environ["CHATS_TABLE_NAME"])
-        self.fruits_client = DynamoDBClient(os.environ["FRUITS_TABLE_NAME"])
         self.feedback_client = DynamoDBClient(os.environ["FEEDBACK_TABLE_NAME"])
         self.logger = get_logger(__name__)
     
@@ -88,7 +88,7 @@ class BillingDatabase:
     
     async def get_user_subscription(self, user_id: str) -> Optional[UserSubscription]:
         """
-        ユーザーのサブスクリプション情報を取得
+        ユーザーのサブスクリプション情報を取得（設計書準拠版）
         
         Args:
             user_id: ユーザーID
@@ -103,7 +103,7 @@ class BillingDatabase:
             item = await self.core_client.get_item(pk, sk)
             
             if item:
-                # JST時刻に変換
+                # JST時刻に変換（設計書準拠）
                 subscription = UserSubscription(
                     user_id=item["user_id"],
                     subscription_id=item.get("subscription_id"),
@@ -114,7 +114,9 @@ class BillingDatabase:
                     current_period_end=self._parse_jst_datetime(item.get("current_period_end")),
                     cancel_at_period_end=item.get("cancel_at_period_end", False),
                     canceled_at=self._parse_jst_datetime(item.get("canceled_at")),
-                    ttl_days=item.get("ttl_days", 30),
+                    # 設計書準拠：trialフィールド追加
+                    trial_start_date=self._parse_jst_datetime(item.get("trial_start_date")),
+                    trial_end_date=self._parse_jst_datetime(item.get("trial_end_date")),
                     created_at=self._parse_jst_datetime(item.get("created_at", get_current_jst().isoformat())),
                     updated_at=self._parse_jst_datetime(item.get("updated_at", get_current_jst().isoformat()))
                 )
@@ -131,7 +133,7 @@ class BillingDatabase:
     
     async def save_user_subscription(self, subscription: UserSubscription) -> None:
         """
-        ユーザーのサブスクリプション情報を保存
+        ユーザーのサブスクリプション情報を保存（設計書準拠版）
         
         Args:
             subscription: サブスクリプション情報
@@ -151,13 +153,13 @@ class BillingDatabase:
                 "current_period_end": to_jst_string(subscription.current_period_end) if subscription.current_period_end else None,
                 "cancel_at_period_end": subscription.cancel_at_period_end,
                 "canceled_at": to_jst_string(subscription.canceled_at) if subscription.canceled_at else None,
-                "ttl_days": subscription.ttl_days,
+                # 設計書準拠：trialフィールド追加
+                "trial_start_date": to_jst_string(subscription.trial_start_date) if subscription.trial_start_date else None,
+                "trial_end_date": to_jst_string(subscription.trial_end_date) if subscription.trial_end_date else None,
                 "created_at": to_jst_string(subscription.created_at),
                 "updated_at": to_jst_string(now),
-                # GSI1用（サブスクリプション検索）
-                "GSI1PK": f"SUBSCRIPTION#{subscription.current_plan.value}",
-                "GSI1SK": f"{subscription.status.value}#{subscription.user_id}",
-                # TTL設定なし（課金データは永続保存）
+                # 課金データは永続保存（TTL設定なし）
+                # GSI1PK/GSI1SK削除: TerraformでGSI作成時にcurrent_plan/statusフィールドを指定
             }
             
             await self.core_client.put_item(item)
@@ -175,266 +177,118 @@ class BillingDatabase:
     # 支払い履歴管理
     # =====================================
     
-    async def save_payment_history(self, payment: PaymentHistory) -> None:
-        """
-        支払い履歴を保存
-        
-        Args:
-            payment: 支払い履歴情報
-        """
-        try:
-            timestamp_str = payment.created_at.strftime("%Y%m%d%H%M%S")
-            
-            item = {
-                "PK": f"USER#{payment.user_id}",
-                "SK": f"PAYMENT#{timestamp_str}#{payment.payment_id}",
-                "payment_id": payment.payment_id,
-                "user_id": payment.user_id,
-                "subscription_id": payment.subscription_id,
-                "stripe_payment_intent_id": payment.stripe_payment_intent_id,
-                "amount": payment.amount,
-                "currency": payment.currency,
-                "status": payment.status.value,
-                "billing_period_start": to_jst_string(payment.billing_period_start),
-                "billing_period_end": to_jst_string(payment.billing_period_end),
-                "payment_method_type": payment.payment_method_type,
-                "card_last4": payment.card_last4,
-                "card_brand": payment.card_brand,
-                "description": payment.description,
-                "failure_reason": payment.failure_reason,
-                "paid_at": to_jst_string(payment.paid_at) if payment.paid_at else None,
-                "created_at": to_jst_string(payment.created_at),
-                # GSI1用（支払い履歴検索）
-                "GSI1PK": f"PAYMENT#{payment.user_id}",
-                "GSI1SK": f"{payment.status.value}#{timestamp_str}",
-            }
-            
-            await self.core_client.put_item(item)
-            
-            self.logger.info(f"支払い履歴保存完了: user_id={payment.user_id}, payment_id={payment.payment_id}")
-            
-        except Exception as e:
-            self.logger.error(f"支払い履歴保存エラー: payment_id={payment.payment_id}, error={e}")
-            raise DatabaseError(f"支払い履歴の保存に失敗しました: {e}")
+    # PaymentHistory関連機能はwebhook_serviceに完全移管されました
+    # 移管日: 2024-08-22
+    # 
+    # ■責任分離後の役割■
+    # billing_service: サブスクリプション管理のみ（Stripe API呼び出し）
+    # - サブスクリプション作成・更新・キャンセル
+    # - 顧客管理（Customer CRUD）
+    # - 課金ポータルセッション作成
+    # 
+    # webhook_service: PaymentHistory完全管理（Stripe Webhook受信）
+    # - PaymentHistory完全管理
+    # - Stripe Webhookイベント処理
+    # - 決済完了・失敗の状態更新
+    #
+    # PaymentHistory関連の実装はwebhook_serviceで行ってください
     
-    async def get_payment_history(
-        self,
-        user_id: str,
-        limit: int = 20,
-        next_token: Optional[str] = None
-    ) -> Dict[str, Any]:
-        """
-        ユーザーの支払い履歴を取得
-        
-        Args:
-            user_id: ユーザーID
-            limit: 取得件数制限
-            next_token: ページネーショントークン
-            
-        Returns:
-            Dict: 支払い履歴とメタデータ
-        """
-        try:
-            pk = f"USER#{user_id}"
-            
-            # 基本クエリ条件
-            query_params = {
-                "pk": pk,
-                "sk_condition": "begins_with(SK, :sk_prefix)",
-                "expression_values": {":sk_prefix": "PAYMENT#"},
-                "limit": limit,
-                "scan_index_forward": False  # 新しい順
-            }
-            
-            if next_token:
-                query_params["next_token"] = next_token
-            
-            # クエリ実行
-            result = await self.core_client.query_with_pagination(**query_params)
-            
-            # PaymentHistoryオブジェクトに変換
-            payments = []
-            for item in result["items"]:
-                payment = PaymentHistory(
-                    payment_id=item["payment_id"],
-                    user_id=item["user_id"],
-                    subscription_id=item["subscription_id"],
-                    stripe_payment_intent_id=item["stripe_payment_intent_id"],
-                    amount=item["amount"],
-                    currency=item["currency"],
-                    status=PaymentStatus(item["status"]),
-                    billing_period_start=self._parse_jst_datetime(item["billing_period_start"]),
-                    billing_period_end=self._parse_jst_datetime(item["billing_period_end"]),
-                    payment_method_type=item.get("payment_method_type"),
-                    card_last4=item.get("card_last4"),
-                    card_brand=item.get("card_brand"),
-                    description=item.get("description"),
-                    failure_reason=item.get("failure_reason"),
-                    paid_at=self._parse_jst_datetime(item.get("paid_at")),
-                    created_at=self._parse_jst_datetime(item["created_at"])
-                )
-                payments.append(payment)
-            
-            self.logger.info(f"支払い履歴取得完了: user_id={user_id}, count={len(payments)}")
-            
-            return {
-                "items": payments,
-                "next_token": result.get("next_token"),
-                "has_more": result.get("has_more", False)
-            }
-            
-        except Exception as e:
-            self.logger.error(f"支払い履歴取得エラー: user_id={user_id}, error={e}")
-            raise DatabaseError(f"支払い履歴の取得に失敗しました: {e}")
+    # PaymentHistory取得機能はwebhook_serviceに完全移管されました
+    # 移管日: 2024-08-22
+    # 
+    # ■責任分離後の役割■
+    # billing_service: サブスクリプション管理のみ
+    # webhook_service: PaymentHistory完全管理
+    #
+    # PaymentHistory取得はwebhook_serviceのAPIをご利用ください
     
     # =====================================
     # キャンセル理由・分析データ
     # =====================================
     
-    async def record_cancellation_reason(self, user_id: str, reason: str) -> None:
+    async def record_cancellation_reason(
+        self,
+        user_id: str,
+        subscription_id: str,
+        reason_category: str,
+        reason_text: str = None,
+        satisfaction_score: int = None,
+        improvement_suggestions: str = None,
+        canceled_plan: str = None,
+        usage_duration_days: int = None
+    ) -> None:
         """
-        キャンセル理由を記録（4テーブル統合対応）
-    
-    ■feedbackテーブル対応■
-    - PK: FEEDBACK#subscription_cancellation
+        キャンセル理由をfeedbackテーブルに記録（design_database.md準拠）
+        
+        ■feedbackテーブル対応■
+        - PK: FEEDBACK#subscription_cancellation
         - SK: {timestamp}
+        - 個別カラム: reason_category, reason_text, satisfaction_score, etc.
         
         Args:
             user_id: ユーザーID
-            reason: キャンセル理由
+            subscription_id: サブスクリプションID
+            reason_category: 理由カテゴリー (price|features|usability|competitors|other)
+            reason_text: 自由記述理由（任意）
+            satisfaction_score: 満足度スコア 1-5（任意）
+            improvement_suggestions: 改善提案（任意）
+            canceled_plan: 解約プラン (monthly|yearly)（任意）
+            usage_duration_days: 利用期間日数（任意）
         """
         try:
             now = get_current_jst()
             timestamp_str = now.strftime("%Y-%m-%dT%H:%M:%S+09:00")
+            feedback_id = f"feedback_{user_id}_{int(now.timestamp())}"
             
             item = {
                 "PK": "FEEDBACK#subscription_cancellation",
                 "SK": timestamp_str,
+                "feedback_id": feedback_id,
                 "user_id": user_id,
-                "feedback_type": "cancellation_reason",
-                "reason_category": "other",  # デフォルト値
-                "reason_text": reason,
-                "satisfaction_score": None,
-                "improvement_suggestions": None,
-                "created_at": timestamp_str,
-                # feedbackテーブルGSI用
-                "GSI1PK": "FEEDBACK#cancellation#other",
-                "GSI2PK": "FEEDBACK#cancellation#unknown"
+                "subscription_id": subscription_id,
+                "feedback_type": "subscription_cancellation",
+                "reason_category": reason_category,
+                "reason_text": reason_text,
+                "satisfaction_score": satisfaction_score,
+                "improvement_suggestions": improvement_suggestions,
+                "canceled_plan": canceled_plan,
+                "usage_duration_days": usage_duration_days,
+                "created_at": timestamp_str
+                # GSI1/GSI2はTerraformで自動設定（feedback_type/reason_category, satisfaction_score/created_at）
             }
+            
+            # None値を除去してクリーンなデータ保存
+            item = {k: v for k, v in item.items() if v is not None}
             
             await self.feedback_client.put_item(item)
             
-            self.logger.info(f"キャンセル理由記録完了: user_id={user_id}")
+            self.logger.info(f"キャンセル理由記録完了: user_id={user_id}, category={reason_category}")
             
         except Exception as e:
             self.logger.error(f"キャンセル理由記録エラー: user_id={user_id}, error={e}")
             raise DatabaseError(f"キャンセル理由の記録に失敗しました: {e}")
     
-    async def save_subscription_analytics(self, analytics: SubscriptionAnalytics) -> None:
-        """
-        サブスクリプション分析データを保存
-        
-        Args:
-            analytics: 分析データ
-        """
-        try:
-            item = {
-                "PK": f"USER#{analytics.user_id}",
-                "SK": f"ANALYTICS#{analytics.analysis_period}",
-                "user_id": analytics.user_id,
-                "analysis_period": analytics.analysis_period,
-                "total_paid_amount": analytics.total_paid_amount,
-                "subscription_start_date": to_jst_string(analytics.subscription_start_date) if analytics.subscription_start_date else None,
-                "subscription_duration_days": analytics.subscription_duration_days,
-                "successful_payments": analytics.successful_payments,
-                "failed_payments": analytics.failed_payments,
-                "average_payment_amount": analytics.average_payment_amount,
-                "plan_changes": json.dumps(analytics.plan_changes),
-                "analyzed_at": to_jst_string(analytics.analyzed_at),
-            }
-            
-            await self.core_client.put_item(item)
-            
-            self.logger.info(f"分析データ保存完了: user_id={analytics.user_id}, period={analytics.analysis_period}")
-            
-        except Exception as e:
-            self.logger.error(f"分析データ保存エラー: user_id={analytics.user_id}, error={e}")
-            raise DatabaseError(f"分析データの保存に失敗しました: {e}")
+    # save_subscription_analyticsメソッドは削除されました
+    # 理由: SubscriptionAnalytics機能削除により不要となった
+    # 削除日: 2024-08-21
+    # 統計情報はStripe管理コンソールで確認可能
     
     # =====================================
-    # 統計・分析クエリ
+    # 統計・分析クエリセクションは削除されました
+    # Stripe管理コンソールで詳細な統計情報を確認してください
     # =====================================
     
-    async def get_active_subscription_count(self) -> int:
-        """
-        アクティブなサブスクリプション数を取得
-        
-        Returns:
-            int: アクティブサブスクリプション数
-        """
-        try:
-            # GSI1を使用してアクティブサブスクリプションを検索
-            result = await self.core_client.query_gsi(
-                "GSI1",
-                pk="monthly",
-                sk_prefix="active"
-            )
-            
-            active_count = len(result.get("items", []))
-            
-            self.logger.info(f"アクティブサブスクリプション数取得: count={active_count}")
-            return active_count
-            
-        except Exception as e:
-            self.logger.error(f"アクティブサブスクリプション数取得エラー: {e}")
-            raise DatabaseError(f"アクティブサブスクリプション数の取得に失敗しました: {e}")
+    # get_active_subscription_countメソッドは削除されました（2024-08-22）
+    # 理由: 
+    # 1. 使用されていない: main.pyで呼び出されておらず、APIエンドポイントとして公開もされていない
+    # 2. Stripe管理コンソールで代替可能: サブスクリプション数統計はStripe管理画面で確認可能
+    # 3. 責任分離: billing_serviceは課金処理に特化、統計・分析機能は将来のadmin_serviceで実装
+    # 4. コスト最適化: 不要なGSIクエリ削除によるDynamoDB利用コスト削減
     
-    async def get_monthly_revenue_stats(self, year_month: str) -> Dict[str, Any]:
-        """
-        月次収益統計を取得
-        
-        Args:
-            year_month: 年月（YYYY-MM形式）
-            
-        Returns:
-            Dict: 月次収益統計
-        """
-        try:
-            # 月初と月末を計算
-            year, month = map(int, year_month.split("-"))
-            start_date = f"{year:04d}-{month:02d}-01"
-            
-            if month == 12:
-                end_date = f"{year+1:04d}-01-01"
-            else:
-                end_date = f"{year:04d}-{month+1:02d}-01"
-            
-            # 新しいテーブル構成ではGSI削除のため、基本クエリに変更
-            # 月次統計は別途実装が必要
-            result = {"items": []}
-            self.logger.warning(f"月次収益統計は新テーブル構成では未実装: {year_month}")
-            
-            # 統計計算
-            payments = result.get("items", [])
-            total_revenue = sum(item.get("amount", 0) for item in payments if item.get("status") == "succeeded")
-            successful_payments = len([item for item in payments if item.get("status") == "succeeded"])
-            failed_payments = len([item for item in payments if item.get("status") == "failed"])
-            
-            stats = {
-                "year_month": year_month,
-                "total_revenue": total_revenue,
-                "successful_payments": successful_payments,
-                "failed_payments": failed_payments,
-                "total_payments": len(payments),
-                "success_rate": (successful_payments / len(payments) * 100) if payments else 0
-            }
-            
-            self.logger.info(f"月次収益統計取得完了: {year_month}, revenue={total_revenue}")
-            return stats
-            
-        except Exception as e:
-            self.logger.error(f"月次収益統計取得エラー: year_month={year_month}, error={e}")
-            raise DatabaseError(f"月次収益統計の取得に失敗しました: {e}")
+    # get_monthly_revenue_statsメソッドは削除されました
+    # 理由: 統計機能削除の一環として削除（Stripe管理コンソールで確認可能）
+    # 削除日: 2024-08-21
+    # 月次収益統計はStripe管理コンソールのレポート機能で詳細に確認可能
     
     # =====================================
     # ヘルスチェック
@@ -444,19 +298,26 @@ class BillingDatabase:
         """
         データベース接続ヘルスチェック（統一戻り値型）
         
+        billing_serviceで使用する全テーブル（core + feedback）の接続確認
+        
         Returns:
             Dict[str, Any]: ヘルスチェック結果
         """
         try:
-            # テーブル存在確認（coreテーブル）
+            # billing_serviceで使用する全テーブルの存在確認
+            # 1. coreテーブル（サブスクリプション管理）
             await self.core_client.describe_table()
+            
+            # 2. feedbackテーブル（解約理由収集）
+            await self.feedback_client.describe_table()
             
             self.logger.info("課金サービス ヘルスチェック成功")
             return {
                 "status": "healthy",
                 "service": "billing_service",
                 "database": "connected",
-                "core_table": "available"
+                "core_table": "available",
+                "feedback_table": "available"
             }
             
         except Exception as e:
@@ -594,8 +455,8 @@ class BillingDatabase:
             if not subscription or subscription.current_plan != SubscriptionPlan.TRIAL:
                 return False
             
-            # ステータスをexpiredに変更
-            subscription.status = SubscriptionStatus.EXPIRED
+            # ステータスをcanceledに変更（トライアル期間終了）
+            subscription.status = SubscriptionStatus.CANCELED
             subscription.updated_at = get_current_jst()
             
             await self.save_user_subscription(subscription)
@@ -615,82 +476,10 @@ class BillingDatabase:
             return False
 
     
-    async def check_user_access_allowed(self, user_id: str) -> Dict[str, Any]:
-        """
-        ユーザーのアクセス許可状態をチェック
-        
-        Args:
-            user_id: ユーザーID
-            
-        Returns:
-            Dict: アクセス制御情報
-                - access_allowed: アクセス許可フラグ
-                - access_level: アクセスレベル（full/billing_only/none）
-                - restriction_reason: 制限理由
-                - redirect_url: リダイレクト先URL
-        """
-        try:
-            trial_status = await self.check_trial_status(user_id)
-            subscription = await self.get_user_subscription(user_id)
-            
-            if not subscription:
-                # 未登録ユーザー：新規トライアル作成が必要
-                return {
-                    "access_allowed": True,
-                    "access_level": "full",
-                    "restriction_reason": None,
-                    "redirect_url": None
-                }
-            
-            # 有料プランユーザー（monthly/yearly）：フルアクセス
-            if subscription.current_plan in [SubscriptionPlan.MONTHLY, SubscriptionPlan.YEARLY]:
-                if subscription.status == SubscriptionStatus.ACTIVE:
-                    return {
-                        "access_allowed": True,
-                        "access_level": "full",
-                        "restriction_reason": None,
-                        "redirect_url": None
-                    }
-            
-            # トライアルユーザーの状態チェック
-            if subscription.current_plan == SubscriptionPlan.TRIAL:
-                if trial_status["is_trial_active"]:
-                    # トライアル期間中：フルアクセス
-                    return {
-                        "access_allowed": True,
-                        "access_level": "full",
-                        "restriction_reason": None,
-                        "redirect_url": None
-                    }
-                else:
-                    # トライアル期間終了：課金誘導のみ
-                    return {
-                        "access_allowed": False,
-                        "access_level": "billing_only",
-                        "restriction_reason": "trial_expired",
-                        "redirect_url": "/billing/subscribe"
-                    }
-            
-            # その他の状態（canceled, past_due等）：課金誘導のみ
-            return {
-                "access_allowed": False,
-                "access_level": "billing_only", 
-                "restriction_reason": f"subscription_{subscription.status.value}",
-                "redirect_url": "/billing/subscribe"
-            }
-            
-        except Exception as e:
-            self.logger.error(
-                "Failed to check user access",
-                extra={"error": str(e), "user_id": user_id[:8] + "****"}
-            )
-            # エラー時は安全側に倒してアクセス拒否
-            return {
-                "access_allowed": False,
-                "access_level": "none",
-                "restriction_reason": "system_error",
-                "redirect_url": "/error"
-            }
+    # この機能は共通Layer (homebiyori_common.middleware.access_control) に移行されました
+    # 削除されたメソッド: check_user_access_allowed
+    # 理由: 全サービス統一のアクセス制御として共通Layer化により冗長となったため
+    # 代替: homebiyori_common.middleware.access_control.AccessControlClient.check_user_access
 
 
 # =====================================

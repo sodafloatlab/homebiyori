@@ -74,18 +74,21 @@ class TreeTheme(str, Enum):
 
 class SubscriptionStatus(str, Enum):
     """
-    サブスクリプション状態（統一定義）
+    サブスクリプション状態（Stripe公式仕様準拠）
+    
+    Stripe API 2024年仕様に基づく正式なステータス定義：
+    https://stripe.com/docs/api/subscriptions/object#subscription_object-status
     
     Issue #15 新戦略対応：
     billing_service と webhook_service の重複定義を統一
     """
-    ACTIVE = "active"            # アクティブ
-    CANCELED = "canceled"        # キャンセル済み
-    PAST_DUE = "past_due"       # 支払い遅延
-    UNPAID = "unpaid"           # 未払い
-    INCOMPLETE = "incomplete"    # 不完全（初回支払い失敗等）
-    TRIALING = "trialing"       # トライアル期間
-    EXPIRED = "expired"         # 期限切れ（新戦略）
+    INCOMPLETE = "incomplete"                  # 未完了（初回支払い処理中）
+    INCOMPLETE_EXPIRED = "incomplete_expired"  # 未完了期限切れ（初回支払い失敗）
+    TRIALING = "trialing"                     # トライアル期間中
+    ACTIVE = "active"                         # アクティブ（正常稼働）
+    PAST_DUE = "past_due"                    # 支払い遅延
+    CANCELED = "canceled"                     # キャンセル済み
+    UNPAID = "unpaid"                        # 未払い（複数回決済失敗）         # 期限切れ（新戦略）
 
 
 class SubscriptionPlan(str, Enum):

@@ -100,7 +100,6 @@ export interface DetailedSubscriptionStatus {
   };
   billing_info?: {
     next_billing_date: string | null;
-    recent_payments: PaymentHistory[];
     billing_portal_available: boolean;
   };
   recommendations: Recommendation[];
@@ -124,24 +123,9 @@ export interface UserSubscription {
   updated_at: string;
 }
 
-export interface PaymentHistory {
-  payment_id: string;
-  user_id: string;
-  subscription_id: string;
-  stripe_payment_intent_id: string;
-  amount: number;
-  currency: string;
-  status: 'succeeded' | 'failed' | 'pending' | 'canceled';
-  billing_period_start: string;
-  billing_period_end: string;
-  payment_method_type: string | null;
-  card_last4: string | null;
-  card_brand: string | null;
-  description: string | null;
-  failure_reason: string | null;
-  paid_at: string | null;
-  created_at: string;
-}
+// PaymentHistory機能削除（2024-08-22）
+// 理由: webhook_serviceはStripe環境からのアクセスのみ
+// 課金履歴はStripe Customer Portalから各ユーザーが直接参照する方式に統一
 
 export interface Recommendation {
   type: 'upgrade_required' | 'trial_ending' | 'payment_failed';
@@ -152,7 +136,19 @@ export interface Recommendation {
 
 export interface CancelSubscriptionRequest {
   cancel_at_period_end?: boolean;
-  cancellation_reason?: string;
+  
+  // 解約理由（個別フィールド）- design_database.md準拠
+  reason_category?: 'price' | 'features' | 'usability' | 'competitors' | 'other';
+  reason_text?: string;
+  satisfaction_score?: number; // 1-5
+  improvement_suggestions?: string;
+}
+
+export interface CancelSubscriptionResponse {
+  success: boolean;
+  message: string;
+  canceled_at?: string;
+  will_cancel_at_period_end: boolean;
 }
 
 export interface BillingPortalRequest {
@@ -255,33 +251,17 @@ export class BillingService {
     }
   }
 
-  /**
-   * アクセス制御チェック
-   * バックエンドAPI: GET /api/billing/access-control
-   */
-  async checkAccessControl(): Promise<{ access_control: AccessControl; current_time: string }> {
-    try {
-      return await this.apiClient.get<{ access_control: AccessControl; current_time: string }>(`${this.baseURL}/access-control`);
-    } catch (error) {
-      throw new Error(`アクセス制御の確認に失敗しました: ${error}`);
-    }
-  }
+  // checkAccessControl削除（2024-08-22）
+  // 理由: homebiyori_common統合によりアクセス制御は共通Layer化
+  // 代替: getDetailedSubscriptionStatus()のaccess_control情報を使用
 
   // =====================================
   // 課金誘導・チェックアウト
   // =====================================
 
-  /**
-   * 課金誘導情報取得
-   * バックエンドAPI: GET /api/billing/subscription-guidance
-   */
-  async getSubscriptionGuidance(): Promise<SubscriptionGuidance> {
-    try {
-      return await this.apiClient.get<SubscriptionGuidance>(`${this.baseURL}/subscription-guidance`);
-    } catch (error) {
-      throw new Error(`課金誘導情報の取得に失敗しました: ${error}`);
-    }
-  }
+  // getSubscriptionGuidance削除（2024-08-22）
+  // 理由: 静的な課金誘導情報はフロントエンドで管理すべき
+  // フロントエンドでプラン情報・価格・特典を定義し、不要なAPI呼び出しを削減
 
   /**
    * チェックアウトセッション作成
@@ -307,31 +287,29 @@ export class BillingService {
     }
   }
 
-  /**
-   * サブスクリプション特典情報取得
-   * バックエンドAPI: GET /api/billing/subscription-benefits
-   */
-  async getSubscriptionBenefits(): Promise<SubscriptionBenefits> {
-    try {
-      return await this.apiClient.get<SubscriptionBenefits>(`${this.baseURL}/subscription-benefits`);
-    } catch (error) {
-      throw new Error(`サブスクリプション特典情報の取得に失敗しました: ${error}`);
-    }
-  }
+  // getSubscriptionBenefits削除（2024-08-22）
+  // 理由: 静的な特典情報はフロントエンドで管理すべき
+  // AIキャラクター説明・プラン比較・成功事例等はフロントエンドで定義し、
+  // 不要なAPI呼び出しを削減してパフォーマンス向上を図る
 
   // =====================================
   // サブスクリプション操作
   // =====================================
 
   /**
-   * サブスクリプションキャンセル
-   * バックエンドAPI: POST /api/billing/subscription/cancel
+   * サブスクリプションキャンセル（解約理由収集機能付き）
+   * バックエンドAPI: POST /api/billing/cancel-subscription
+   * 
+   * ■実装方針■
+   * - Portal経由ではなくAPI実行でキャンセルを行う
+   * - 理由：解約理由の収集がサービス改善に重要なため
+   * - フィードバック収集 → Stripe APIキャンセル → 状態同期の順序で実行
    */
-  async cancelSubscription(request: CancelSubscriptionRequest): Promise<{ success: boolean; message: string; cancel_at_period_end: boolean; effective_until: string | null }> {
+  async cancelSubscription(request: CancelSubscriptionRequest): Promise<CancelSubscriptionResponse> {
     try {
-      return await this.apiClient.post<{ success: boolean; message: string; cancel_at_period_end: boolean; effective_until: string | null }>(`${this.baseURL}/subscription/cancel`, request);
+      return await this.apiClient.post<CancelSubscriptionResponse>(`${this.baseURL}/cancel-subscription`, request);
     } catch (error) {
-      throw new Error(`サブスクリプションのキャンセルに失敗しました: ${error}`);
+      throw new Error(`サブスクリプションキャンセルに失敗しました: ${error}`);
     }
   }
 
@@ -347,23 +325,6 @@ export class BillingService {
     }
   }
 
-  /**
-   * 支払い履歴取得
-   * バックエンドAPI: GET /api/billing/history
-   */
-  async getPaymentHistory(limit: number = 20, nextToken?: string): Promise<PaymentHistory[]> {
-    try {
-      const params = new URLSearchParams();
-      params.append('limit', limit.toString());
-      if (nextToken) {
-        params.append('next_token', nextToken);
-      }
-      
-      return await this.apiClient.get<PaymentHistory[]>(`${this.baseURL}/history?${params}`);
-    } catch (error) {
-      throw new Error(`支払い履歴の取得に失敗しました: ${error}`);
-    }
-  }
 
   // =====================================
   // ユーティリティメソッド
@@ -371,10 +332,11 @@ export class BillingService {
 
   /**
    * アクセス許可チェック（ページガード用）
+   * 修正: getDetailedSubscriptionStatusでaccess_control情報を取得
    */
   async canAccessFeature(): Promise<boolean> {
     try {
-      const { access_control } = await this.checkAccessControl();
+      const { access_control } = await this.getDetailedSubscriptionStatus();
       return access_control.access_allowed;
     } catch (error) {
       console.error('アクセス許可チェック失敗:', error);
@@ -397,10 +359,11 @@ export class BillingService {
 
   /**
    * 課金誘導が必要かどうか判定
+   * 修正: getDetailedSubscriptionStatusでaccess_control情報を取得
    */
   async needsBillingUpgrade(): Promise<boolean> {
     try {
-      const { access_control } = await this.checkAccessControl();
+      const { access_control } = await this.getDetailedSubscriptionStatus();
       return access_control.restriction_reason === 'trial_expired';
     } catch (error) {
       console.error('課金誘導判定失敗:', error);

@@ -102,22 +102,22 @@ graph TB
   "subscription_id": "string?",           // Stripe Subscription ID
   "customer_id": "string?",               // Stripe Customer ID
   "current_plan": "trial|monthly|yearly",
-  "status": "active|expired|canceled|past_due",
+  "status": "incomplete|incomplete_expired|trialing|active|past_due|canceled|unpaid",
   "current_period_start": "2024-01-01T00:00:00+09:00",
   "current_period_end": "2024-02-01T00:00:00+09:00",
   "cancel_at_period_end": "boolean",
+  "canceled_at": "2024-01-15T10:30:00+09:00?",        // キャンセル日時（JST）
   "trial_start_date": "2024-01-01T00:00:00+09:00",    // トライアル開始日
   "trial_end_date": "2024-01-08T00:00:00+09:00",      // トライアル終了日
   "created_at": "2024-01-01T09:00:00+09:00",
-  "updated_at": "2024-01-01T09:00:00+09:00",
-  "GSI1PK": "trial",                      // current_planをそのまま使用
-  "GSI1SK": "active"                      // statusをそのまま使用
+  "updated_at": "2024-01-01T09:00:00+09:00"
+  // GSI1: TerraformでPartitionKey=current_plan, SortKey=statusとして作成
 }
 ```
 
 **新戦略の変更点:**
 - **current_plan**: `free` → `trial` に変更（1週間無料トライアル）
-- **status**: `trial` 削除（current_planで判別）
+- **status**: Stripe公式7ステータス準拠（incomplete|incomplete_expired|trialing|active|past_due|canceled|unpaid）
 - **trial_start_date/trial_end_date**: トライアル期間管理用追加
 - **ttl_days削除**: Parameter Store統一管理へ移行
 
@@ -149,6 +149,87 @@ graph TB
 **TTL自動削除:**
 - **expires_at**: 90日後に自動削除
 - **DynamoDB TTL機能**: ストレージコスト最適化
+
+### 1.6 支払い履歴管理
+
+**エンティティ構造:**
+```json
+{
+  "PK": "USER#user_id",
+  "SK": "PAYMENT#2024-01-01T12:00:00+09:00",
+  "payment_id": "string",
+  "user_id": "string",
+  "subscription_id": "string",
+  "stripe_payment_intent_id": "string",
+  
+  // 支払い情報（webhook_service管理）
+  "amount": "number",                         // 支払い金額（円）
+  "currency": "jpy",                          // 通貨
+  "status": "succeeded|failed|pending|canceled",
+  
+  // 期間情報（JST統一・webhook_service管理）
+  "billing_period_start": "2024-01-01T00:00:00+09:00",
+  "billing_period_end": "2024-02-01T00:00:00+09:00",
+  
+  // 支払い方法詳細（webhook_service管理）
+  "payment_method_type": "card",              // 支払い方法タイプ
+  "card_last4": "4242",                      // カード下4桁
+  "card_brand": "visa",                      // カードブランド
+  
+  // 詳細情報（webhook_service管理）
+  "description": "string?",                   // 支払い説明
+  "failure_reason": "string?",               // 失敗理由
+  
+  // タイムスタンプ（JST統一・webhook_service管理）
+  "paid_at": "2024-01-01T12:30:00+09:00",   // 支払い完了日時
+  "created_at": "2024-01-01T12:00:00+09:00"  // 作成日時
+}
+```
+
+**設計思想:**
+- **永続保存**: 監査・分析用の重要なデータ
+- **GSI使用せず**: 時系列SK範囲検索で効率的取得
+- **時系列最適化**: `PAYMENT#{timestamp}` 構造（payment_id削除）
+- **Single Table Design**: ユーザーごとの効率的クエリ
+- **責任分離**: webhook_serviceによる完全管理
+
+**⚠️ 重要：責任分離実装（2024-08-22更新）**
+
+**完全責任分離後のアーキテクチャ:**
+- **billing_service**: サブスクリプション管理**のみ**（Stripe API呼び出し）
+  - サブスクリプション作成・更新・キャンセル
+  - 顧客管理（Customer CRUD）
+  - 課金ポータルセッション作成
+  - **PaymentHistory関連機能は完全削除**
+
+- **webhook_service**: PaymentHistory**完全管理**（Stripe Webhook受信）
+  - PaymentHistory完全管理（作成・更新・取得）
+  - Stripe Webhookイベント処理
+  - 決済完了・失敗の状態更新
+  - 支払い履歴API提供
+
+**APIエンドポイント変更:**
+- ❌ 削除: `GET /api/billing/history` （billing_service）
+- ✅ 移行先: `GET /api/webhook/payment-history` （webhook_service）
+
+**設計原則:**
+- **Single Responsibility Principle**: 各サービスが単一の責任を持つ
+- **データ所有者明確化**: webhook_serviceがPaymentHistoryの唯一の所有者
+- **同期処理不要**: 複数サービスでの同じデータ更新を完全排除
+
+**クエリパターン:**
+```
+// ユーザーの支払い履歴取得（時系列降順）
+QUERY prod-homebiyori-core: 
+  PK = "USER#user_id" 
+  SK begins_with "PAYMENT#"
+  ORDER BY SK DESC
+
+// 期間指定での支払い履歴
+QUERY prod-homebiyori-core:
+  PK = "USER#user_id"
+  SK between "PAYMENT#2024-01-01T00:00:00+09:00" and "PAYMENT#2024-01-31T23:59:59+09:00"
+```
 
 ## 2. prod-homebiyori-chats（独立保持・1:1・グループチャット統合）
 
@@ -315,11 +396,9 @@ SK between "CHAT#2024-08-15T10:00:00+09:00" and "CHAT#2024-08-15T12:00:00+09:00"
   "improvement_suggestions": "string?",         // 改善提案
   "canceled_plan": "monthly|yearly",           // 解約プラン
   "usage_duration_days": "number",             // 利用期間日数
-  "created_at": "2024-01-01T12:00:00+09:00",
-  "GSI1PK": "FEEDBACK#subscription_cancellation#price",  // {feedback_type}#{reason_category}
-  "GSI1SK": "2024-01-01T12:00:00+09:00",                // created_atをそのまま使用
-  "GSI2PK": "FEEDBACK#subscription_cancellation#3",     // {feedback_type}#{satisfaction_score}
-  "GSI2SK": "2024-01-01T12:00:00+09:00"                 // created_atをそのまま使用
+  "created_at": "2024-01-01T12:00:00+09:00"
+  // GSI1: TerraformでPartitionKey=feedback_type, SortKey=reason_categoryとして作成
+  // GSI2: TerraformでPartitionKey=satisfaction_score, SortKey=created_atとして作成
 }
 ```
 
@@ -364,13 +443,25 @@ SK between "CHAT#2024-08-15T10:00:00+09:00" and "CHAT#2024-08-15T12:00:00+09:00"
 ORDER BY SK DESC
 ```
 
-**3. 実の一覧表示**
+**3. 支払い履歴表示**
+```
+// ユーザーの支払い履歴取得（時系列降順）
+QUERY prod-homebiyori-core: PK=USER#user_id, SK begins_with PAYMENT#
+ORDER BY SK DESC (作成日時降順)
+
+// 期間指定での支払い履歴
+QUERY prod-homebiyori-core: PK=USER#user_id
+SK between "PAYMENT#2024-01-01T00:00:00+09:00" and "PAYMENT#2024-01-31T23:59:59+09:00"
+ORDER BY SK DESC
+```
+
+**4. 実の一覧表示**
 ```
 QUERY prod-homebiyori-fruits: PK=USER#user_id, SK begins_with FRUIT#
 ORDER BY SK DESC (作成日時降順)
 ```
 
-**4. ユーザー状態別統計（GSI使用）**
+**5. ユーザー状態別統計（GSI使用）**
 ```
 // 有料ユーザー統計
 QUERY prod-homebiyori-core GSI1: GSI1PK=monthly, GSI1SK=active
@@ -383,7 +474,7 @@ QUERY prod-homebiyori-core GSI1: GSI1PK=trial, GSI1SK=active
 QUERY prod-homebiyori-core GSI1: GSI1PK=trial, GSI1SK=expired
 ```
 
-**5. フィードバック分析（GSI使用）**
+**6. フィードバック分析（GSI使用）**
 ```
 // 価格理由での解約分析
 QUERY prod-homebiyori-feedback GSI1: GSI1PK=FEEDBACK#subscription_cancellation#price
@@ -395,8 +486,8 @@ QUERY prod-homebiyori-feedback GSI2: GSI2PK=FEEDBACK#subscription_cancellation#3
 ## Global Secondary Index (GSI) 設計
 
 ### prod-homebiyori-core GSI1
-- **GSI1PK**: current_plan (trial|monthly|yearly)
-- **GSI1SK**: status (active|expired|canceled|past_due)
+- **PartitionKey**: current_plan (trial|monthly|yearly)
+- **SortKey**: status (active|expired|canceled|past_due)
 
 **使用目的:**
 - ユーザー状態別統計集計（trial/有料/期限切れ）
@@ -405,8 +496,8 @@ QUERY prod-homebiyori-feedback GSI2: GSI2PK=FEEDBACK#subscription_cancellation#3
 - 効率的な課金管理
 
 ### prod-homebiyori-feedback GSI1
-- **GSI1PK**: {feedback_type}#{reason_category}
-- **GSI1SK**: created_at
+- **PartitionKey**: feedback_type
+- **SortKey**: reason_category
 
 **使用目的:**
 - 解約理由カテゴリ別分析

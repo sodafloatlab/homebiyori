@@ -1,17 +1,23 @@
 /**
- * サブスクリプションキャンセル管理Hook - 統一アーキテクチャ版
+ * サブスクリプションキャンセル管理Hook - 最適化版（2024-08-22修正）
  * 
  * ■機能概要■
- * - サブスクリプション解約処理
- * - キャンセル理由収集
- * - フィードバック送信
+ * - API実行でのサブスクリプションキャンセル（解約理由収集機能付き）
+ * - Stripe Portalへの誘導（補助的な管理用）
+ * - 解約理由の個別フィールド連携（design_database.md準拠）
  * - アカウント削除連携
+ * 
+ * ■実装方針■
+ * - Portal経由ではなくAPI実行でキャンセルを行う
+ * - 理由：解約理由の収集がサービス改善に重要なため
+ * - フロントエンドで分離されたフィールドを直接バックエンドに送信
+ * - 不要な文字列統合・パース処理を排除
  */
 
 'use client';
 
 import { useState, useCallback } from 'react';
-import { billingService, type CancelSubscriptionRequest } from '@/lib/services/BillingService';
+import { billingService, type BillingPortalRequest } from '@/lib/services/BillingService';
 import { accountSettingsService, type AccountDeletionRequest } from '@/lib/services/AccountSettingsService';
 import { useBilling } from './useBilling';
 
@@ -29,9 +35,12 @@ interface UseSubscriptionCancelReturn {
   error: string | null;
   isProcessing: boolean;
   
-  // キャンセル処理
-  cancelSubscription: (reason: CancelationReason, cancelAtPeriodEnd?: boolean) => Promise<void>;
-  cancelImmediately: (reason: CancelationReason) => Promise<void>;
+  // キャンセル処理（解約理由収集機能付き）
+  cancelSubscription: (reason: CancelationReason, cancel_at_period_end?: boolean) => Promise<any>;
+  cancelImmediately: (reason: CancelationReason) => Promise<any>;
+  
+  // Portal誘導処理（補助的な管理用）
+  redirectToBillingPortal: (reason: CancelationReason) => Promise<void>;
   
   // アカウント削除連携
   cancelAndDeleteAccount: (reason: CancelationReason, deletionReason: string) => Promise<void>;
@@ -48,31 +57,30 @@ export function useSubscriptionCancel(): UseSubscriptionCancelReturn {
   const { refreshStatus } = useBilling();
 
   const cancelSubscription = useCallback(async (
-    reason: CancelationReason, 
-    cancelAtPeriodEnd: boolean = true
+    reason: CancelationReason,
+    cancel_at_period_end: boolean = true
   ) => {
     try {
       setIsLoading(true);
       setError(null);
       setIsProcessing(true);
 
-      // キャンセル理由をフィードバックとして送信
-      const cancellationReason = `${reason.category}: ${reason.specific_reason}${
-        reason.feedback ? ` - ${reason.feedback}` : ''
-      }${reason.rating ? ` (評価: ${reason.rating}/5)` : ''}`;
+      // サブスクリプションキャンセルAPI実行（解約理由収集機能付き）
+      const response = await billingService.cancelSubscription({
+        cancel_at_period_end,
+        reason_category: reason.category,
+        reason_text: reason.specific_reason,
+        satisfaction_score: reason.rating,
+        improvement_suggestions: reason.feedback
+      });
 
-      const cancelRequest: CancelSubscriptionRequest = {
-        cancel_at_period_end: cancelAtPeriodEnd,
-        cancellation_reason: cancellationReason
-      };
-
-      await billingService.cancelSubscription(cancelRequest);
-      
-      // サブスクリプション状態を更新
+      // 成功時はサブスクリプション状態を更新
       await refreshStatus();
       
+      return response;
+      
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'キャンセル処理に失敗しました';
+      const errorMessage = err instanceof Error ? err.message : 'サブスクリプションキャンセルに失敗しました';
       setError(errorMessage);
       throw err;
     } finally {
@@ -81,8 +89,36 @@ export function useSubscriptionCancel(): UseSubscriptionCancelReturn {
     }
   }, [refreshStatus]);
 
+  const redirectToBillingPortal = useCallback(async (
+    reason: CancelationReason
+  ) => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      setIsProcessing(true);
+
+      // Stripe Portalへリダイレクト（補助的な管理用）
+      const portalRequest: BillingPortalRequest = {
+        return_url: `${window.location.origin}/dashboard`
+      };
+
+      const { portal_url } = await billingService.createBillingPortalSession(portalRequest);
+      
+      // Portalへリダイレクト
+      window.location.href = portal_url;
+      
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Portalへのリダイレクトに失敗しました';
+      setError(errorMessage);
+      throw err;
+    } finally {
+      setIsLoading(false);
+      setIsProcessing(false);
+    }
+  }, []);
+
   const cancelImmediately = useCallback(async (reason: CancelationReason) => {
-    await cancelSubscription(reason, false);
+    return await cancelSubscription(reason, false);
   }, [cancelSubscription]);
 
   const cancelAndDeleteAccount = useCallback(async (
@@ -133,9 +169,12 @@ export function useSubscriptionCancel(): UseSubscriptionCancelReturn {
     error,
     isProcessing,
     
-    // キャンセル処理
+    // キャンセル処理（解約理由収集機能付き）
     cancelSubscription,
     cancelImmediately,
+    
+    // Portal誘導処理（補助的な管理用）
+    redirectToBillingPortal,
     
     // アカウント削除連携
     cancelAndDeleteAccount,

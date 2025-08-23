@@ -11,14 +11,16 @@ JST時刻統一、エラーハンドリング、リトライ機能を提供。
 2. サブスクリプション管理
 3. 支払い方法管理
 4. 課金ポータルセッション
-5. Webhook署名検証
-6. エラーハンドリング・リトライ
+5. エラーハンドリング・リトライ
 
 ■セキュリティ■
 - API キーの安全な管理
-- Webhook署名検証
 - 3Dセキュア対応
 - PCI DSS準拠
+
+■Webhook処理■
+- Webhook署名検証・処理: webhook_serviceで実装
+- billing_service: Stripe API呼び出し専用
 
 ■依存関係■
 - stripe: Python Stripe SDK
@@ -84,18 +86,20 @@ class StripeClient:
     2. サブスクリプション作成・更新・キャンセル
     3. 支払い方法管理
     4. 課金ポータルセッション作成
-    5. Webhook署名検証
+    
+    ■Webhook処理について■
+    Webhook署名検証・処理はwebhook_serviceで実装
+    billing_serviceはStripe API呼び出し専用
     """
     
-    def __init__(self, api_key: Optional[str] = None, webhook_secret: Optional[str] = None):
+    def __init__(self, api_key: Optional[str] = None):
         """
-        Stripeクライアント初期化（新戦略対応）
+        Stripe クライアント初期化（billing_service専用）
         
         Args:
-            api_key: Stripe APIキー（Parameter Storeから取得）
-            webhook_secret: Webhook署名検証用シークレット
+            api_key: Stripe API キー（Parameter Store から取得）
         """
-        # Parameter Store からStripe APIキー取得（新戦略）
+        # Parameter Store からStripe API キー取得
         if not api_key:
             try:
                 from homebiyori_common.utils.parameter_store import get_parameter
@@ -104,31 +108,20 @@ class StripeClient:
                     default_value=os.getenv("STRIPE_SECRET_KEY")
                 )
             except Exception as e:
-                logger.error(f"Stripe APIキーのParameter Store取得失敗: {str(e)}")
+                logger.error(f"Stripe API キーのParameter Store取得失敗: {str(e)}")
                 # フォールバック: 環境変数から取得
                 stripe.api_key = os.getenv("STRIPE_SECRET_KEY")
         else:
             stripe.api_key = api_key
         
-        # Webhook secretの設定（新戦略）
-        if not webhook_secret:
-            try:
-                from homebiyori_common.utils.parameter_store import get_parameter
-                self.webhook_secret = get_parameter(
-                    "/prod/homebiyori/stripe/webhook_secret",
-                    default_value=os.getenv("STRIPE_WEBHOOK_SECRET")
-                )
-            except Exception as e:
-                logger.warning(f"Stripe Webhook SecretのParameter Store取得失敗: {str(e)}")
-                self.webhook_secret = os.getenv("STRIPE_WEBHOOK_SECRET")
-        else:
-            self.webhook_secret = webhook_secret
-        
         if not stripe.api_key:
             raise ValueError("Stripe API key is required (from Parameter Store or environment variable)")
         
-        # API バージョン設定
-        stripe.api_version = "2023-10-16"
+        # API バージョン設定（2024-12-18更新）
+        # 更新理由: 2023-10-16 → 2024-12-18（約1年分の機能改善・セキュリティ強化）
+        # 互換性: 月次リリースのため破壊的変更なし、既存機能完全互換
+        # 更新日: 2024-08-22
+        stripe.api_version = "2024-12-18"
         
         self.logger = get_logger(__name__)
         
@@ -150,6 +143,37 @@ class StripeClient:
             
         Returns:
             str: Stripe Customer ID
+            
+        Stripe API返却値サンプル:
+        
+        stripe.Customer.list() 返却例:
+        {
+            "object": "list",
+            "data": [
+                {
+                    "id": "cus_P5B0Y2Z3a1b2c3",
+                    "object": "customer",
+                    "created": 1699123456,
+                    "email": "user@example.com",
+                    "metadata": {"user_id": "cognito-user-123"},
+                    "description": "Homebiyori User cognito-u"
+                }
+            ],
+            "has_more": false
+        }
+        
+        stripe.Customer.create() 返却例:
+        {
+            "id": "cus_P5B0Y2Z3a1b2c3",
+            "object": "customer",
+            "created": 1699123456,
+            "email": "user@example.com",
+            "metadata": {"user_id": "cognito-user-123"},
+            "description": "Homebiyori User cognito-u",
+            "invoice_settings": {
+                "default_payment_method": null
+            }
+        }
         """
         try:
             # 既存顧客を検索（metadata.user_idで検索）
@@ -189,53 +213,139 @@ class StripeClient:
     # サブスクリプション管理
     # =====================================
     
-    async def create_subscription(
-        self,
-        customer_id: str,
-        price_id: str,
-        payment_method_id: Optional[str] = None
-    ) -> Dict[str, Any]:
-        """
-        サブスクリプション作成
-        
-        Args:
-            customer_id: Stripe Customer ID
-            price_id: Stripe Price ID
-            payment_method_id: 支払い方法ID（オプション）
-            
-        Returns:
-            Dict: Stripeサブスクリプションオブジェクト
-        """
-        try:
-            subscription_data = {
-                "customer": customer_id,
-                "items": [{"price": price_id}],
-                "payment_behavior": "default_incomplete",
-                "payment_settings": {
-                    "save_default_payment_method": "on_subscription"
-                },
-                "expand": ["latest_invoice.payment_intent"]
-            }
-            
-            # 支払い方法が指定されている場合
-            if payment_method_id:
-                subscription_data["default_payment_method"] = payment_method_id
-            
-            subscription = await self._stripe_request(
-                stripe.Subscription.create,
-                **subscription_data
-            )
-            
-            self.logger.info(f"サブスクリプション作成完了: customer_id={customer_id}, subscription_id={subscription.id}")
-            return subscription
-            
-        except stripe.error.StripeError as e:
-            self.logger.error(f"サブスクリプション作成エラー: customer_id={customer_id}, error={e}")
-            raise StripeAPIError(f"サブスクリプションの作成に失敗しました: {e.user_message}")
+    # create_subscription 削除（2024-08-22）
+    # 理由: StripeCheckout方式に統一。Elements用のサブスクリプション作成APIは不要
+    # Checkoutでは create_checkout_session → handle_checkout_success の流れで処理
+    # 削除日: 2024-08-22
     
     async def get_subscription(self, subscription_id: str) -> Dict[str, Any]:
         """
         サブスクリプション詳細取得
+        
+        Stripe API返却値サンプル:
+        
+        stripe.Subscription.retrieve() 返却例:
+        {
+            "id": "sub_1OtxqRIJZKm1u2v3PQZ4s5t6",
+            "object": "subscription",
+            "application": null,
+            "application_fee_percent": null,
+            "automatic_tax": {
+                "enabled": false
+            },
+            "billing_cycle_anchor": 1699123456,
+            "billing_thresholds": null,
+            "cancel_at": null,
+            "cancel_at_period_end": false,
+            "canceled_at": null,
+            "cancellation_details": {
+                "comment": null,
+                "feedback": null,
+                "reason": null
+            },
+            "collection_method": "charge_automatically",
+            "created": 1699123456,
+            "currency": "jpy",
+            "current_period_end": 1701801856,
+            "current_period_start": 1699123456,
+            "customer": "cus_P5B0Y2Z3a1b2c3",
+            "default_payment_method": "pm_1OtxqRIJZKm1u2v3PQZ4s5t6",
+            "default_source": null,
+            "default_tax_rates": [],
+            "description": null,
+            "discount": null,
+            "ended_at": null,
+            "invoice_settings": {
+                "issue_customer": {
+                    "source": "subscription"
+                }
+            },
+            "items": {
+                "object": "list",
+                "data": [
+                    {
+                        "id": "si_P5B0Y2Z3a1b2c3",
+                        "object": "subscription_item",
+                        "billing_thresholds": null,
+                        "created": 1699123456,
+                        "metadata": {},
+                        "plan": {
+                            "id": "price_1OtxqRIJZKm1u2v3PQZ4s5t6",
+                            "object": "plan",
+                            "active": true,
+                            "aggregate_usage": null,
+                            "amount": 580,
+                            "amount_decimal": "580",
+                            "billing_scheme": "per_unit",
+                            "created": 1699123456,
+                            "currency": "jpy",
+                            "interval": "month",
+                            "interval_count": 1,
+                            "nickname": "Monthly Plan",
+                            "product": "prod_P5B0Y2Z3a1b2c3",
+                            "usage_type": "licensed"
+                        },
+                        "price": {
+                            "id": "price_1OtxqRIJZKm1u2v3PQZ4s5t6",
+                            "object": "price",
+                            "active": true,
+                            "billing_scheme": "per_unit",
+                            "created": 1699123456,
+                            "currency": "jpy",
+                            "product": "prod_P5B0Y2Z3a1b2c3",
+                            "recurring": {
+                                "aggregate_usage": null,
+                                "interval": "month",
+                                "interval_count": 1,
+                                "usage_type": "licensed"
+                            },
+                            "tax_behavior": "unspecified",
+                            "tiers_mode": null,
+                            "transform_quantity": null,
+                            "type": "recurring",
+                            "unit_amount": 580,
+                            "unit_amount_decimal": "580"
+                        },
+                        "quantity": 1,
+                        "subscription": "sub_1OtxqRIJZKm1u2v3PQZ4s5t6",
+                        "tax_rates": []
+                    }
+                ],
+                "has_more": false,
+                "total_count": 1,
+                "url": "/v1/subscription_items?subscription=sub_1OtxqRIJZKm1u2v3PQZ4s5t6"
+            },
+            "latest_invoice": "in_1OtxqRIJZKm1u2v3PQZ4s5t6",
+            "livemode": false,
+            "metadata": {
+                "homebiyori_user_id": "cognito-user-123",
+                "plan_type": "monthly"
+            },
+            "next_pending_invoice_item_invoice": null,
+            "on_behalf_of": null,
+            "pause_collection": null,
+            "payment_settings": {
+                "payment_method_options": null,
+                "payment_method_types": null,
+                "save_default_payment_method": "off"
+            },
+            "pending_invoice_item_interval": null,
+            "pending_setup_intent": null,
+            "pending_update": null,
+            "quantity": 1,
+            "schedule": null,
+            "start_date": 1699123456,
+            "status": "active",
+            "test_clock": null,
+            "transfer_data": null,
+            "trial_end": null,
+            "trial_settings": {
+                "end_behavior": {
+                    "missing_payment_method": "create_invoice"
+                }
+            },
+            "trial_start": null
+        }
         
         Args:
             subscription_id: StripeサブスクリプションID
@@ -262,7 +372,73 @@ class StripeClient:
         cancel_at_period_end: bool = True
     ) -> Dict[str, Any]:
         """
-        サブスクリプションキャンセル
+        サブスクリプションキャンセル（解約理由収集機能で利用）
+        
+        Stripe API返却値サンプル:
+        
+        stripe.Subscription.modify() 返却例（cancel_at_period_end=True時）:
+        {
+            "id": "sub_1OtxqRIJZKm1u2v3PQZ4s5t6",
+            "object": "subscription",
+            "application": null,
+            "application_fee_percent": null,
+            "automatic_tax": {
+                "enabled": false
+            },
+            "billing_cycle_anchor": 1699123456,
+            "billing_thresholds": null,
+            "cancel_at": 1701801856,
+            "cancel_at_period_end": true,
+            "canceled_at": null,
+            "cancellation_details": {
+                "comment": null,
+                "feedback": null,
+                "reason": null
+            },
+            "collection_method": "charge_automatically",
+            "created": 1699123456,
+            "currency": "jpy",
+            "current_period_end": 1701801856,
+            "current_period_start": 1699123456,
+            "customer": "cus_P5B0Y2Z3a1b2c3",
+            "default_payment_method": "pm_1OtxqRIJZKm1u2v3PQZ4s5t6",
+            "status": "active",
+            "metadata": {
+                "homebiyori_user_id": "cognito-user-123",
+                "plan_type": "monthly"
+            }
+        }
+        
+        stripe.Subscription.cancel() 返却例（即座キャンセル時）:
+        {
+            "id": "sub_1OtxqRIJZKm1u2v3PQZ4s5t6",
+            "object": "subscription",
+            "cancel_at": null,
+            "cancel_at_period_end": false,
+            "canceled_at": 1699123500,
+            "cancellation_details": {
+                "comment": null,
+                "feedback": null,
+                "reason": "requested_by_customer"
+            },
+            "collection_method": "charge_automatically",
+            "created": 1699123456,
+            "currency": "jpy",
+            "current_period_end": 1701801856,
+            "current_period_start": 1699123456,
+            "customer": "cus_P5B0Y2Z3a1b2c3",
+            "ended_at": 1699123500,
+            "status": "canceled",
+            "metadata": {
+                "homebiyori_user_id": "cognito-user-123",
+                "plan_type": "monthly"
+            }
+        }
+        
+        ■保持理由■
+        - Portal経由ではなくAPI実行でキャンセルを行う方針
+        - 解約理由の収集がサービス改善に重要なため
+        - main.pyのcancel_subscriptionエンドポイントから呼び出される
         
         Args:
             subscription_id: StripeサブスクリプションID
@@ -349,36 +525,11 @@ class StripeClient:
     # 支払い方法管理
     # =====================================
     
-    async def update_payment_method(self, customer_id: str, payment_method_id: str) -> None:
-        """
-        デフォルト支払い方法を更新
-        
-        Args:
-            customer_id: Stripe Customer ID
-            payment_method_id: 新しい支払い方法ID
-        """
-        try:
-            # 支払い方法を顧客にアタッチ
-            await self._stripe_request(
-                stripe.PaymentMethod.attach,
-                payment_method_id,
-                customer=customer_id
-            )
-            
-            # デフォルト支払い方法として設定
-            await self._stripe_request(
-                stripe.Customer.modify,
-                customer_id,
-                invoice_settings={
-                    "default_payment_method": payment_method_id
-                }
-            )
-            
-            self.logger.info(f"支払い方法更新完了: customer_id={customer_id}, payment_method_id={payment_method_id}")
-            
-        except stripe.error.StripeError as e:
-            self.logger.error(f"支払い方法更新エラー: customer_id={customer_id}, error={e}")
-            raise StripeAPIError(f"支払い方法の更新に失敗しました: {e.user_message}")
+    # update_payment_method 削除（2024-08-22）
+    # 理由: StripeCheckout + Portal経由の管理に統一
+    # 支払い方法更新はStripe Portalで行う方針に変更
+    # 削除日: 2024-08-22
+
     
     # =====================================
     # 課金ポータル
@@ -387,6 +538,74 @@ class StripeClient:
     async def create_billing_portal_session(self, customer_id: str, return_url: str) -> Dict[str, Any]:
         """
         Stripe課金ポータルセッション作成
+        
+        Stripe API返却値サンプル:
+        
+        stripe.billing_portal.Session.create() 返却例:
+        {
+            "id": "bps_1OtxqRIJZKm1u2v3PQZ4s5t6",
+            "object": "billing_portal.session",
+            "configuration": {
+                "id": "bpc_1OtxqRIJZKm1u2v3PQZ4s5t6",
+                "object": "billing_portal.configuration",
+                "active": true,
+                "application": null,
+                "business_profile": {
+                    "headline": null,
+                    "privacy_policy_url": "https://example.com/privacy",
+                    "terms_of_service_url": "https://example.com/terms"
+                },
+                "created": 1699123456,
+                "default_return_url": null,
+                "features": {
+                    "customer_update": {
+                        "allowed_updates": ["email", "address"],
+                        "enabled": true
+                    },
+                    "invoice_history": {
+                        "enabled": true
+                    },
+                    "payment_method_update": {
+                        "enabled": true
+                    },
+                    "subscription_cancel": {
+                        "cancellation_reason": {
+                            "enabled": true,
+                            "options": ["too_expensive", "missing_features", "switched_service", "unused", "other"]
+                        },
+                        "enabled": true,
+                        "mode": "at_period_end",
+                        "proration_behavior": "none"
+                    },
+                    "subscription_pause": {
+                        "enabled": false
+                    },
+                    "subscription_update": {
+                        "default_allowed_updates": ["price"],
+                        "enabled": true,
+                        "products": [
+                            {
+                                "prices": ["price_1OtxqRIJZKm1u2v3PQZ4s5t6"],
+                                "product": "prod_P5B0Y2Z3a1b2c3"
+                            }
+                        ],
+                        "proration_behavior": "none"
+                    }
+                },
+                "is_default": true,
+                "livemode": false,
+                "metadata": {},
+                "updated": 1699123456
+            },
+            "created": 1699123456,
+            "customer": "cus_P5B0Y2Z3a1b2c3",
+            "flow": null,
+            "livemode": false,
+            "locale": "ja",
+            "on_behalf_of": null,
+            "return_url": "https://homebiyori.com/dashboard",
+            "url": "https://billing.stripe.com/p/session/bps_1OtxqRIJZKm1u2v3PQZ4s5t6"
+        }
         
         Args:
             customer_id: Stripe Customer ID
@@ -420,6 +639,126 @@ class StripeClient:
     ) -> Dict[str, Any]:
         """
         Stripeチェックアウトセッション作成（新戦略）
+        
+        Stripe API返却値サンプル:
+        
+        stripe.checkout.Session.create() 返却例:
+        {
+            "id": "cs_test_a1OtxqRIJZKm1u2v3PQZ4s5t6",
+            "object": "checkout.session",
+            "after_expiration": null,
+            "allow_promotion_codes": true,
+            "amount_subtotal": 58000,
+            "amount_total": 58000,
+            "automatic_tax": {
+                "enabled": false,
+                "status": null
+            },
+            "billing_address_collection": "auto",
+            "cancel_url": "https://homebiyori.com/billing/cancel",
+            "client_reference_id": null,
+            "client_secret": null,
+            "consent": null,
+            "consent_collection": null,
+            "created": 1699123456,
+            "currency": "jpy",
+            "custom_text": {
+                "shipping_address": null,
+                "submit": null,
+                "terms_of_service_acceptance": null
+            },
+            "customer": "cus_P5B0Y2Z3a1b2c3",
+            "customer_creation": null,
+            "customer_details": null,
+            "customer_email": null,
+            "expires_at": 1699209856,
+            "invoice": null,
+            "invoice_creation": {
+                "enabled": false,
+                "invoice_data": {
+                    "account_tax_ids": null,
+                    "custom_fields": null,
+                    "description": null,
+                    "footer": null,
+                    "metadata": {},
+                    "rendering_options": null
+                }
+            },
+            "livemode": false,
+            "locale": "ja",
+            "metadata": {},
+            "mode": "subscription",
+            "payment_intent": null,
+            "payment_link": null,
+            "payment_method_collection": "if_required",
+            "payment_method_configuration_details": null,
+            "payment_method_options": {},
+            "payment_method_types": ["card"],
+            "payment_status": "unpaid",
+            "phone_number_collection": {
+                "enabled": false
+            },
+            "recovered_from": null,
+            "setup_intent": null,
+            "shipping_address_collection": null,
+            "shipping_cost": null,
+            "shipping_details": null,
+            "shipping_options": [],
+            "status": "open",
+            "submit_type": null,
+            "subscription": null,
+            "success_url": "https://homebiyori.com/billing/success?session_id={CHECKOUT_SESSION_ID}",
+            "total_details": {
+                "amount_discount": 0,
+                "amount_shipping": 0,
+                "amount_tax": 0
+            },
+            "ui_mode": "hosted",
+            "url": "https://checkout.stripe.com/c/pay/cs_test_a1OtxqRIJZKm1u2v3PQZ4s5t6#fidkdWxOYHwnPyd1blpxYHZxWjA0S05%2FTGJtVGI0b1pqYWBPcW1pa35sY0tHNE53Q%2FAyR0lEUjdoNjV8ZDNIYW1oZE9HMn1sQWthcmtJTFZ0b0ppanBrTURRdGw%2BNktiN1JoPXJRblRNN3FHQVROPTRqNicpJ2N3amhWYHdzYHcnP3F3cGApJ2lkfGpwcVF8dWAnPyd2bGtiaWBabHFgaCcpJ2BrZGdpYFVpZGZgbWppYWB3dic%2FcXdwYHgl",
+            "line_items": {
+                "object": "list",
+                "data": [
+                    {
+                        "id": "li_1OtxqRIJZKm1u2v3PQZ4s5t6",
+                        "object": "item",
+                        "amount_subtotal": 58000,
+                        "amount_total": 58000,
+                        "currency": "jpy",
+                        "description": "Homebiyori Monthly Plan",
+                        "price": {
+                            "id": "price_1OtxqRIJZKm1u2v3PQZ4s5t6",
+                            "object": "price",
+                            "active": true,
+                            "billing_scheme": "per_unit",
+                            "created": 1699123456,
+                            "currency": "jpy",
+                            "custom_unit_amount": null,
+                            "livemode": false,
+                            "lookup_key": null,
+                            "metadata": {},
+                            "nickname": "Monthly Plan",
+                            "product": "prod_P5B0Y2Z3a1b2c3",
+                            "recurring": {
+                                "aggregate_usage": null,
+                                "interval": "month",
+                                "interval_count": 1,
+                                "usage_type": "licensed"
+                            },
+                            "tax_behavior": "unspecified",
+                            "tiers_mode": null,
+                            "transform_quantity": null,
+                            "type": "recurring",
+                            "unit_amount": 58000,
+                            "unit_amount_decimal": "58000"
+                        },
+                        "quantity": 1
+                    }
+                ],
+                "has_more": false,
+                "total_count": 1,
+                "url": "/v1/checkout/sessions/cs_test_a1OtxqRIJZKm1u2v3PQZ4s5t6/line_items"
+            }
+        }
         
         ■機能概要■
         - プラン選択後の決済画面作成
@@ -481,6 +820,178 @@ class StripeClient:
         """
         チェックアウトセッション詳細取得
         
+        Stripe API返却値サンプル:
+        
+        stripe.checkout.Session.retrieve() 返却例（expand=["subscription", "customer"]付き）:
+        {
+            "id": "cs_test_a1OtxqRIJZKm1u2v3PQZ4s5t6",
+            "object": "checkout.session",
+            "after_expiration": null,
+            "allow_promotion_codes": true,
+            "amount_subtotal": 58000,
+            "amount_total": 58000,
+            "automatic_tax": {
+                "enabled": false,
+                "status": null
+            },
+            "billing_address_collection": "auto",
+            "cancel_url": "https://homebiyori.com/billing/cancel",
+            "client_reference_id": null,
+            "client_secret": null,
+            "consent": null,
+            "consent_collection": null,
+            "created": 1699123456,
+            "currency": "jpy",
+            "custom_text": {
+                "shipping_address": null,
+                "submit": null,
+                "terms_of_service_acceptance": null
+            },
+            "customer": {
+                "id": "cus_P5B0Y2Z3a1b2c3",
+                "object": "customer",
+                "address": null,
+                "balance": 0,
+                "created": 1699123456,
+                "currency": null,
+                "default_source": null,
+                "delinquent": false,
+                "description": null,
+                "discount": null,
+                "email": "user@example.com",
+                "invoice_prefix": "ABC123",
+                "invoice_settings": {
+                    "custom_fields": null,
+                    "default_payment_method": null,
+                    "footer": null,
+                    "rendering_options": null
+                },
+                "livemode": false,
+                "metadata": {
+                    "homebiyori_user_id": "cognito-user-123"
+                },
+                "name": null,
+                "next_invoice_sequence": 1,
+                "phone": null,
+                "preferred_locales": ["ja"],
+                "shipping": null,
+                "sources": {
+                    "object": "list",
+                    "data": [],
+                    "has_more": false,
+                    "total_count": 0,
+                    "url": "/v1/customers/cus_P5B0Y2Z3a1b2c3/sources"
+                },
+                "subscriptions": {
+                    "object": "list",
+                    "data": [],
+                    "has_more": false,
+                    "total_count": 0,
+                    "url": "/v1/customers/cus_P5B0Y2Z3a1b2c3/subscriptions"
+                },
+                "tax_exempt": "none",
+                "tax_ids": {
+                    "object": "list",
+                    "data": [],
+                    "has_more": false,
+                    "total_count": 0,
+                    "url": "/v1/customers/cus_P5B0Y2Z3a1b2c3/tax_ids"
+                },
+                "test_clock": null
+            },
+            "customer_creation": null,
+            "customer_details": {
+                "address": {
+                    "city": "Tokyo",
+                    "country": "JP",
+                    "line1": "1-2-3 Shibuya",
+                    "line2": null,
+                    "postal_code": "150-0002",
+                    "state": "Tokyo"
+                },
+                "email": "user@example.com",
+                "name": "Test User",
+                "phone": null,
+                "tax_exempt": "none",
+                "tax_ids": []
+            },
+            "customer_email": null,
+            "expires_at": 1699209856,
+            "invoice": "in_1OtxqRIJZKm1u2v3PQZ4s5t6",
+            "invoice_creation": {
+                "enabled": false,
+                "invoice_data": {
+                    "account_tax_ids": null,
+                    "custom_fields": null,
+                    "description": null,
+                    "footer": null,
+                    "metadata": {},
+                    "rendering_options": null
+                }
+            },
+            "livemode": false,
+            "locale": "ja",
+            "metadata": {},
+            "mode": "subscription",
+            "payment_intent": null,
+            "payment_link": null,
+            "payment_method_collection": "if_required",
+            "payment_method_configuration_details": null,
+            "payment_method_options": {},
+            "payment_method_types": ["card"],
+            "payment_status": "paid",
+            "phone_number_collection": {
+                "enabled": false
+            },
+            "recovered_from": null,
+            "setup_intent": null,
+            "shipping_address_collection": null,
+            "shipping_cost": null,
+            "shipping_details": null,
+            "shipping_options": [],
+            "status": "complete",
+            "submit_type": null,
+            "subscription": {
+                "id": "sub_1OtxqRIJZKm1u2v3PQZ4s5t6",
+                "object": "subscription",
+                "application": null,
+                "application_fee_percent": null,
+                "automatic_tax": {
+                    "enabled": false
+                },
+                "billing_cycle_anchor": 1699123456,
+                "billing_thresholds": null,
+                "cancel_at": null,
+                "cancel_at_period_end": false,
+                "canceled_at": null,
+                "cancellation_details": {
+                    "comment": null,
+                    "feedback": null,
+                    "reason": null
+                },
+                "collection_method": "charge_automatically",
+                "created": 1699123456,
+                "currency": "jpy",
+                "current_period_end": 1701801856,
+                "current_period_start": 1699123456,
+                "customer": "cus_P5B0Y2Z3a1b2c3",
+                "default_payment_method": "pm_1OtxqRIJZKm1u2v3PQZ4s5t6",
+                "status": "active",
+                "metadata": {
+                    "user_id": "cus_P5B0Y2Z3a1b2c3",
+                    "created_via": "checkout_session"
+                }
+            },
+            "success_url": "https://homebiyori.com/billing/success?session_id={CHECKOUT_SESSION_ID}",
+            "total_details": {
+                "amount_discount": 0,
+                "amount_shipping": 0,
+                "amount_tax": 0
+            },
+            "ui_mode": "hosted",
+            "url": null
+        }
+        
         Args:
             session_id: チェックアウトセッションID
             
@@ -505,37 +1016,11 @@ class StripeClient:
     # Webhook処理
     # =====================================
     
-    def verify_webhook_signature(self, payload: bytes, signature: str) -> Dict[str, Any]:
-        """
-        Webhook署名を検証してイベントを構築
+    # verify_webhook_signatureメソッドは削除されました
+    # 理由: webhook_serviceに正しく実装済みのため重複機能を削除
+    # 削除日: 2024-08-21
+    # Webhook署名検証はwebhook_serviceのcore/dependencies.pyで提供
         
-        Args:
-            payload: リクエストボディ（bytes）
-            signature: Stripe-Signature ヘッダー
-            
-        Returns:
-            Dict: Stripeイベントオブジェクト
-        """
-        try:
-            if not self.webhook_secret:
-                raise ValueError("STRIPE_WEBHOOK_SECRET environment variable is required")
-            
-            event = stripe.Webhook.construct_event(
-                payload,
-                signature,
-                self.webhook_secret
-            )
-            
-            self.logger.info(f"Webhook署名検証成功: event_type={event['type']}, event_id={event['id']}")
-            return event
-            
-        except ValueError as e:
-            self.logger.error(f"Webhook署名検証失敗: {e}")
-            raise StripeAPIError(f"Webhook署名の検証に失敗しました: {e}")
-        except stripe.error.SignatureVerificationError as e:
-            self.logger.error(f"Webhook署名不正: {e}")
-            raise StripeAPIError(f"Webhook署名が不正です: {e}")
-    
     # =====================================
     # ヘルスチェック・ユーティリティ
     # =====================================
@@ -543,6 +1028,115 @@ class StripeClient:
     async def health_check(self) -> bool:
         """
         Stripe API接続ヘルスチェック
+        
+        Stripe API返却値サンプル:
+        
+        stripe.Account.retrieve() 返却例:
+        {
+            "id": "acct_1OtxqRIJZKm1u2v3",
+            "object": "account",
+            "business_profile": {
+                "mcc": "5734",
+                "name": "Homebiyori",
+                "product_description": "AI-powered parenting support app",
+                "support_address": {
+                    "city": "Tokyo",
+                    "country": "JP",
+                    "line1": "1-2-3 Shibuya",
+                    "line2": null,
+                    "postal_code": "150-0002",
+                    "state": "Tokyo"
+                },
+                "support_email": "support@homebiyori.com",
+                "support_phone": "+81-3-1234-5678",
+                "support_url": "https://homebiyori.com/support",
+                "url": "https://homebiyori.com"
+            },
+            "business_type": "company",
+            "capabilities": {
+                "card_payments": "active",
+                "transfers": "active",
+                "jcb_payments": "active",
+                "japan_bank_transfers": "active"
+            },
+            "charges_enabled": true,
+            "controller": {
+                "type": "account"
+            },
+            "country": "JP",
+            "created": 1699123456,
+            "default_currency": "jpy",
+            "details_submitted": true,
+            "email": "account@homebiyori.com",
+            "future_requirements": {
+                "alternatives": [],
+                "current_deadline": null,
+                "currently_due": [],
+                "disabled_reason": null,
+                "errors": [],
+                "eventually_due": [],
+                "past_due": [],
+                "pending_verification": []
+            },
+            "metadata": {},
+            "payouts_enabled": true,
+            "requirements": {
+                "alternatives": [],
+                "current_deadline": null,
+                "currently_due": [],
+                "disabled_reason": null,
+                "errors": [],
+                "eventually_due": [],
+                "past_due": [],
+                "pending_verification": []
+            },
+            "settings": {
+                "branding": {
+                    "icon": "file_1OtxqRIJZKm1u2v3PQZ4s5t6",
+                    "logo": "file_1OtxqRIJZKm1u2v3PQZ4s5t6",
+                    "primary_color": "#ff6b9d",
+                    "secondary_color": "#c4a1ff"
+                },
+                "card_issuing": {
+                    "tos_acceptance": {
+                        "date": null,
+                        "ip": null
+                    }
+                },
+                "card_payments": {
+                    "decline_on": {
+                        "avs_failure": false,
+                        "cvc_failure": false
+                    },
+                    "statement_descriptor_prefix": "HOMEBIYORI",
+                    "statement_descriptor_prefix_kana": null,
+                    "statement_descriptor_prefix_kanji": null
+                },
+                "dashboard": {
+                    "display_name": "Homebiyori",
+                    "timezone": "Asia/Tokyo"
+                },
+                "payments": {
+                    "statement_descriptor": "HOMEBIYORI",
+                    "statement_descriptor_kana": "ホメビヨリ",
+                    "statement_descriptor_kanji": "褒美日"
+                },
+                "payouts": {
+                    "debit_negative_balances": false,
+                    "schedule": {
+                        "delay_days": 4,
+                        "interval": "daily"
+                    },
+                    "statement_descriptor": null
+                }
+            },
+            "type": "standard",
+            "tos_acceptance": {
+                "date": 1699123456,
+                "ip": "203.0.113.1",
+                "service_agreement": "full"
+            }
+        }
         
         Returns:
             bool: 接続が正常かどうか
@@ -607,14 +1201,28 @@ class StripeClient:
 
 
 # =====================================
-# ファクトリー関数
+# ファクトリー関数（シングルトン対応）
 # =====================================
+
+# グローバルインスタンス（シングルトン）
+_stripe_client_instance: Optional[StripeClient] = None
 
 def get_stripe_client() -> StripeClient:
     """
-    StripeClientインスタンスを取得
+    StripeClientインスタンスを取得（シングルトン）
+    
+    パフォーマンス最適化:
+    - Parameter Store呼び出し削減（初回のみ）
+    - インスタンス初期化コスト削減
+    - メモリ使用量最適化
     
     Returns:
-        StripeClient: Stripeクライアント
+        StripeClient: Stripeクライアント（シングルトンインスタンス）
     """
-    return StripeClient()
+    global _stripe_client_instance
+    
+    if _stripe_client_instance is None:
+        _stripe_client_instance = StripeClient()
+        logger.info("StripeClientシングルトンインスタンス作成完了")
+    
+    return _stripe_client_instance
