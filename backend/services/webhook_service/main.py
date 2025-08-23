@@ -20,6 +20,7 @@ from homebiyori_common.middleware import error_handling_middleware
 
 from .handlers.stripe_webhook import stripe_webhook_router
 from .handlers.health import health_router
+from .handlers.payment_history import payment_history_router
 from .core.config import get_settings
 from .core.dependencies import verify_webhook_signature
 
@@ -59,6 +60,11 @@ app.include_router(
     health_router,
     prefix="/api/webhook",
     tags=["health"]
+)
+
+app.include_router(
+    payment_history_router,
+    tags=["payment-history"]
 )
 
 

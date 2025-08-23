@@ -99,6 +99,129 @@ class WebhookServiceDatabase:
             logger.error(f"Failed to update user profile plan: {str(e)}")
             return False
     
+    # =====================================
+    # PaymentHistory完全管理（責任分離対応）
+    # =====================================
+    
+    async def save_payment_history(self, payment_data: Dict[str, Any]) -> None:
+        """
+        支払い履歴を保存（webhook_service完全管理）
+        
+        Args:
+            payment_data: 支払い履歴データ
+        """
+        try:
+            # SK構造最適化：時系列クエリに最適化
+            timestamp_str = payment_data["created_at"]
+            
+            item = {
+                "PK": f"USER#{payment_data['user_id']}",
+                "SK": f"PAYMENT#{timestamp_str}",
+                **payment_data,  # 全ての支払い情報を保存
+            }
+            
+            await self.core_client.put_item(item)
+            logger.info(f"PaymentHistory保存完了: user_id={payment_data['user_id']}, payment_id={payment_data['payment_id']}")
+            
+        except Exception as e:
+            logger.error(f"PaymentHistory保存エラー: payment_id={payment_data.get('payment_id')}, error={e}")
+            raise
+    
+    async def get_payment_history(
+        self,
+        user_id: str,
+        limit: int = 20,
+        next_token: Optional[str] = None,
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """
+        ユーザーの支払い履歴を取得（webhook_service完全管理）
+        
+        Args:
+            user_id: ユーザーID
+            limit: 取得件数制限
+            next_token: ページネーショントークン
+            start_date: 取得開始日（ISO文字列）
+            end_date: 取得終了日（ISO文字列）
+            
+        Returns:
+            Dict: 支払い履歴とメタデータ
+        """
+        try:
+            pk = f"USER#{user_id}"
+            
+            # 基本クエリ条件
+            query_params = {
+                "pk": pk,
+                "limit": limit,
+                "scan_index_forward": False  # 新しい順
+            }
+            
+            # 期間指定がある場合
+            if start_date and end_date:
+                query_params["sk_condition"] = "SK BETWEEN :start_sk AND :end_sk"
+                query_params["expression_values"] = {
+                    ":start_sk": f"PAYMENT#{start_date}",
+                    ":end_sk": f"PAYMENT#{end_date}"
+                }
+            else:
+                # 期間指定がない場合は全PaymentHistory取得
+                query_params["sk_condition"] = "begins_with(SK, :sk_prefix)"
+                query_params["expression_values"] = {":sk_prefix": "PAYMENT#"}
+            
+            if next_token:
+                query_params["next_token"] = next_token
+            
+            # クエリ実行
+            result = await self.core_client.query_with_pagination(**query_params)
+            
+            logger.info(f"PaymentHistory取得完了: user_id={user_id}, count={len(result['items'])}")
+            
+            return {
+                "items": result["items"],
+                "next_token": result.get("next_token"),
+                "has_more": result.get("has_more", False),
+                "total_count": len(result["items"])
+            }
+            
+        except Exception as e:
+            logger.error(f"PaymentHistory取得エラー: user_id={user_id}, error={e}")
+            raise
+    
+    async def update_payment_history(
+        self,
+        user_id: str,
+        payment_timestamp: str,
+        update_data: Dict[str, Any]
+    ) -> bool:
+        """
+        支払い履歴を更新（webhook_service完全管理）
+        
+        Args:
+            user_id: ユーザーID
+            payment_timestamp: 支払いタイムスタンプ
+            update_data: 更新データ
+            
+        Returns:
+            bool: 更新成功フラグ
+        """
+        try:
+            success = await self.core_client.update_item(
+                pk=f"USER#{user_id}",
+                sk=f"PAYMENT#{payment_timestamp}",
+                update_data=update_data
+            )
+            
+            if success:
+                logger.info(f"PaymentHistory更新完了: user_id={user_id}, timestamp={payment_timestamp}")
+            
+            return success
+            
+        except Exception as e:
+            logger.error(f"PaymentHistory更新エラー: user_id={user_id}, timestamp={payment_timestamp}, error={e}")
+            return False
+    
     # Webhookイベント管理メソッド
     async def store_webhook_event(self, event_data: Dict[str, Any]) -> None:
         """Webhookイベント記録（将来の拡張用）"""
