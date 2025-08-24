@@ -112,6 +112,7 @@ graph TB
   "created_at": "2024-01-01T09:00:00+09:00",
   "updated_at": "2024-01-01T09:00:00+09:00"
   // GSI1: TerraformでPartitionKey=current_plan, SortKey=statusとして作成
+  // GSI2: TerraformでPartitionKey=customer_idとして作成
 }
 ```
 
@@ -152,39 +153,41 @@ graph TB
 
 ### 1.6 支払い履歴管理
 
-**エンティティ構造:**
+**エンティティ構造（Invoice webhook対応版）:**
 ```json
 {
   "PK": "USER#user_id",
   "SK": "PAYMENT#2024-01-01T12:00:00+09:00",
-  "payment_id": "string",
   "user_id": "string",
   "subscription_id": "string",
   "stripe_payment_intent_id": "string",
+  "customer_id": "string",                    // Stripe Customer ID
   
-  // 支払い情報（webhook_service管理）
+  // 支払い情報（Invoice webhookから取得可能）
   "amount": "number",                         // 支払い金額（円）
   "currency": "jpy",                          // 通貨
-  "status": "succeeded|failed|pending|canceled",
+  "status": "succeeded|failed",               // 決済ステータス
   
-  // 期間情報（JST統一・webhook_service管理）
+  // 期間情報（Invoice webhookから取得可能）
   "billing_period_start": "2024-01-01T00:00:00+09:00",
   "billing_period_end": "2024-02-01T00:00:00+09:00",
   
-  // 支払い方法詳細（webhook_service管理）
-  "payment_method_type": "card",              // 支払い方法タイプ
-  "card_last4": "4242",                      // カード下4桁
-  "card_brand": "visa",                      // カードブランド
-  
-  // 詳細情報（webhook_service管理）
-  "description": "string?",                   // 支払い説明
+  // エラー情報（Invoice webhookから取得可能）
   "failure_reason": "string?",               // 失敗理由
   
   // タイムスタンプ（JST統一・webhook_service管理）
-  "paid_at": "2024-01-01T12:30:00+09:00",   // 支払い完了日時
-  "created_at": "2024-01-01T12:00:00+09:00"  // 作成日時
+  "created_at": "2024-01-01T12:00:00+09:00", // 作成日時
+  "expires_at": "2031-01-01T12:00:00+09:00", // TTL用期限日時（7年後）
+  
+  // TTL設定（DynamoDB用数値）
+  "ttl": 1925097600                          // expires_atのUnixタイムスタンプ
 }
 ```
+
+**重要：Invoice webhook制限事項（2024-08-24更新）**
+- **取得不可能な項目**: `payment_method_type`, `card_last4`, `card_brand`, `paid_at`, `description`
+- **理由**: これらはPaymentIntent webhookでのみ取得可能
+- **対応**: Invoice webhookから取得可能な情報のみを対象とした最適化実装
 
 **設計思想:**
 - **永続保存**: 監査・分析用の重要なデータ
@@ -494,6 +497,42 @@ QUERY prod-homebiyori-feedback GSI2: GSI2PK=FEEDBACK#subscription_cancellation#3
 - 課金誘導対象抽出（trial + expired）
 - サブスクリプション状態別分析
 - 効率的な課金管理
+
+### prod-homebiyori-core GSI2
+- **PartitionKey**: customer_id (Stripe Customer ID)
+- **SortKey**: なし（1顧客=1ユーザーの関係）
+
+**使用目的:**
+- Stripe webhook処理最適化：customer_id→サブスクリプション情報の高速取得
+- webhook_serviceでのO(1)アクセス（フルスキャン排除）
+- Stripeイベント（subscription.updated, payment.succeeded等）での効率的なユーザー特定
+- customer_id検索による確実なデータ取得
+
+**アクセスパターン:**
+```
+// Stripe webhookでのcustomer_idからサブスクリプション取得
+QUERY prod-homebiyori-core GSI2: GSI2PK=cus_StripeCustomerId123
+```
+
+**設計根拠:**
+- **customer_idが最適選択**: Stripe webhookイベントに必ずcustomer_idが含まれる
+- **subscription_idより安定**: サブスクリプション変更時もcustomer_idは変わらない  
+- **1対1関係**: 1顧客=1ユーザーなのでSortKey不要
+- **webhook処理特化**: Stripe→DynamoDB同期処理の専用最適化
+
+**実装コスト:**
+- **ストレージコスト**: customer_idフィールドのみ追加（最小限）
+- **リクエストコスト**: webhook頻度は低く影響軽微
+- **パフォーマンス向上**: フルスキャン排除による大幅高速化
+
+**代替方案との比較:**
+| 方案 | アクセス効率 | 実装コスト | 保守性 |
+|------|------------|------------|--------|
+| GSI2 (customer_id) | ⭐⭐⭐ | ⭐⭐ | ⭐⭐⭐ |
+| subscription_id検索 | ⭐ | ⭐⭐⭐ | ⭐ |
+| フルスキャン | ⭐ | ⭐⭐⭐ | ⭐ |
+
+**結論**: customer_idベースのGSI2が最適解
 
 ### prod-homebiyori-feedback GSI1
 - **PartitionKey**: feedback_type
