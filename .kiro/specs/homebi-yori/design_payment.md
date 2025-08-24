@@ -921,12 +921,224 @@ const event = stripe.webhooks.constructEvent(
 - **メールアドレス非保存によるデータ漏洩リスク軽減**
 - **ユーザー同意の簡素化**
 
+---
+
+# PaymentHistory管理戦略設計（追記）
+
+## 概要
+
+ほめびよりアプリケーションにおける決済履歴管理の3フェーズ戦略。
+コンプライアンス要件、ユーザビリティ、運用効率を両立する段階的実装アプローチ。
+
+## 現状と課題
+
+### 現状
+- billing_serviceがStripe Customer Portal方式に移行
+- webhook_serviceはStripe環境からのみアクセス可能
+- フロントエンドからの直接的な決済履歴取得が困難
+- Issue #15統一戦略による機能簡素化の流れ
+
+### 課題
+- 法的・コンプライアンス要件による決済履歴保存の必要性
+- ユーザーの決済履歴アクセス需要
+- 内部運用での決済データ分析・管理需要
+- システム責任分離とセキュリティの両立
+
+## 3フェーズ戦略
+
+### Phase 1: DB保存機能復旧（webhook_service）
+
+**目的**: 決済データの確実な保存とコンプライアンス対応
+
+**実装範囲**:
+- webhook_service/database.pyにsave_payment_history()メソッド復旧
+- stripe_webhook.pyで決済成功/失敗イベント時のDB保存処理
+- DynamoDB Single Table Designに基づく効率的なデータ保存
+- payment_models.pyの復旧（DB保存用モデルのみ）
+
+**データ保存仕様**:
+```python
+# DynamoDB保存形式
+PK: "USER#{user_id}"
+SK: "PAYMENT#{timestamp}#{payment_id}"
+Type: "payment_history"
+```
+
+**保存データ項目**:
+- user_id: ユーザーID
+- stripe_payment_intent_id: Stripe決済意図ID
+- amount: 決済金額（円）
+- status: 決済ステータス（succeeded/failed）
+- billing_period_start/end: 課金期間
+- subscription_id: サブスクリプションID
+- created_at: 作成日時（JST）
+- metadata: 追加情報（JSON）
+
+### Phase 2: ユーザー向けアクセス（Stripe Customer Portal）
+
+**目的**: セキュアで使いやすい決済履歴アクセス環境の提供
+
+**実装範囲**:
+- billing_serviceでStripe Customer Portal Session作成
+- フロントエンドからの直接Stripe Portal連携
+- ユーザー自身による安全な決済履歴確認
+- 請求書ダウンロード機能の活用
+
+**技術仕様**:
+- Stripe Billing Portal Session API活用
+- HTTPS必須、セッション有効期限管理
+- 認証済みユーザーのみアクセス可能
+- モバイル対応のレスポンシブUI
+
+**メリット**:
+- Stripeの公式UI使用によるセキュリティ強化
+- 決済方法変更、領収書発行等の追加機能
+- webhook_serviceの負荷軽減
+- PCI DSS準拠の確実性
+
+### Phase 3: 内部管理機能（admin_service）
+
+**目的**: 管理者・CS向けの包括的決済データ管理
+
+**実装範囲**:
+- admin_service新規作成（管理者専用）
+- DynamoDB決済履歴データの検索・分析機能
+- CSV/Excel出力による帳票作成
+- 決済トレンド分析・レポート生成
+
+**admin_service機能詳細**:
+```
+/api/admin/payments/
+├── GET /list                    # 決済履歴一覧取得
+├── GET /user/{user_id}          # 特定ユーザーの決済履歴
+├── GET /export/csv              # CSV出力
+├── GET /analytics/summary       # 売上サマリー
+└── GET /analytics/trends        # トレンド分析
+```
+
+**認証・認可**:
+- 管理者専用JWT認証
+- IP制限によるアクセス制御
+- 操作ログの記録と監査
+
+## システム構成図
+
+```
+┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
+│   User Frontend │    │ Admin Interface │    │ Stripe Webhook  │
+└─────────┬───────┘    └─────────┬───────┘    └─────────┬───────┘
+          │                      │                      │
+          │ Phase 2              │ Phase 3              │ Phase 1
+          │                      │                      │
+    ┌─────▼──────┐         ┌─────▼──────┐         ┌─────▼──────┐
+    │  billing   │         │   admin    │         │  webhook   │
+    │  service   │         │  service   │         │  service   │
+    └─────┬──────┘         └─────┬──────┘         └─────┬──────┘
+          │                      │                      │
+          └──────────────────────┼──────────────────────┘
+                                 │
+                           ┌─────▼──────┐
+                           │  DynamoDB  │
+                           │ (Payment   │
+                           │ History)   │
+                           └────────────┘
+```
+
+## 実装優先順位
+
+1. **Phase 1 (高)**: 決済データ保存の確実性確保
+2. **Phase 2 (中)**: ユーザビリティ向上
+3. **Phase 3 (低)**: 運用効率化・分析機能
+
+## セキュリティ・コンプライアンス
+
+### データ保護
+- DynamoDB暗号化（保存時・転送時）
+- 最小権限の原則によるIAM設定
+- 決済データアクセスの監査ログ
+
+### データ保持ポリシー
+- 法的要件: 7年間保存（会計法準拠）
+- DynamoDB TTL: 法定保存期間後の自動削除
+- GDPR対応: ユーザー削除時の関連データ削除
+
+### API セキュリティ
+- 全API通信HTTPS必須
+- JWT認証による適切な認可制御
+- Rate Limiting による過度なアクセス防止
+
+## 運用・監視
+
+### ログ・監視
+- 決済処理の成功/失敗ログ
+- CloudWatch Alarms によるエラー検知
+- 月次決済データ整合性チェック
+
+### バックアップ・災害復旧
+- DynamoDB Point-in-Time Recovery有効化
+- Cross-Region レプリケーション（必要に応じて）
+- 決済データ復旧手順の文書化
+
+## コスト見積
+
+### Phase 1
+- DynamoDB書き込み: $0.05/月（100ユーザー想定）
+- Lambda実行時間増加: $0.02/月
+
+### Phase 2  
+- 追加コストなし（Stripe標準機能活用）
+
+### Phase 3
+- Lambda新規作成: $0.10/月
+- DynamoDB読み取り追加: $0.03/月
+
+**合計**: 約$0.20/月の増加（想定ユーザー数100名）
+
+---
+
+## 実装状況
+
+### Phase 1: DB保存機能復旧 ✅ 完了（2025-08-23）
+- webhook_service PaymentHistory復旧完了
+- DynamoDB Single Table Design対応
+- 7年保存TTL設定
+- Stripe Webhook連携による自動DB保存
+
+### Phase 2: Stripe Customer Portal ✅ 完了（既存機能確認済み）
+- billing_service/main.py `/api/billing/portal` エンドポイント確認
+- stripe_client.py Customer Portal session作成機能確認
+- ユーザー向け決済履歴アクセス機能完備
+
+### Phase 3: admin_service決済履歴管理機能 ✅ 完了（2025-08-23）
+- admin_service/models.py PaymentHistory管理モデル追加
+- admin_service/main.py Phase 3 APIエンドポイント実装:
+  - `GET /api/admin/payments/list` - 決済履歴一覧取得
+  - `GET /api/admin/payments/user/{user_id}` - 特定ユーザー決済履歴
+  - `GET /api/admin/payments/analytics/summary` - 決済分析サマリー
+  - `GET /api/admin/payments/analytics/trends` - 決済トレンド分析
+  - `POST /api/admin/payments/export` - CSV/Excel エクスポート
+- admin_service/database.py 決済データアクセス機能実装
+- 管理者認証・操作ログ記録対応
+
+**PaymentHistory 3フェーズ戦略実装完了**: コンプライアンス対応、ユーザーアクセス、内部管理機能の包括的PaymentHistory管理システム構築達成
+
+---
+
 ## まとめ
 
 この設計により、個人開発でも本格的なSaaSレベルのサブスクリプション機能を短期間・低コストで実現可能。**プライバシー重視のアプローチ**により、個人情報保護規制への対応を簡素化し、**アプリ内通知システム**でメール代替の確実な情報伝達を実現。段階的な機能拡張により、事業成長に応じて柔軟にシステムを進化させることができる。
+
+**PaymentHistory管理の3フェーズ戦略**により、決済履歴管理における以下を実現：
+
+1. **コンプライアンス**: 法的要件を満たす確実なデータ保存
+2. **ユーザビリティ**: Stripe Portal活用によるセキュアなアクセス
+3. **運用効率**: admin_service による包括的な内部管理機能
+4. **コスト効率**: 段階的実装による最小限のコスト増加
+5. **セキュリティ**: 各フェーズでの適切なセキュリティ対策
 
 ### 主な特徴
 - **メールアドレス非保存**でプライバシー保護
 - **アプリ内通知**による確実な状態変更通知
 - **段階的実装**による開発リスク軽減
 - **Stripe生態系**を活用した保守性の高い設計
+- **決済履歴管理の3フェーズ戦略**による完全性とシステム保守性の両立

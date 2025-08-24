@@ -29,80 +29,13 @@ class SubscriptionSyncService:
         # Database layer initialization
         self.db = WebhookServiceDatabase()
     
-    async def create_subscription(
-        self,
-        subscription: StripeSubscription,
-        user_id: str
-    ) -> Dict[str, Any]:
-        """
-        新規サブスクリプション作成
-        
-        Args:
-            subscription: Stripeサブスクリプション情報
-            user_id: ユーザーID
-            
-        Returns:
-            Dict[str, Any]: 処理結果
-        """
-        try:
-            current_time = get_current_jst()
-            
-            # サブスクリプション情報をDynamoDBに保存
-            subscription_item = {
-                "PK": f"USER#{user_id}",
-                "SK": "SUBSCRIPTION",
-                "stripe_subscription_id": subscription.id,
-                "stripe_customer_id": subscription.customer,
-                "status": subscription.status.value,
-                "plan_type": subscription.plan_type.value,
-                "current_period_start": subscription.current_period_start,
-                "current_period_end": subscription.current_period_end,
-                "trial_start": subscription.trial_start,
-                "trial_end": subscription.trial_end,
-                "cancel_at": subscription.cancel_at,
-                "canceled_at": subscription.canceled_at,
-                "created": subscription.created,
-                "metadata": subscription.metadata,
-                "synced_at": to_jst_string(current_time),
-                "GSI1PK": f"STRIPE_SUB#{subscription.id}",
-                "GSI1SK": f"USER#{user_id}"
-            }
-            
-            await self.db.create_subscription(subscription_item)
-            
-            # ユーザープロフィールのプラン情報も更新
-            await self._update_user_plan_status(user_id, subscription.plan_type, subscription.status)
-            
-            logger.info("Subscription created successfully", extra={
-                "user_id": user_id,
-                "subscription_id": subscription.id,
-                "plan_type": subscription.plan_type.value,
-                "status": subscription.status.value
-            })
-            
-            return {
-                "status": "success",
-                "action": "created",
-                "subscription_id": subscription.id,
-                "plan_type": subscription.plan_type.value
-            }
-            
-        except Exception as e:
-            logger.error("Failed to create subscription", extra={
-                "error": str(e),
-                "error_type": type(e).__name__,
-                "user_id": user_id,
-                "subscription_id": subscription.id if subscription else None
-            })
-            raise DatabaseError(f"サブスクリプション作成に失敗しました: {str(e)}")
-    
     async def update_subscription(
         self,
         subscription: StripeSubscription,
         user_id: str
     ) -> Dict[str, Any]:
         """
-        サブスクリプション更新
+        サブスクリプション更新（webhook_serviceのコア機能）
         
         Args:
             subscription: Stripeサブスクリプション情報
@@ -115,52 +48,52 @@ class SubscriptionSyncService:
             current_time = get_current_jst()
             
             # 既存のサブスクリプション情報を取得
-            existing_item = await self.db.get_subscription(user_id)
+            existing_subscription = await self.db.get_subscription(user_id)
             
-            if not existing_item:
-                logger.warning("Subscription not found for update, creating new", extra={
+            if not existing_subscription:
+                logger.warning("Subscription not found for update - may need to be created by billing_service first", extra={
                     "user_id": user_id,
                     "subscription_id": subscription.id
                 })
-                return await self.create_subscription(subscription, user_id)
+                return {
+                    "status": "failed",
+                    "reason": "subscription_not_found",
+                    "subscription_id": subscription.id
+                }
             
-            # 更新データ準備
-            update_data = {
-                "stripe_subscription_id": subscription.id,
-                "stripe_customer_id": subscription.customer,
+            # 更新データ準備（design_database.md準拠）
+            subscription_update_data = {
+                "subscription_id": subscription.id,  # design_database.mdフィールド名に統一
+                "customer_id": subscription.customer,  # design_database.mdフィールド名に統一
                 "status": subscription.status.value,
-                "plan_type": subscription.plan_type.value,
+                "current_plan": subscription.plan_type.value,  # design_database.mdフィールド名に統一
                 "current_period_start": subscription.current_period_start,
                 "current_period_end": subscription.current_period_end,
-                "trial_start": subscription.trial_start,
-                "trial_end": subscription.trial_end,
-                "cancel_at": subscription.cancel_at,
+                "cancel_at_period_end": subscription.will_cancel,  # design_database.mdフィールド名に統一
                 "canceled_at": subscription.canceled_at,
-                "metadata": subscription.metadata,
-                "synced_at": to_jst_string(current_time)
+                "trial_start_date": subscription.trial_start,  # design_database.mdフィールド名に統一
+                "trial_end_date": subscription.trial_end,  # design_database.mdフィールド名に統一
+                "updated_at": to_jst_string(current_time)
             }
             
             # 条件付き更新実行
-            updated_item = await self.db.update_subscription(user_id, update_data)
-            
-            # ユーザープロフィールのプラン情報も更新
-            await self._update_user_plan_status(user_id, subscription.plan_type, subscription.status)
+            updated_subscription = await self.db.update_subscription(user_id, subscription_update_data)
             
             logger.info("Subscription updated successfully", extra={
                 "user_id": user_id,
                 "subscription_id": subscription.id,
-                "plan_type": subscription.plan_type.value,
+                "current_plan": subscription.plan_type.value,
                 "status": subscription.status.value,
-                "previous_plan": existing_item.get("plan_type"),
-                "previous_status": existing_item.get("status")
+                "previous_plan": existing_subscription.get("current_plan"),
+                "previous_status": existing_subscription.get("status")
             })
             
             return {
                 "status": "success",
                 "action": "updated",
                 "subscription_id": subscription.id,
-                "plan_type": subscription.plan_type.value,
-                "previous_plan": existing_item.get("plan_type"),
+                "current_plan": subscription.plan_type.value,
+                "previous_plan": existing_subscription.get("current_plan"),
                 "changes_detected": True
             }
             
@@ -172,62 +105,6 @@ class SubscriptionSyncService:
                 "subscription_id": subscription.id if subscription else None
             })
             raise DatabaseError(f"サブスクリプション更新に失敗しました: {str(e)}")
-    
-    async def delete_subscription(
-        self,
-        subscription: StripeSubscription,
-        user_id: str
-    ) -> Dict[str, Any]:
-        """
-        サブスクリプション削除（解約）
-        
-        Args:
-            subscription: Stripeサブスクリプション情報
-            user_id: ユーザーID
-            
-        Returns:
-            Dict[str, Any]: 処理結果
-        """
-        try:
-            current_time = get_current_jst()
-            
-            # サブスクリプションを削除状態に更新（完全削除はしない）
-            update_data = {
-                "status": SubscriptionStatus.CANCELED.value,
-                "plan_type": SubscriptionPlan.TRIAL.value,  # トライアルプランに戻す
-                "canceled_at": subscription.canceled_at or int(current_time.timestamp()),
-                "cancel_at": subscription.cancel_at,
-                "synced_at": to_jst_string(current_time),
-                "deleted": True,
-                "deleted_at": to_jst_string(current_time)
-            }
-            
-            await self.db.update_subscription(user_id, update_data)
-            
-            # ユーザープロフィールをフリープランに戻す
-            await self._update_user_plan_status(user_id, SubscriptionPlan.TRIAL, SubscriptionStatus.CANCELED)
-            
-            logger.info("Subscription deleted successfully", extra={
-                "user_id": user_id,
-                "subscription_id": subscription.id,
-                "canceled_at": subscription.canceled_at
-            })
-            
-            return {
-                "status": "success",
-                "action": "deleted",
-                "subscription_id": subscription.id,
-                "reverted_to_plan": SubscriptionPlan.TRIAL.value
-            }
-            
-        except Exception as e:
-            logger.error("Failed to delete subscription", extra={
-                "error": str(e),
-                "error_type": type(e).__name__,
-                "user_id": user_id,
-                "subscription_id": subscription.id if subscription else None
-            })
-            raise DatabaseError(f"サブスクリプション削除に失敗しました: {str(e)}")
     
     async def get_subscription(self, user_id: str) -> Optional[Dict[str, Any]]:
         """
@@ -252,65 +129,26 @@ class SubscriptionSyncService:
             })
             return None
     
-    async def get_subscription_by_stripe_id(self, stripe_subscription_id: str) -> Optional[Dict[str, Any]]:
+    
+    
+    async def get_subscription_by_customer_id(self, customer_id: str) -> Optional[Dict[str, Any]]:
         """
-        Stripe Subscription IDからサブスクリプション情報取得
+        Stripe Customer IDからサブスクリプション情報取得（GSI2活用）
         
         Args:
-            stripe_subscription_id: Stripe Subscription ID
+            customer_id: Stripe Customer ID
             
         Returns:
             Optional[Dict[str, Any]]: サブスクリプション情報
         """
         try:
-            # GSI1を使用してStripe IDから検索
-            return await self.db.get_subscription_by_stripe_id(stripe_subscription_id)
+            # GSI2を使用してcustomer_idから検索
+            return await self.db.get_subscription_by_customer_id(customer_id)
             
         except Exception as e:
-            logger.error("Failed to get subscription by Stripe ID", extra={
+            logger.error("Failed to get subscription by customer ID", extra={
                 "error": str(e),
                 "error_type": type(e).__name__,
-                "stripe_subscription_id": stripe_subscription_id
+                "customer_id": customer_id
             })
             return None
-    
-    async def _update_user_plan_status(
-        self,
-        user_id: str,
-        plan_type: SubscriptionPlan,
-        status: SubscriptionStatus
-    ) -> None:
-        """
-        ユーザープロフィールのプラン情報更新
-        
-        Args:
-            user_id: ユーザーID
-            plan_type: プランタイプ
-            status: サブスクリプション状態
-        """
-        try:
-            current_time = get_current_jst()
-            
-            # ユーザープロフィールのプラン情報を更新
-            profile_update = {
-                "current_plan": plan_type.value,
-                "subscription_status": status.value,
-                "plan_updated_at": to_jst_string(current_time)
-            }
-            
-            await self.db.update_user_profile_plan(user_id, profile_update)
-            
-            logger.debug("User plan status updated", extra={
-                "user_id": user_id,
-                "plan_type": plan_type.value,
-                "status": status.value
-            })
-            
-        except Exception as e:
-            logger.warning("Failed to update user plan status", extra={
-                "error": str(e),
-                "error_type": type(e).__name__,
-                "user_id": user_id,
-                "plan_type": plan_type.value
-            })
-            # プロフィール更新失敗は非致命的エラーとして扱う

@@ -215,15 +215,10 @@ class TestWebhookService:
         # WebhookはPOSTのみなので405 Method Not Allowedが返されることを確認
         assert response.status_code == 405
 
-    @pytest.mark.asyncio 
-    async def test_queue_service_environment_variables(self):
-        """QueueService環境変数テスト"""
-        from backend.services.webhook_service.services.queue_service import QueueService
-        
-        # 環境変数が正しく設定されていることを確認
-        queue_service = QueueService()
-        assert queue_service.ttl_queue_url is not None
-        assert "test-ttl-update-queue" in queue_service.ttl_queue_url
+    """削除済み: QueueService機能はIssue #15統一戦略により不要になったため削除"""
+        # QueueServiceとTTL更新キュー機能は削除されました
+        # Issue #15統一戦略によりTTL制御が不要になったため、このテストも不要です
+        pass
 
     @pytest.mark.asyncio
     async def test_database_client_initialization(self, subscription_sync):

@@ -9,6 +9,64 @@ from typing import Dict, List, Optional, Any
 from pydantic import BaseModel, Field, field_validator
 from enum import Enum
 
+# Phase 3: PaymentHistory管理機能用モデル
+class PaymentStatus(str, Enum):
+    """決済ステータス"""
+    SUCCEEDED = "succeeded"
+    FAILED = "failed"
+    PENDING = "pending"
+    CANCELED = "canceled"
+
+class PaymentHistoryInfo(BaseModel):
+    """決済履歴情報（管理者表示用）"""
+    user_id: str = Field(..., description="ユーザーID")
+    stripe_payment_intent_id: str = Field(..., description="Stripe PaymentIntent ID")
+    subscription_id: str = Field(..., description="サブスクリプションID")
+    amount: int = Field(..., description="決済金額（円）")
+    status: PaymentStatus = Field(..., description="決済ステータス")
+    currency: str = Field(default="jpy", description="通貨")
+    billing_period_start: Optional[str] = Field(None, description="課金期間開始日")
+    billing_period_end: Optional[str] = Field(None, description="課金期間終了日")
+    payment_method_type: Optional[str] = Field(None, description="支払い方法種別")
+    stripe_customer_id: Optional[str] = Field(None, description="Stripe Customer ID")
+    created_at: str = Field(..., description="作成日時")
+    metadata: Optional[Dict[str, Any]] = Field(None, description="メタデータ")
+
+class PaymentHistoryListRequest(BaseModel):
+    """決済履歴一覧取得リクエスト"""
+    user_id: Optional[str] = Field(None, description="特定ユーザーID（フィルタ用）")
+    status: Optional[PaymentStatus] = Field(None, description="決済ステータス（フィルタ用）")
+    start_date: Optional[str] = Field(None, description="期間開始日（YYYY-MM-DD）")
+    end_date: Optional[str] = Field(None, description="期間終了日（YYYY-MM-DD）")
+    limit: int = Field(default=50, ge=1, le=100, description="取得件数上限")
+    cursor: Optional[str] = Field(None, description="ページネーション用カーソル")
+
+class PaymentHistoryListResponse(BaseModel):
+    """決済履歴一覧レスポンス"""
+    payments: List[PaymentHistoryInfo] = Field(..., description="決済履歴一覧")
+    total_count: int = Field(..., description="総件数")
+    has_next_page: bool = Field(..., description="次ページ存在フラグ")
+    next_cursor: Optional[str] = Field(None, description="次ページカーソル")
+
+class PaymentAnalyticsResponse(BaseModel):
+    """決済分析レスポンス"""
+    total_revenue: float = Field(..., description="総売上（円）")
+    successful_payments: int = Field(..., description="成功決済数")
+    failed_payments: int = Field(..., description="失敗決済数")
+    success_rate: float = Field(..., description="決済成功率（%）")
+    average_payment_amount: float = Field(..., description="平均決済金額（円）")
+    monthly_revenue_trend: List[Dict[str, Any]] = Field(..., description="月別売上推移")
+    payment_method_distribution: Dict[str, int] = Field(..., description="支払い方法別分布")
+    daily_payment_volume: List[Dict[str, Any]] = Field(..., description="日別決済量")
+
+class PaymentExportRequest(BaseModel):
+    """決済データ出力リクエスト"""
+    format: str = Field(default="csv", regex="^(csv|excel)$", description="出力形式")
+    start_date: Optional[str] = Field(None, description="期間開始日（YYYY-MM-DD）")
+    end_date: Optional[str] = Field(None, description="期間終了日（YYYY-MM-DD）")
+    include_failed: bool = Field(default=True, description="失敗決済を含める")
+    include_metadata: bool = Field(default=False, description="メタデータを含める")
+
 class MaintenanceLevel(str, Enum):
     """メンテナンスレベル"""
     FULL = "full"  # 全機能停止

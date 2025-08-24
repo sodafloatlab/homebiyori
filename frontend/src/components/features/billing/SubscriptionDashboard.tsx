@@ -14,8 +14,7 @@ import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { 
   billingService, 
-  type DetailedSubscriptionStatus,
-  type PaymentHistory 
+  type DetailedSubscriptionStatus
 } from '@/lib/services/BillingService';
 import { useDetailedSubscriptionStatus, useCheckout } from '@/lib/hooks';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
@@ -26,28 +25,8 @@ import { Badge } from '@/components/ui/Badge';
 export function SubscriptionDashboard() {
   const { status, isLoading, error, refreshStatus } = useDetailedSubscriptionStatus();
   const { createCheckoutSession } = useCheckout();
-  const [paymentHistory, setPaymentHistory] = useState<PaymentHistory[]>([]);
-  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   const [showCancelDialog, setShowCancelDialog] = useState(false);
   const router = useRouter();
-
-  useEffect(() => {
-    if (status?.plan_details.is_premium) {
-      fetchPaymentHistory();
-    }
-  }, [status]);
-
-  const fetchPaymentHistory = async () => {
-    try {
-      setIsLoadingHistory(true);
-      const history = await billingService.getPaymentHistory(5);
-      setPaymentHistory(history);
-    } catch (err) {
-      console.error('支払い履歴取得エラー:', err);
-    } finally {
-      setIsLoadingHistory(false);
-    }
-  };
 
   const handleUpgrade = async (plan: 'monthly' | 'yearly') => {
     await createCheckoutSession(plan);
@@ -248,14 +227,16 @@ export function SubscriptionDashboard() {
         </Card>
       )}
 
-      {/* 支払い履歴 */}
+      {/* 課金管理・支払い履歴 */}
       {plan_details.is_premium && billing_info && (
         <Card className="p-6">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl font-semibold text-gray-900">支払い履歴</h2>
-            <Button onClick={fetchPaymentHistory} variant="outline" size="sm">
-              更新
-            </Button>
+            <div>
+              <h2 className="text-xl font-semibold text-gray-900">課金管理・支払い履歴</h2>
+              <p className="text-gray-600 text-sm mt-1">
+                Stripe Customer Portalで詳細な課金情報を管理できます
+              </p>
+            </div>
           </div>
 
           {billing_info.next_billing_date && (
@@ -267,49 +248,60 @@ export function SubscriptionDashboard() {
             </div>
           )}
 
-          {isLoadingHistory ? (
-            <div className="flex justify-center py-8">
-              <LoadingSpinner size="sm" />
+          <div className="bg-gray-50 rounded-lg p-6 text-center">
+            <div className="mb-4">
+              <div className="text-2xl mb-2">💳</div>
+              <h3 className="font-semibold text-gray-900 mb-2">
+                詳細な課金情報を確認
+              </h3>
+              <p className="text-gray-600 text-sm mb-4">
+                Stripe Customer Portalでは以下の操作が可能です：
+              </p>
             </div>
-          ) : paymentHistory.length > 0 ? (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-gray-200">
-                    <th className="text-left py-3 px-2">日付</th>
-                    <th className="text-left py-3 px-2">金額</th>
-                    <th className="text-left py-3 px-2">ステータス</th>
-                    <th className="text-left py-3 px-2">期間</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {paymentHistory.map((payment) => (
-                    <tr key={payment.payment_id} className="border-b border-gray-100">
-                      <td className="py-3 px-2">
-                        {new Date(payment.created_at).toLocaleDateString('ja-JP')}
-                      </td>
-                      <td className="py-3 px-2 font-medium">
-                        ¥{payment.amount.toLocaleString()}
-                      </td>
-                      <td className="py-3 px-2">
-                        <Badge 
-                          variant={payment.status === 'succeeded' ? 'success' : 'error'}
-                        >
-                          {payment.status === 'succeeded' ? '成功' : '失敗'}
-                        </Badge>
-                      </td>
-                      <td className="py-3 px-2 text-gray-600">
-                        {new Date(payment.billing_period_start).toLocaleDateString('ja-JP')} - {' '}
-                        {new Date(payment.billing_period_end).toLocaleDateString('ja-JP')}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            
+            <div className="grid md:grid-cols-2 gap-4 mb-6 text-left">
+              <div className="space-y-2">
+                <div className="flex items-center text-sm text-gray-700">
+                  <span className="text-green-500 mr-2">✓</span>
+                  支払い履歴の詳細確認
+                </div>
+                <div className="flex items-center text-sm text-gray-700">
+                  <span className="text-green-500 mr-2">✓</span>
+                  請求書のダウンロード
+                </div>
+                <div className="flex items-center text-sm text-gray-700">
+                  <span className="text-green-500 mr-2">✓</span>
+                  支払い方法の変更・追加
+                </div>
+              </div>
+              <div className="space-y-2">
+                <div className="flex items-center text-sm text-gray-700">
+                  <span className="text-green-500 mr-2">✓</span>
+                  サブスクリプション詳細
+                </div>
+                <div className="flex items-center text-sm text-gray-700">
+                  <span className="text-green-500 mr-2">✓</span>
+                  プラン変更・解約
+                </div>
+                <div className="flex items-center text-sm text-gray-700">
+                  <span className="text-green-500 mr-2">✓</span>
+                  税務情報の管理
+                </div>
+              </div>
             </div>
-          ) : (
-            <p className="text-center text-gray-500 py-8">支払い履歴がありません</p>
-          )}
+
+            <Button 
+              onClick={handleManageBilling}
+              className="w-full md:w-auto"
+              size="lg"
+            >
+              Stripe Customer Portalを開く
+            </Button>
+            
+            <p className="text-xs text-gray-500 mt-3">
+              Stripeの安全なポータルサイトが新しいタブで開きます
+            </p>
+          </div>
         </Card>
       )}
 

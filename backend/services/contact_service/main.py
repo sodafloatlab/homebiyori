@@ -17,9 +17,9 @@ from mangum import Mangum
 from homebiyori_common import get_logger, success_response, error_response
 from homebiyori_common import maintenance_check_middleware, get_current_user_id
 
-from .handlers.contact import router as contact_router
-from .handlers.admin import router as admin_router
-from .handlers.health import router as health_router
+from .routers.contact import router as contact_router
+from .routers.admin import router as admin_router
+from .routers.health import router as health_router
 from .core.config import get_settings
 
 # ログ設定

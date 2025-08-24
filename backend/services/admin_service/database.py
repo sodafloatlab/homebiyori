@@ -257,6 +257,302 @@ class AdminServiceDatabase:
                 "error": str(e)
             }
 
+    # Phase 3: PaymentHistory管理機能
+    async def get_payment_history_list(self, request) -> Dict[str, Any]:
+        """決済履歴一覧取得（管理者専用）"""
+        try:
+            # PaymentHistoryは7年保存のため、coreテーブルのPAYMENT#プレフィックスで検索
+            query_params = {
+                "index_name": None,  # プライマリキーでクエリ
+                "projection_expression": "PK, SK, amount, #status, stripe_payment_intent_id, subscription_id, billing_period_start, billing_period_end, currency, created_at, payment_method_type, stripe_customer_id, metadata",
+                "expression_attribute_names": {"#status": "status"}
+            }
+            
+            # フィルタ条件構築
+            if request.user_id:
+                # 特定ユーザーの決済履歴
+                query_params["pk"] = f"USER#{request.user_id}"
+                query_params["sk_prefix"] = "PAYMENT#"
+            else:
+                # 全決済履歴を取得（PAYMENT#プレフィックス）
+                query_params["pk"] = "PAYMENT#"  
+                
+            if request.status:
+                if "filter_expression" not in query_params:
+                    query_params["filter_expression"] = "#status = :status"
+                    query_params["expression_attribute_values"] = {":status": request.status.value}
+                
+            if request.start_date:
+                date_filter = "created_at >= :start_date"
+                if "filter_expression" in query_params:
+                    query_params["filter_expression"] += f" AND {date_filter}"
+                else:
+                    query_params["filter_expression"] = date_filter
+                    query_params["expression_attribute_values"] = {}
+                query_params["expression_attribute_values"][":start_date"] = request.start_date
+                
+            if request.end_date:
+                date_filter = "created_at <= :end_date"
+                if "filter_expression" in query_params:
+                    query_params["filter_expression"] += f" AND {date_filter}"
+                else:
+                    query_params["filter_expression"] = date_filter
+                    query_params["expression_attribute_values"] = {}
+                if "expression_attribute_values" not in query_params:
+                    query_params["expression_attribute_values"] = {}
+                query_params["expression_attribute_values"][":end_date"] = request.end_date
+
+            # ページネーション
+            if request.cursor:
+                query_params["exclusive_start_key"] = request.cursor
+                
+            query_params["limit"] = request.limit
+            
+            # DynamoDBクエリ実行
+            result = await self.core_client.query(**query_params)
+            
+            # PaymentHistoryInfo形式に変換
+            payments = []
+            for item in result.get("items", []):
+                payment_info = {
+                    "user_id": item["PK"].replace("USER#", "") if item["PK"].startswith("USER#") else "",
+                    "stripe_payment_intent_id": item.get("stripe_payment_intent_id", ""),
+                    "subscription_id": item.get("subscription_id", ""),
+                    "amount": item.get("amount", 0),
+                    "status": item.get("status", "unknown"),
+                    "currency": item.get("currency", "jpy"),
+                    "billing_period_start": item.get("billing_period_start"),
+                    "billing_period_end": item.get("billing_period_end"), 
+                    "payment_method_type": item.get("payment_method_type"),
+                    "stripe_customer_id": item.get("stripe_customer_id"),
+                    "created_at": item.get("created_at", ""),
+                    "metadata": item.get("metadata", {})
+                }
+                payments.append(payment_info)
+            
+            # レスポンス構築
+            return {
+                "payments": payments,
+                "total_count": result.get("count", len(payments)),
+                "has_next_page": "last_evaluated_key" in result,
+                "next_cursor": result.get("last_evaluated_key") if "last_evaluated_key" in result else None
+            }
+            
+        except Exception as e:
+            logger.error(f"Failed to get payment history list: {str(e)}")
+            return {"payments": [], "total_count": 0, "has_next_page": False, "next_cursor": None}
+
+    async def get_payment_analytics(self, start_date: Optional[str], end_date: Optional[str]) -> Dict[str, Any]:
+        """決済分析データ取得（管理者専用）"""
+        try:
+            # 期間指定がない場合は過去30日間
+            if not start_date or not end_date:
+                end_dt = get_current_jst()
+                start_dt = end_dt - timedelta(days=30)
+                start_date = start_dt.strftime("%Y-%m-%d")
+                end_date = end_dt.strftime("%Y-%m-%d")
+            
+            # 決済履歴を取得（期間フィルタ付き）
+            query_params = {
+                "pk": "PAYMENT#",
+                "filter_expression": "created_at BETWEEN :start_date AND :end_date",
+                "expression_attribute_values": {
+                    ":start_date": start_date,
+                    ":end_date": end_date
+                },
+                "projection_expression": "amount, #status, payment_method_type, created_at",
+                "expression_attribute_names": {"#status": "status"}
+            }
+            
+            result = await self.core_client.query(**query_params)
+            payments = result.get("items", [])
+            
+            # 分析データ計算
+            total_revenue = 0.0
+            successful_payments = 0
+            failed_payments = 0
+            payment_method_dist = {}
+            monthly_revenue = {}
+            daily_volume = {}
+            
+            for payment in payments:
+                amount = payment.get("amount", 0)
+                status = payment.get("status", "unknown")
+                payment_method = payment.get("payment_method_type", "unknown")
+                created_at = payment.get("created_at", "")
+                
+                if status == "succeeded":
+                    total_revenue += amount
+                    successful_payments += 1
+                elif status in ["failed", "canceled"]:
+                    failed_payments += 1
+                
+                # 支払い方法分布
+                payment_method_dist[payment_method] = payment_method_dist.get(payment_method, 0) + 1
+                
+                # 月別売上（created_atから年月抽出）
+                if created_at:
+                    try:
+                        month_key = created_at[:7]  # YYYY-MM
+                        if status == "succeeded":
+                            monthly_revenue[month_key] = monthly_revenue.get(month_key, 0) + amount
+                    except:
+                        pass
+                
+                # 日別決済量
+                if created_at:
+                    try:
+                        day_key = created_at[:10]  # YYYY-MM-DD
+                        daily_volume[day_key] = daily_volume.get(day_key, 0) + 1
+                    except:
+                        pass
+            
+            total_payments = successful_payments + failed_payments
+            success_rate = (successful_payments / total_payments * 100) if total_payments > 0 else 0.0
+            average_payment = (total_revenue / successful_payments) if successful_payments > 0 else 0.0
+            
+            # 月別売上推移を配列形式に変換
+            monthly_trend = [{"month": k, "revenue": v} for k, v in sorted(monthly_revenue.items())]
+            daily_volume_array = [{"date": k, "volume": v} for k, v in sorted(daily_volume.items())]
+            
+            return {
+                "total_revenue": total_revenue,
+                "successful_payments": successful_payments,
+                "failed_payments": failed_payments,
+                "success_rate": round(success_rate, 2),
+                "average_payment_amount": round(average_payment, 2),
+                "monthly_revenue_trend": monthly_trend,
+                "payment_method_distribution": payment_method_dist,
+                "daily_payment_volume": daily_volume_array
+            }
+            
+        except Exception as e:
+            logger.error(f"Failed to get payment analytics: {str(e)}")
+            return {
+                "total_revenue": 0.0,
+                "successful_payments": 0,
+                "failed_payments": 0,
+                "success_rate": 0.0,
+                "average_payment_amount": 0.0,
+                "monthly_revenue_trend": [],
+                "payment_method_distribution": {},
+                "daily_payment_volume": []
+            }
+
+    async def get_payment_trends(self, months: int) -> List[Dict[str, Any]]:
+        """決済トレンドデータ取得（管理者専用）"""
+        try:
+            # 指定月数分のデータを取得
+            end_dt = get_current_jst()
+            start_dt = end_dt - timedelta(days=months * 30)  # 概算
+            
+            # 月別の決済データを取得
+            query_params = {
+                "pk": "PAYMENT#",
+                "filter_expression": "created_at >= :start_date",
+                "expression_attribute_values": {":start_date": start_dt.strftime("%Y-%m-%d")},
+                "projection_expression": "amount, #status, created_at",
+                "expression_attribute_names": {"#status": "status"}
+            }
+            
+            result = await self.core_client.query(**query_params)
+            payments = result.get("items", [])
+            
+            # 月別集計
+            monthly_data = {}
+            
+            for payment in payments:
+                created_at = payment.get("created_at", "")
+                if not created_at:
+                    continue
+                    
+                try:
+                    month_key = created_at[:7]  # YYYY-MM
+                    if month_key not in monthly_data:
+                        monthly_data[month_key] = {"revenue": 0, "count": 0, "success_count": 0}
+                    
+                    monthly_data[month_key]["count"] += 1
+                    
+                    if payment.get("status") == "succeeded":
+                        monthly_data[month_key]["revenue"] += payment.get("amount", 0)
+                        monthly_data[month_key]["success_count"] += 1
+                        
+                except:
+                    continue
+            
+            # トレンドデータを配列形式で返却
+            trend_data = []
+            for month, data in sorted(monthly_data.items()):
+                success_rate = (data["success_count"] / data["count"] * 100) if data["count"] > 0 else 0.0
+                trend_data.append({
+                    "month": month,
+                    "revenue": data["revenue"], 
+                    "transaction_count": data["count"],
+                    "success_count": data["success_count"],
+                    "success_rate": round(success_rate, 2)
+                })
+            
+            return trend_data
+            
+        except Exception as e:
+            logger.error(f"Failed to get payment trends: {str(e)}")
+            return []
+
+    async def export_payment_data(self, export_request) -> Dict[str, Any]:
+        """決済データエクスポート（管理者専用）"""
+        try:
+            # エクスポート対象データ取得
+            query_params = {
+                "pk": "PAYMENT#",
+                "projection_expression": "PK, SK, amount, #status, stripe_payment_intent_id, subscription_id, billing_period_start, billing_period_end, currency, created_at, payment_method_type, metadata",
+                "expression_attribute_names": {"#status": "status"}
+            }
+            
+            # 期間フィルタ
+            if export_request.start_date or export_request.end_date:
+                filter_conditions = []
+                expression_values = {}
+                
+                if export_request.start_date:
+                    filter_conditions.append("created_at >= :start_date")
+                    expression_values[":start_date"] = export_request.start_date
+                    
+                if export_request.end_date:
+                    filter_conditions.append("created_at <= :end_date")
+                    expression_values[":end_date"] = export_request.end_date
+                
+                query_params["filter_expression"] = " AND ".join(filter_conditions)
+                query_params["expression_attribute_values"] = expression_values
+            
+            # 失敗決済除外オプション
+            if not export_request.include_failed:
+                status_filter = "#status = :success_status"
+                if "filter_expression" in query_params:
+                    query_params["filter_expression"] += f" AND {status_filter}"
+                else:
+                    query_params["filter_expression"] = status_filter
+                    query_params["expression_attribute_values"] = {}
+                query_params["expression_attribute_values"][":success_status"] = "succeeded"
+            
+            result = await self.core_client.query(**query_params)
+            payments = result.get("items", [])
+            
+            # S3に一時ファイルとしてアップロード（実装は簡略化）
+            # 実際の実装では、CSV/Excelファイル生成後S3にアップロードし、署名付きURLを返却
+            current_time = get_current_jst()
+            file_name = f"payment_export_{current_time.strftime('%Y%m%d_%H%M%S')}.{export_request.format}"
+            
+            # モックレスポンス（実際はS3アップロード処理）
+            return {
+                "export_url": f"https://homebiyori-exports.s3.amazonaws.com/{file_name}",
+                "file_name": file_name,
+                "total_records": len(payments)
+            }
+            
+        except Exception as e:
+            logger.error(f"Failed to export payment data: {str(e)}")
+            raise Exception(f"Export failed: {str(e)}")
+
 
 # =====================================
 # ファクトリー関数

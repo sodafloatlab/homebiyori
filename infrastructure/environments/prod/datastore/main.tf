@@ -17,13 +17,19 @@ locals {
         { name = "PK", type = "S" },
         { name = "SK", type = "S" },
         { name = "current_plan", type = "S" },  # GSI1PK用
-        { name = "status", type = "S" }         # GSI1SK用
+        { name = "status", type = "S" },        # GSI1SK用
+        { name = "customer_id", type = "S" }    # GSI2PK用（Stripe Customer ID）
       ]
       global_secondary_indexes = {
         # サブスクリプション検索GSI（プレミアムユーザー管理用）
         GSI1 = {
           hash_key        = "current_plan"    # free|monthly|yearly
           range_key       = "status"          # active|canceled|cancel_scheduled|past_due
+          projection_type = "ALL"
+        }
+        # Stripe Webhook最適化GSI（customer_id検索用）
+        GSI2 = {
+          hash_key        = "customer_id"     # Stripe Customer ID
           projection_type = "ALL"
         }
       }

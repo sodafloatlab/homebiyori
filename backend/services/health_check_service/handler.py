@@ -31,11 +31,8 @@ from .main import app
 logger = get_logger(__name__)
 
 # Mangumアダプターでラップ（API Gateway用）
-handler = Mangum(
-    app,
-    lifespan="off",  # Lambda環境では不要
-    api_gateway_base_path="/api/health"  # API Gatewayのベースパス
-)
+# ルーティング設定はFastAPIで一元管理
+handler = Mangum(app)
 
 def lambda_handler(event, context):
     """

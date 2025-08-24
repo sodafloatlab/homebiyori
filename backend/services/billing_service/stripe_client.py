@@ -635,130 +635,12 @@ class StripeClient:
         price_id: str,
         success_url: str,
         cancel_url: str,
+        homebiyori_user_id: str,
+        plan_type: str,  # 追加: プランタイプを明示的に受け取る
         promotion_codes: Optional[List[str]] = None
     ) -> Dict[str, Any]:
         """
-        Stripeチェックアウトセッション作成（新戦略）
-        
-        Stripe API返却値サンプル:
-        
-        stripe.checkout.Session.create() 返却例:
-        {
-            "id": "cs_test_a1OtxqRIJZKm1u2v3PQZ4s5t6",
-            "object": "checkout.session",
-            "after_expiration": null,
-            "allow_promotion_codes": true,
-            "amount_subtotal": 58000,
-            "amount_total": 58000,
-            "automatic_tax": {
-                "enabled": false,
-                "status": null
-            },
-            "billing_address_collection": "auto",
-            "cancel_url": "https://homebiyori.com/billing/cancel",
-            "client_reference_id": null,
-            "client_secret": null,
-            "consent": null,
-            "consent_collection": null,
-            "created": 1699123456,
-            "currency": "jpy",
-            "custom_text": {
-                "shipping_address": null,
-                "submit": null,
-                "terms_of_service_acceptance": null
-            },
-            "customer": "cus_P5B0Y2Z3a1b2c3",
-            "customer_creation": null,
-            "customer_details": null,
-            "customer_email": null,
-            "expires_at": 1699209856,
-            "invoice": null,
-            "invoice_creation": {
-                "enabled": false,
-                "invoice_data": {
-                    "account_tax_ids": null,
-                    "custom_fields": null,
-                    "description": null,
-                    "footer": null,
-                    "metadata": {},
-                    "rendering_options": null
-                }
-            },
-            "livemode": false,
-            "locale": "ja",
-            "metadata": {},
-            "mode": "subscription",
-            "payment_intent": null,
-            "payment_link": null,
-            "payment_method_collection": "if_required",
-            "payment_method_configuration_details": null,
-            "payment_method_options": {},
-            "payment_method_types": ["card"],
-            "payment_status": "unpaid",
-            "phone_number_collection": {
-                "enabled": false
-            },
-            "recovered_from": null,
-            "setup_intent": null,
-            "shipping_address_collection": null,
-            "shipping_cost": null,
-            "shipping_details": null,
-            "shipping_options": [],
-            "status": "open",
-            "submit_type": null,
-            "subscription": null,
-            "success_url": "https://homebiyori.com/billing/success?session_id={CHECKOUT_SESSION_ID}",
-            "total_details": {
-                "amount_discount": 0,
-                "amount_shipping": 0,
-                "amount_tax": 0
-            },
-            "ui_mode": "hosted",
-            "url": "https://checkout.stripe.com/c/pay/cs_test_a1OtxqRIJZKm1u2v3PQZ4s5t6#fidkdWxOYHwnPyd1blpxYHZxWjA0S05%2FTGJtVGI0b1pqYWBPcW1pa35sY0tHNE53Q%2FAyR0lEUjdoNjV8ZDNIYW1oZE9HMn1sQWthcmtJTFZ0b0ppanBrTURRdGw%2BNktiN1JoPXJRblRNN3FHQVROPTRqNicpJ2N3amhWYHdzYHcnP3F3cGApJ2lkfGpwcVF8dWAnPyd2bGtiaWBabHFgaCcpJ2BrZGdpYFVpZGZgbWppYWB3dic%2FcXdwYHgl",
-            "line_items": {
-                "object": "list",
-                "data": [
-                    {
-                        "id": "li_1OtxqRIJZKm1u2v3PQZ4s5t6",
-                        "object": "item",
-                        "amount_subtotal": 58000,
-                        "amount_total": 58000,
-                        "currency": "jpy",
-                        "description": "Homebiyori Monthly Plan",
-                        "price": {
-                            "id": "price_1OtxqRIJZKm1u2v3PQZ4s5t6",
-                            "object": "price",
-                            "active": true,
-                            "billing_scheme": "per_unit",
-                            "created": 1699123456,
-                            "currency": "jpy",
-                            "custom_unit_amount": null,
-                            "livemode": false,
-                            "lookup_key": null,
-                            "metadata": {},
-                            "nickname": "Monthly Plan",
-                            "product": "prod_P5B0Y2Z3a1b2c3",
-                            "recurring": {
-                                "aggregate_usage": null,
-                                "interval": "month",
-                                "interval_count": 1,
-                                "usage_type": "licensed"
-                            },
-                            "tax_behavior": "unspecified",
-                            "tiers_mode": null,
-                            "transform_quantity": null,
-                            "type": "recurring",
-                            "unit_amount": 58000,
-                            "unit_amount_decimal": "58000"
-                        },
-                        "quantity": 1
-                    }
-                ],
-                "has_more": false,
-                "total_count": 1,
-                "url": "/v1/checkout/sessions/cs_test_a1OtxqRIJZKm1u2v3PQZ4s5t6/line_items"
-            }
-        }
+        Stripeチェックアウトセッション作成（metadata特化版）
         
         ■機能概要■
         - プラン選択後の決済画面作成
@@ -770,6 +652,8 @@ class StripeClient:
             price_id: Stripe Price ID
             success_url: 成功時リダイレクトURL
             cancel_url: キャンセル時リダイレクトURL
+            homebiyori_user_id: ほめびよりユーザーID（webhook処理用メタデータ）
+            plan_type: プランタイプ（monthly/yearly/trial）
             promotion_codes: 適用するプロモーションコード一覧
             
         Returns:
@@ -789,7 +673,8 @@ class StripeClient:
                 "payment_method_collection": "if_required",
                 "subscription_data": {
                     "metadata": {
-                        "user_id": customer_id,
+                        "user_id": homebiyori_user_id,  # homebiyori user_id
+                        "plan_type": plan_type,  # プランタイプを確実に設定
                         "created_via": "checkout_session"
                     }
                 },
@@ -809,11 +694,11 @@ class StripeClient:
                 **session_data
             )
             
-            self.logger.info(f"チェックアウトセッション作成完了: customer_id={customer_id}, session_id={session.id}")
+            self.logger.info(f"チェックアウトセッション作成完了: customer_id={customer_id}, homebiyori_user_id={homebiyori_user_id}, plan_type={plan_type}, session_id={session.id}")
             return session
             
         except stripe.error.StripeError as e:
-            self.logger.error(f"チェックアウトセッション作成エラー: customer_id={customer_id}, error={e}")
+            self.logger.error(f"チェックアウトセッション作成エラー: customer_id={customer_id}, homebiyori_user_id={homebiyori_user_id}, error={e}")
             raise StripeAPIError(f"チェックアウトセッションの作成に失敗しました: {e.user_message}")
     
     async def retrieve_checkout_session(self, session_id: str) -> Dict[str, Any]:

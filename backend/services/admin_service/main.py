@@ -76,6 +76,16 @@ app.middleware("http")(maintenance_check_middleware)
 # セキュリティ設定
 security = HTTPBearer()
 
+# models.pyからPaymentHistory管理用モデルをインポート
+from .models import (
+    PaymentHistoryInfo,
+    PaymentHistoryListRequest,
+    PaymentHistoryListResponse, 
+    PaymentAnalyticsResponse,
+    PaymentExportRequest,
+    PaymentStatus
+)
+
 # レスポンスモデル
 class SystemMetrics(BaseModel):
     """システムメトリクス情報"""
@@ -270,6 +280,137 @@ async def control_maintenance(
     except Exception as e:
         logger.error(f"Failed to control maintenance: {str(e)}")
         raise HTTPException(status_code=500, detail="Failed to update maintenance control")
+
+# Phase 3: PaymentHistory管理API エンドポイント
+
+@app.get("/api/admin/payments/list", response_model=PaymentHistoryListResponse)
+async def get_payment_history_list(
+    user_id: Optional[str] = None,
+    status: Optional[PaymentStatus] = None,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    limit: int = 50,
+    cursor: Optional[str] = None,
+    admin_id: str = Depends(verify_admin_token)
+):
+    """決済履歴一覧取得（管理者専用）"""
+    try:
+        # リクエストパラメータ検証
+        request = PaymentHistoryListRequest(
+            user_id=user_id,
+            status=status,
+            start_date=start_date,
+            end_date=end_date,
+            limit=limit,
+            cursor=cursor
+        )
+        
+        # データベースから決済履歴取得
+        payment_data = await db.get_payment_history_list(request)
+        
+        # 管理者操作ログ記録
+        logger.info(f"Payment history accessed by admin {admin_id}, filters: user_id={user_id}, status={status}")
+        
+        return payment_data
+        
+    except Exception as e:
+        logger.error(f"Failed to get payment history list: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to retrieve payment history")
+
+@app.get("/api/admin/payments/user/{user_id}", response_model=PaymentHistoryListResponse)
+async def get_user_payment_history(
+    user_id: str,
+    limit: int = 50,
+    cursor: Optional[str] = None,
+    admin_id: str = Depends(verify_admin_token)
+):
+    """特定ユーザーの決済履歴取得（管理者専用）"""
+    try:
+        # リクエストパラメータ作成
+        request = PaymentHistoryListRequest(
+            user_id=user_id,
+            limit=limit,
+            cursor=cursor
+        )
+        
+        # データベースからユーザー決済履歴取得
+        payment_data = await db.get_payment_history_list(request)
+        
+        # 管理者操作ログ記録
+        logger.info(f"User payment history accessed by admin {admin_id} for user {user_id}")
+        
+        return payment_data
+        
+    except Exception as e:
+        logger.error(f"Failed to get user payment history for {user_id}: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to retrieve payment history for user {user_id}")
+
+@app.get("/api/admin/payments/analytics/summary", response_model=PaymentAnalyticsResponse)
+async def get_payment_analytics_summary(
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    admin_id: str = Depends(verify_admin_token)
+):
+    """決済分析サマリー取得（管理者専用）"""
+    try:
+        # データベースから決済分析データ取得
+        analytics_data = await db.get_payment_analytics(start_date, end_date)
+        
+        # 管理者操作ログ記録
+        logger.info(f"Payment analytics accessed by admin {admin_id}, period: {start_date} to {end_date}")
+        
+        return analytics_data
+        
+    except Exception as e:
+        logger.error(f"Failed to get payment analytics: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to retrieve payment analytics")
+
+@app.get("/api/admin/payments/analytics/trends")
+async def get_payment_trends(
+    months: int = 12,
+    admin_id: str = Depends(verify_admin_token)
+):
+    """決済トレンド分析取得（管理者専用）"""
+    try:
+        # データベースから決済トレンドデータ取得
+        trend_data = await db.get_payment_trends(months)
+        
+        # 管理者操作ログ記録
+        logger.info(f"Payment trends accessed by admin {admin_id}, months: {months}")
+        
+        return success_response({
+            "trends": trend_data,
+            "period_months": months,
+            "generated_at": get_current_jst().isoformat()
+        })
+        
+    except Exception as e:
+        logger.error(f"Failed to get payment trends: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to retrieve payment trends")
+
+@app.post("/api/admin/payments/export")
+async def export_payment_data(
+    export_request: PaymentExportRequest,
+    admin_id: str = Depends(verify_admin_token)
+):
+    """決済データエクスポート（管理者専用）"""
+    try:
+        # データベースからエクスポート対象データ取得
+        export_data = await db.export_payment_data(export_request)
+        
+        # 管理者操作ログ記録
+        logger.info(f"Payment data export by admin {admin_id}, format: {export_request.format}")
+        
+        return success_response({
+            "export_url": export_data["export_url"],
+            "file_name": export_data["file_name"],
+            "total_records": export_data["total_records"],
+            "exported_at": get_current_jst().isoformat()
+        })
+        
+    except Exception as e:
+        logger.error(f"Failed to export payment data: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to export payment data")
 
 # ヘルパー関数
 

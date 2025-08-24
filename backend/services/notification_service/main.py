@@ -21,10 +21,10 @@ from homebiyori_common.middleware import error_handling_middleware
 # アクセス制御ミドルウェア
 from homebiyori_common.middleware import require_basic_access
 
-from .handlers.notifications import router as notification_router
-from .handlers.internal import router as internal_router
-from .handlers.admin import router as admin_router
-from .handlers.health import router as health_router
+from .routers.notifications import router as notification_router
+from .routers.internal import router as internal_router
+from .routers.admin import router as admin_router
+from .routers.health import router as health_router
 from .core.config import get_settings
 
 # ログ設定

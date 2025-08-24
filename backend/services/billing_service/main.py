@@ -250,6 +250,8 @@ async def create_checkout_session(
             price_id=stripe_price_id,
             success_url=f"{os.getenv('FRONTEND_URL', 'https://homebiyori.com')}/billing/success?session_id={{CHECKOUT_SESSION_ID}}",
             cancel_url=f"{os.getenv('FRONTEND_URL', 'https://homebiyori.com')}/billing/subscribe",
+            homebiyori_user_id=user_id,
+            plan_type=request.plan.value,  # プランタイプを確実に渡す
             promotion_codes=promotion_codes
         )
         
