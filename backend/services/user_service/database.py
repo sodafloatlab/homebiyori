@@ -192,8 +192,27 @@ class UserServiceDatabase:
                 profile.created_at = current_time
             profile.updated_at = current_time
             
-            # DynamoDB保存操作
-            await self.core_client.save_user_profile(profile)
+            # DynamoDB保存操作 - 複数SK対応
+            # 1. プロフィール基本情報保存 (SK: PROFILE)
+            profile_data = {
+                "user_id": profile.user_id,
+                "nickname": profile.nickname,
+                "onboarding_completed": profile.onboarding_completed,
+                "created_at": profile.created_at,
+                "updated_at": profile.updated_at
+            }
+            pk = f"USER#{profile.user_id}"
+            await self.core_client.put_item(pk, "PROFILE", profile_data)
+            
+            # 2. AI設定保存 (SK: AI_SETTINGS)  
+            ai_settings_data = {
+                "user_id": profile.user_id,
+                "ai_character": profile.ai_character.value if profile.ai_character else None,
+                "praise_level": profile.praise_level.value if profile.praise_level else None,
+                "interaction_mode": profile.interaction_mode.value if profile.interaction_mode else None,
+                "updated_at": profile.updated_at
+            }
+            await self.core_client.put_item(pk, "AI_SETTINGS", ai_settings_data)
             
             self.logger.info(
                 "User profile saved successfully",
@@ -226,6 +245,7 @@ class UserServiceDatabase:
         
         ■削除対象■
         - PK: USER#{user_id}, SK: PROFILE のアイテム
+        - PK: USER#{user_id}, SK: AI_SETTINGS のアイテム
         
         Args:
             user_id: 削除対象のユーザーID
@@ -242,8 +262,23 @@ class UserServiceDatabase:
                 extra={"user_id": user_id[:8] + "****"}
             )
             
-            # DynamoDB削除操作
-            await self.core_client.delete_user_profile(user_id)
+            # DynamoDB削除操作 - Coreテーブルの関連アイテムを個別削除
+            pk = f"USER#{user_id}"
+            
+            # ユーザーに関連するすべてのSKアイテムを削除
+            try:
+                # SK: PROFILE (プロフィール基本情報)削除
+                await self.core_client.delete_item(pk, "PROFILE")
+                self.logger.debug(f"Deleted PROFILE for user {user_id[:8]}****")
+            except Exception as e:
+                self.logger.warning(f"Failed to delete PROFILE for user {user_id[:8]}****: {e}")
+            
+            try:
+                # SK: AI_SETTINGS (AI設定)削除  
+                await self.core_client.delete_item(pk, "AI_SETTINGS")
+                self.logger.debug(f"Deleted AI_SETTINGS for user {user_id[:8]}****")
+            except Exception as e:
+                self.logger.warning(f"Failed to delete AI_SETTINGS for user {user_id[:8]}****: {e}")
             
             self.logger.info(
                 "User profile deleted successfully",
@@ -265,80 +300,65 @@ class UserServiceDatabase:
             )
             raise DatabaseError(f"ユーザープロフィール削除に失敗しました: {str(e)}")
 
-    async def get_subscription_status(self, user_id: str) -> dict:
+    async def get_ai_preferences(self, user_id: str) -> Optional[Dict[str, Any]]:
         """
-        ユーザーのサブスクリプション状態を取得
+        ユーザーのAI設定を取得
         
-        ■4テーブル統合対応■
-        - 統合テーブル: homebiyori-core (旧subscriptionsテーブル統合)
-        - PK: USER#{user_id}, SK: SUBSCRIPTION
-        
-        ■ステータス仕様■
-        - status: active|canceled|cancel_scheduled|past_due (inactiveは不正値)
-        - デフォルトなし: サブスクリプション未作成時はNoneを返却
+        ■機能概要■
+        指定されたuser_idのAI設定情報をDynamoDBから取得。
+        存在しない場合はNoneを返却。
         
         Args:
-            user_id: ユーザーID
+            user_id: Cognito User Pool sub (UUID形式)
             
         Returns:
-            サブスクリプション情報辞書（存在しない場合はNone）
+            Dict[str, Any]: AI設定情報、存在しない場合はNone
             
         Raises:
-            DatabaseError: データベースアクセス時のエラー
+            DatabaseError: DynamoDB操作エラー
+            ValidationError: user_id形式エラー
+            
+        ■データベースアクセス■
+        - PK: USER#{user_id}
+        - SK: AI_SETTINGS
+        - Operation: GetItem
         """
         try:
             self.logger.debug(
-                "Getting subscription status",
+                "Fetching AI preferences", 
                 extra={"user_id": user_id[:8] + "****"}
             )
 
-            # 統合テーブルから取得
+            # DynamoDB Key構築
             pk = f"USER#{user_id}"
-            sk = "SUBSCRIPTION"
+            sk = "AI_SETTINGS"
+
+            # データ取得
             item_data = await self.core_client.get_item(pk, sk)
-            
+
             if not item_data:
                 self.logger.debug(
-                    "Subscription not found - user has no subscription",
+                    "AI preferences not found", 
                     extra={"user_id": user_id[:8] + "****"}
                 )
                 return None
 
-            # 設計仕様準拠のサブスクリプション情報構築
-            subscription_info = {
-                "status": item_data["status"],  # 必須項目、デフォルト値なし
-                "current_plan": item_data.get("current_plan"),
-                "current_period_start": item_data.get("current_period_start"),
-                "current_period_end": item_data.get("current_period_end"),
-                "cancel_at_period_end": item_data.get("cancel_at_period_end", False),
-                "ttl_days": item_data.get("ttl_days")
-            }
-            
             self.logger.debug(
-                "Subscription status retrieved successfully",
+                "AI preferences retrieved successfully",
                 extra={
                     "user_id": user_id[:8] + "****",
-                    "status": subscription_info["status"],
-                    "current_plan": subscription_info["current_plan"]
-                }
+                    "has_preferences": bool(item_data),
+                },
             )
-            
-            return subscription_info
 
-        except KeyError as e:
-            error_msg = f"Required subscription field missing: {str(e)}"
-            self.logger.error(
-                error_msg,
-                extra={"user_id": user_id[:8] + "****"}
-            )
-            raise DatabaseError(error_msg)
+            return item_data
+
         except Exception as e:
-            error_msg = f"Failed to get subscription status: {str(e)}"
             self.logger.error(
-                error_msg,
-                extra={"user_id": user_id[:8] + "****"}
+                "Failed to get AI preferences",
+                extra={"error": str(e), "user_id": user_id[:8] + "****"},
             )
-            raise DatabaseError(error_msg)
+            raise DatabaseError(f"Failed to retrieve AI preferences: {str(e)}")
 
     async def health_check(self) -> Dict[str, Any]:
         """
@@ -374,7 +394,7 @@ class UserServiceDatabase:
 _db_instance: Optional[UserServiceDatabase] = None
 
 
-def get_database() -> UserServiceDatabase:
+def get_user_database() -> UserServiceDatabase:
     """
     データベースクライアントのシングルトンインスタンス取得
 

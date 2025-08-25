@@ -1,73 +1,27 @@
 """
-user-service Pydanticデータモデル定義
+User Profile Pydantic Models
 
-■設計概要■
-Homebiyori（ほめびより）のユーザー管理サービスにおける
-データモデルをPydantic v2で定義。型安全性とバリデーションを提供。
+ユーザープロフィール関連のPydanticモデル定義。
+プロフィール管理、AI設定、プロフィール更新に関するデータモデルを提供。
 
-■設計原則■
+設計原則:
 - プライバシーファースト: 個人情報の最小限化
 - バリデーション厳格化: 不正データの侵入防止
-- design.md準拠: 最新の要件定義に基づく設計
-- 子供情報の分離管理: セキュリティとプライバシー強化
-
-■タイムゾーン統一■
-全ての日時情報はJST（日本標準時）で管理。
-- 内部処理: JST
-- フロントエンド表示: JST
-- データベース保存: JST ISO8601形式
-
-■バリデーション戦略■
-- 入力検証: 悪意のあるデータ防止
-- 文字数制限: DoS攻撃防止
-- 文字種制限: XSS・インジェクション防止
-- 形式検証: データ整合性保証
-
-■モデル一覧■
-1. UserProfile - ユーザープロフィール（基本情報）
-2. UserProfileUpdate - プロフィール更新用（部分更新対応）
-3. AIPreferences - AI設定（キャラクター・褒めレベル）
-4. ChildInfo - 子供情報（名前・生年月日）
-5. ChildInfoCreate - 子供情報作成用
-6. ChildInfoUpdate - 子供情報更新用（部分更新対応）
-
-■プライバシー保護■
-- 子供情報: 最小限の情報のみ（名前・生年月日）
-- 個人識別情報: Cognito subのみ、メールアドレス等は非保存
-- データ暗号化: DynamoDB暗号化保存
-- アクセス制御: ユーザー自身のデータのみアクセス可能
+- JST時刻統一: 日本ユーザー最適化
 """
 
 from pydantic import BaseModel, Field, field_validator, ConfigDict
 from typing import Optional
 from datetime import datetime
-from enum import Enum
 
-# homebiyori-common-layer からバリデーション機能をインポート
+# homebiyori-common-layer からインポート
 from homebiyori_common.utils import validate_nickname
 from homebiyori_common.utils.datetime_utils import get_current_jst
-
-# 共通Layerから列挙型をインポート
 from homebiyori_common.models import (
     AICharacterType,
     PraiseLevel,
     InteractionMode
 )
-
-# AICharacter → AICharacterType移行完了（共通Layer使用）
-
-
-# =======================================
-# 共通バリデーション関数
-# =======================================
-
-# JST時刻関数は共通Layerから使用（homebiyori_common.utils.datetime_utils.get_current_jst）
-
-
-# =======================================
-# メインデータモデル
-# =======================================
-
 
 class UserProfile(BaseModel):
     """
@@ -216,64 +170,24 @@ class AIPreferences(BaseModel):
         }
     )
 
-# =======================================
-# アカウント削除関連データモデル
-# =======================================
 
-
-class DeletionType(str, Enum):
+class AIPreferencesUpdate(BaseModel):
     """
-    削除タイプ選択肢
-    
-    ■削除パターン（2択のみ）■
-    - SUBSCRIPTION_CANCEL: サブスクリプションをキャンセルする
-    - ACCOUNT_DELETE: サブスクリプション解約済みを前提にアカウントを削除する
+    AI設定更新用モデル
     
     ■設計方針■
-    同時削除は行わず、段階的な処理により安全性を確保。
+    部分更新（PATCH）に対応するため、全フィールドをOptionalに設定。
     """
     
-    SUBSCRIPTION_CANCEL = "subscription_cancel"
-    ACCOUNT_DELETE = "account_delete"
-
-
-class AccountStatus(BaseModel):
-    """
-    アカウント・サブスクリプション状態情報
+    ai_character: Optional[AICharacterType] = Field(None, description="選択AIキャラクター")
     
-    ■設計目的■
-    ユーザーが削除プロセス開始前に現状を把握できるよう、
-    アカウント状態とサブスクリプション状態を統合的に提供。
-    """
+    praise_level: Optional[PraiseLevel] = Field(None, description="AI褒めレベル設定")
     
-    account: dict = Field(..., description="アカウント情報")
-    subscription: Optional[dict] = Field(None, description="サブスクリプション情報")
+    interaction_mode: Optional[InteractionMode] = Field(None, description="AI対話モード（今日の気分設定）")
 
-
-class DeletionRequest(BaseModel):
-    """
-    アカウント削除要求データモデル
-    
-    ■3段階プロセス設計■
-    段階的確認プロセスによる誤操作防止と
-    ユーザー体験向上を両立。
-    """
-    
-    deletion_type: DeletionType = Field(..., description="削除タイプ選択")
-    reason: Optional[str] = Field(None, description="削除理由（任意）", max_length=500)
-    feedback: Optional[str] = Field(None, description="サービス改善フィードバック（任意）", max_length=1000)
-
-
-class DeletionConfirmation(BaseModel):
-    """
-    アカウント削除最終確認データモデル
-    
-    ■誤操作防止設計■
-    フロントエンドでの確認チェックボックスによる意図的な操作確認。
-    """
-    
-    deletion_request_id: str = Field(..., description="削除要求ID")
-    final_consent: bool = Field(..., description="最終同意確認")
-
-
-
+__all__ = [
+    "UserProfile",
+    "UserProfileUpdate",
+    "AIPreferences", 
+    "AIPreferencesUpdate"
+]
