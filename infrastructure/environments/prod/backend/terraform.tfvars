@@ -37,3 +37,19 @@ common_tags = {
   Description = "AI-powered parenting support application"
   Layer       = "backend"
 }
+
+# =====================================
+# Stripe EventBridge Configuration - Issue #28
+# =====================================
+
+# Stripe webhook Lambda zip paths (to be configured during deployment)
+stripe_webhook_zip_paths = {
+  handle-payment-succeeded     = "../../../webhook_service/stripe/handle_payment_succeeded.zip"
+  handle-payment-failed        = "../../../webhook_service/stripe/handle_payment_failed.zip"
+  handle-subscription-updated  = "../../../webhook_service/stripe/handle_subscription_updated.zip"
+}
+
+# Stripe Partner Event Source ID
+# Note: Set this as environment variable for security:
+# export TF_VAR_stripe_partner_source_id="acct_XXXXXXXXXXXXXXXXXX"
+# stripe_partner_source_id will be set via environment variable

@@ -166,7 +166,6 @@ variable "lambda_zip_paths" {
     chat-service          = "chat_service.zip"
     tree-service          = "tree_service.zip"
     health-check-service  = "health_check_service.zip"
-    webhook-service       = "webhook_service.zip"
     notification-service  = "notification_service.zip"
     ttl-updater-service   = "ttl_updater_service.zip"
     billing-service       = "billing_service.zip"
@@ -233,5 +232,39 @@ variable "log_retention_days" {
       1, 3, 5, 7, 14, 30, 60, 90, 120, 150, 180, 365, 400, 545, 731, 1827, 3653
     ], var.log_retention_days)
     error_message = "Log retention days must be a valid CloudWatch value."
+  }
+}
+
+# =====================================
+# Stripe EventBridge Variables - Issue #28
+# =====================================
+
+# Stripe webhook Lambda zip paths
+variable "stripe_webhook_zip_paths" {
+  description = "Paths to Stripe webhook Lambda deployment packages"
+  type        = map(string)
+  default = {
+    handle-payment-succeeded     = "handle_payment_succeeded.zip"
+    handle-payment-failed        = "handle_payment_failed.zip"
+    handle-subscription-updated  = "handle_subscription_updated.zip"
+  }
+}
+
+# Stripe webhook Lambda source code hashes
+variable "stripe_webhook_source_code_hashes" {
+  description = "Source code hashes for Stripe webhook Lambda functions"
+  type        = map(string)
+  default     = {}
+}
+
+# Stripe Partner Event Source ID
+variable "stripe_partner_source_id" {
+  description = "Stripe Partner Event Source ID for EventBridge integration"
+  type        = string
+  sensitive   = true
+  
+  validation {
+    condition     = can(regex("^acct_[A-Za-z0-9]{16,}$", var.stripe_partner_source_id))
+    error_message = "Stripe partner source ID must be in format 'acct_XXXXXXXXXXXXXXXX'."
   }
 }

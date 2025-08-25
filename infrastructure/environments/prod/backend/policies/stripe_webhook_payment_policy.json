@@ -1,0 +1,26 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": [
+        "dynamodb:GetItem",
+        "dynamodb:PutItem",
+        "dynamodb:Query"
+      ],
+      "Resource": [
+        "${core_table_arn}",
+        "${core_table_arn}/index/*",
+        "${payments_table_arn}",
+        "${payments_table_arn}/index/*"
+      ]
+    },
+    {
+      "Effect": "Allow",
+      "Action": ["ssm:GetParameter"],
+      "Resource": [
+        "arn:aws:ssm:${region}:${account_id}:parameter/${project_name}/${environment}/*"
+      ]
+    }
+  ]
+}

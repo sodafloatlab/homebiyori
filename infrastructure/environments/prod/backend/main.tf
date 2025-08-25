@@ -160,54 +160,6 @@ locals {
       })
     }
 
-    webhook-service = {
-      memory_size = 256
-      timeout     = 30
-      layers      = ["common"]
-      environment_variables = {
-        CORE_TABLE_NAME                 = data.terraform_remote_state.datastore.outputs.core_table_name
-        PAYMENTS_TABLE_NAME             = data.terraform_remote_state.datastore.outputs.payments_table_name
-        TTL_UPDATES_QUEUE_URL          = data.terraform_remote_state.datastore.outputs.ttl_updates_queue_url
-        WEBHOOK_EVENTS_QUEUE_URL       = data.terraform_remote_state.datastore.outputs.webhook_events_queue_url
-        STRIPE_API_KEY_PARAMETER       = data.aws_ssm_parameter.stripe_api_key.name
-        STRIPE_WEBHOOK_SECRET_PARAMETER = data.aws_ssm_parameter.stripe_webhook_secret.name
-        STRIPE_WEBHOOK_ENDPOINT_SECRET_PARAMETER = data.aws_ssm_parameter.stripe_webhook_endpoint_secret.name
-      }
-      iam_policy_document = jsonencode({
-        Version = "2012-10-17"
-        Statement = [
-          {
-            Effect = "Allow"
-            Action = [
-              "dynamodb:GetItem",
-              "dynamodb:PutItem",
-              "dynamodb:UpdateItem"
-            ]
-            Resource = [
-              data.terraform_remote_state.datastore.outputs.core_table_arn,
-              "${data.terraform_remote_state.datastore.outputs.core_table_arn}/index/*",
-              data.terraform_remote_state.datastore.outputs.payments_table_arn,
-              "${data.terraform_remote_state.datastore.outputs.payments_table_arn}/index/*"
-            ]
-          },
-          {
-            Effect = "Allow"
-            Action = ["sqs:SendMessage"]
-            Resource = [
-              data.terraform_remote_state.datastore.outputs.ttl_updates_queue_arn,
-              data.terraform_remote_state.datastore.outputs.webhook_events_queue_arn
-            ]
-          },
-          {
-            Effect = "Allow"
-            Action = ["ssm:GetParameter"]
-            Resource = [
-              "arn:aws:ssm:${local.region}:${local.account_id}:parameter/${local.project_name}/${local.environment}/*"
-            ]
-          }
-        ]
-      })
-    }
 
     notification-service = {
       memory_size = 256
@@ -607,15 +559,6 @@ module "user_api_gateway" {
       use_proxy           = true
       enable_cors         = true
     }
-    webhook = {
-      path_part             = "webhook"
-      lambda_function_name  = module.lambda_functions["webhook-service"].function_name
-      lambda_invoke_arn     = module.lambda_functions["webhook-service"].invoke_arn
-      http_method          = "POST"
-      require_auth         = false
-      use_proxy           = false
-      enable_cors         = false
-    }
     billing = {
       path_part             = "billing"
       lambda_function_name  = module.lambda_functions["billing-service"].function_name
@@ -712,5 +655,248 @@ module "contact_notifications" {
   tags = merge(local.layer_tags, {
     Component = "contact-notifications"
     Purpose   = "operator-alerts"
+  })
+}
+
+# =====================================
+# Stripe EventBridge Architecture - Issue #28
+# =====================================
+
+# Stripe Webhook Lambda configurations（IAMポリシーJSON外部化対応）
+locals {
+  stripe_webhook_services = {
+    handle-payment-succeeded = {
+      memory_size = 256
+      timeout     = 30
+      layers      = ["common"]
+      environment_variables = {
+        CORE_TABLE_NAME     = data.terraform_remote_state.datastore.outputs.core_table_name
+        PAYMENTS_TABLE_NAME = data.terraform_remote_state.datastore.outputs.payments_table_name
+      }
+      # JSONファイルから読み込み、プレースホルダー置換
+      iam_policy_template = "policies/stripe_webhook_payment_policy.json"
+    }
+
+    handle-payment-failed = {
+      memory_size = 256
+      timeout     = 30
+      layers      = ["common"]
+      environment_variables = {
+        CORE_TABLE_NAME     = data.terraform_remote_state.datastore.outputs.core_table_name
+        PAYMENTS_TABLE_NAME = data.terraform_remote_state.datastore.outputs.payments_table_name
+      }
+      # JSONファイルから読み込み、プレースホルダー置換
+      iam_policy_template = "policies/stripe_webhook_payment_policy.json"
+    }
+
+    handle-subscription-updated = {
+      memory_size = 256
+      timeout     = 30
+      layers      = ["common"]
+      environment_variables = {
+        CORE_TABLE_NAME = data.terraform_remote_state.datastore.outputs.core_table_name
+      }
+      # JSONファイルから読み込み、プレースホルダー置換
+      iam_policy_template = "policies/stripe_webhook_subscription_policy.json"
+    }
+  }
+
+  # IAMポリシーのプレースホルダー置換用変数
+  policy_template_vars = {
+    core_table_arn     = data.terraform_remote_state.datastore.outputs.core_table_arn
+    payments_table_arn = data.terraform_remote_state.datastore.outputs.payments_table_arn
+    region             = local.region
+    account_id         = local.account_id
+    project_name       = local.project_name
+    environment        = local.environment
+  }
+}
+
+# Stripe Webhook Lambda Functions（外部化IAMポリシー使用）
+module "stripe_webhook_functions" {
+  source = "../../../modules/lambda-function"
+
+  for_each = local.stripe_webhook_services
+
+  project_name = local.project_name
+  environment  = local.environment
+  service_name = each.key
+
+  filename         = var.stripe_webhook_zip_paths[each.key]
+  source_code_hash = lookup(var.stripe_webhook_source_code_hashes, each.key, null)
+
+  memory_size = each.value.memory_size
+  timeout     = each.value.timeout
+
+  # CloudWatch Logs retention
+  log_retention_days = var.log_retention_days
+
+  # Lambda Layers
+  layers = compact([
+    for layer in each.value.layers : lookup(local.layer_arns, layer, null)
+  ])
+
+  # Environment variables
+  environment_variables = each.value.environment_variables
+
+  # IAM policy（JSONファイルからテンプレート読み込み、プレースホルダー置換）
+  iam_policy_document = templatefile(
+    "${path.module}/${each.value.iam_policy_template}",
+    local.policy_template_vars
+  )
+
+  # No API Gateway permissions (EventBridge triggers)
+  lambda_permissions = {}
+
+  tags = merge(local.layer_tags, {
+    Service   = each.key
+    Component = "stripe-webhooks"
+    EventType = split("-", each.key)[1] == "payment" ? 
+                "${split("-", each.key)[1]}-${split("-", each.key)[2]}" : 
+                "subscription-updated"
+  })
+}
+
+# SQS Dead Letter Queue for EventBridge failed events
+module "stripe_eventbridge_dlq" {
+  source = "../../../modules/sqs"
+
+  queue_name = "${local.project_name}-${local.environment}-stripe-eventbridge-dlq"
+  aws_region = local.region
+  
+  # DLQ specific settings
+  message_retention_seconds = 1209600  # 14 days
+  visibility_timeout_seconds = 300     # 5 minutes
+  max_receive_count = null            # No redrive for DLQ itself
+  
+  # Monitoring
+  enable_monitoring = true
+  alarm_actions = []
+
+  tags = merge(local.layer_tags, {
+    Component = "stripe-eventbridge"
+    Purpose   = "dead-letter-queue"
+  })
+}
+
+# EventBridge Bus（再利用可能モジュール使用）
+module "stripe_eventbridge_bus" {
+  source = "../../../modules/eventbridge-bus"
+
+  bus_name           = "${local.environment}-${local.project_name}-stripe-webhook-bus"
+  log_retention_days = var.log_retention_days
+
+  tags = merge(local.layer_tags, {
+    Component = "stripe-eventbridge"
+    Purpose   = "webhook-processing"
+  })
+}
+
+# EventBridge Rules & Targets（再利用可能モジュールで各イベント処理）
+module "stripe_eventbridge_rules" {
+  source = "../../../modules/eventbridge-rule"
+
+  for_each = {
+    payment-succeeded = {
+      description = "Route Stripe invoice.payment_succeeded events to Lambda"
+      event_pattern = jsonencode({
+        source      = ["aws.partner/stripe.com/${var.stripe_partner_source_id}"]
+        detail-type = ["Invoice Payment Succeeded"]
+        detail = {
+          type = ["invoice.payment_succeeded"]
+        }
+      })
+      lambda_function_name = module.stripe_webhook_functions["handle-payment-succeeded"].function_name
+      target_arn           = module.stripe_webhook_functions["handle-payment-succeeded"].function_arn
+    }
+    payment-failed = {
+      description = "Route Stripe invoice.payment_failed events to Lambda"
+      event_pattern = jsonencode({
+        source      = ["aws.partner/stripe.com/${var.stripe_partner_source_id}"]
+        detail-type = ["Invoice Payment Failed"]
+        detail = {
+          type = ["invoice.payment_failed"]
+        }
+      })
+      lambda_function_name = module.stripe_webhook_functions["handle-payment-failed"].function_name
+      target_arn           = module.stripe_webhook_functions["handle-payment-failed"].function_arn
+    }
+    subscription-updated = {
+      description = "Route Stripe customer.subscription.updated events to Lambda"
+      event_pattern = jsonencode({
+        source      = ["aws.partner/stripe.com/${var.stripe_partner_source_id}"]
+        detail-type = ["Customer Subscription Updated"]
+        detail = {
+          type = ["customer.subscription.updated"]
+        }
+      })
+      lambda_function_name = module.stripe_webhook_functions["handle-subscription-updated"].function_name
+      target_arn           = module.stripe_webhook_functions["handle-subscription-updated"].function_arn
+    }
+  }
+
+  rule_name        = "${local.environment}-${local.project_name}-${each.key}-rule"
+  rule_description = each.value.description
+  event_bus_name   = module.stripe_eventbridge_bus.eventbridge_bus_name
+  event_pattern    = each.value.event_pattern
+
+  target_id            = "${title(replace(each.key, "-", ""))}LambdaTarget"
+  target_arn           = each.value.target_arn
+  target_type          = "lambda"
+  lambda_function_name = each.value.lambda_function_name
+
+  # リトライ・DLQ設定
+  retry_policy = {
+    maximum_retry_attempts       = 3
+    maximum_event_age_in_seconds = 3600
+  }
+  dlq_arn = module.stripe_eventbridge_dlq.queue_arn
+
+  tags = merge(local.layer_tags, {
+    Component = "stripe-eventbridge"
+    EventType = each.key
+  })
+}
+
+# CloudWatch Alarms for Stripe EventBridge monitoring
+resource "aws_cloudwatch_metric_alarm" "eventbridge_failed_invocations" {
+  alarm_name          = "${local.project_name}-${local.environment}-eventbridge-failed-invocations"
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = "2"
+  metric_name         = "FailedInvocations"
+  namespace           = "AWS/Events"
+  period              = "300"
+  statistic           = "Sum"
+  threshold           = "1"
+  alarm_description   = "This metric monitors failed EventBridge rule invocations"
+  
+  dimensions = {
+    EventBusName = module.stripe_eventbridge_bus.eventbridge_bus_name
+  }
+
+  tags = merge(local.layer_tags, {
+    Component = "stripe-eventbridge"
+    Purpose   = "monitoring"
+  })
+}
+
+resource "aws_cloudwatch_metric_alarm" "stripe_dlq_messages" {
+  alarm_name          = "${local.project_name}-${local.environment}-stripe-dlq-messages"
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = "1"
+  metric_name         = "ApproximateNumberOfVisibleMessages"
+  namespace           = "AWS/SQS"
+  period              = "300"
+  statistic           = "Average"
+  threshold           = "0"
+  alarm_description   = "This metric monitors messages in Stripe EventBridge DLQ"
+  
+  dimensions = {
+    QueueName = module.stripe_eventbridge_dlq.queue_name
+  }
+
+  tags = merge(local.layer_tags, {
+    Component = "stripe-eventbridge"
+    Purpose   = "monitoring"
   })
 }
