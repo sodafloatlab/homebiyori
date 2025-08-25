@@ -166,6 +166,7 @@ locals {
       layers      = ["common"]
       environment_variables = {
         CORE_TABLE_NAME                 = data.terraform_remote_state.datastore.outputs.core_table_name
+        PAYMENTS_TABLE_NAME             = data.terraform_remote_state.datastore.outputs.payments_table_name
         TTL_UPDATES_QUEUE_URL          = data.terraform_remote_state.datastore.outputs.ttl_updates_queue_url
         WEBHOOK_EVENTS_QUEUE_URL       = data.terraform_remote_state.datastore.outputs.webhook_events_queue_url
         STRIPE_API_KEY_PARAMETER       = data.aws_ssm_parameter.stripe_api_key.name
@@ -184,7 +185,9 @@ locals {
             ]
             Resource = [
               data.terraform_remote_state.datastore.outputs.core_table_arn,
-              "${data.terraform_remote_state.datastore.outputs.core_table_arn}/index/*"
+              "${data.terraform_remote_state.datastore.outputs.core_table_arn}/index/*",
+              data.terraform_remote_state.datastore.outputs.payments_table_arn,
+              "${data.terraform_remote_state.datastore.outputs.payments_table_arn}/index/*"
             ]
           },
           {
@@ -338,6 +341,7 @@ locals {
         CHATS_TABLE_NAME    = data.terraform_remote_state.datastore.outputs.chats_table_name
         FRUITS_TABLE_NAME   = data.terraform_remote_state.datastore.outputs.fruits_table_name
         FEEDBACK_TABLE_NAME = data.terraform_remote_state.datastore.outputs.feedback_table_name
+        PAYMENTS_TABLE_NAME = data.terraform_remote_state.datastore.outputs.payments_table_name
       }
       iam_policy_document = jsonencode({
         Version = "2012-10-17"
@@ -355,7 +359,9 @@ locals {
               data.terraform_remote_state.datastore.outputs.chats_table_arn,
               data.terraform_remote_state.datastore.outputs.fruits_table_arn,
               data.terraform_remote_state.datastore.outputs.feedback_table_arn,
-              "${data.terraform_remote_state.datastore.outputs.feedback_table_arn}/index/*"
+              "${data.terraform_remote_state.datastore.outputs.feedback_table_arn}/index/*",
+              data.terraform_remote_state.datastore.outputs.payments_table_arn,
+              "${data.terraform_remote_state.datastore.outputs.payments_table_arn}/index/*"
             ]
           },
           {

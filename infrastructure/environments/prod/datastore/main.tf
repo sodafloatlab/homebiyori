@@ -42,7 +42,7 @@ locals {
       range_key          = "SK"     # CHAT#2024-01-01T12:00:00+09:00
       billing_mode       = "PAY_PER_REQUEST"
       ttl_enabled        = true
-      ttl_attribute_name = "expires_at"  # プラン別TTL（30日/180日）
+      ttl_attribute_name = "expires_at"  # TTL（180日）
       attributes = [
         { name = "PK", type = "S" },
         { name = "SK", type = "S" }
@@ -87,6 +87,28 @@ locals {
         GSI2 = {
           hash_key        = "GSI2PK"      # FEEDBACK#{feedback_type}#{satisfaction_score}
           range_key       = "created_at"  # 時系列分析
+          projection_type = "ALL"
+        }
+      }
+    }
+    
+    # 5. 決済履歴（7年保管）- 法的要件準拠の専用テーブル
+    payments = {
+      table_type         = "payments"
+      hash_key           = "PK"     # USER#user_id
+      range_key          = "SK"     # PAYMENT#2024-01-01T12:00:00+09:00
+      billing_mode       = "PAY_PER_REQUEST"
+      ttl_enabled        = true
+      ttl_attribute_name = "ttl"    # 7年後自動削除
+      attributes = [
+        { name = "PK", type = "S" },
+        { name = "SK", type = "S" },
+        { name = "customer_id", type = "S" }    # GSI1PK用（Stripe Customer ID）
+      ]
+      global_secondary_indexes = {
+        # Stripe Customer ID検索用GSI
+        GSI1 = {
+          hash_key        = "customer_id"     # Stripe Customer ID
           projection_type = "ALL"
         }
       }

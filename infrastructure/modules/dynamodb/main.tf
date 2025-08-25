@@ -85,6 +85,7 @@ resource "aws_dynamodb_table" "this" {
 
   # TTL configuration
   dynamic "ttl" {
+    # ttl_enabledがtrueの場合のみ定義反映
     for_each = var.ttl_enabled ? [1] : []
     
     content {

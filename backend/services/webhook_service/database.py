@@ -19,12 +19,16 @@ class WebhookServiceDatabase:
     """Webhookサービス専用データベースクライアント"""
     
     def __init__(self):
-        """webhook_serviceで必要なDynamoDBテーブル（coreのみ）を初期化"""
-        # webhook_serviceではcoreテーブルのみ使用
+        """webhook_serviceで必要なDynamoDBテーブル（core + payments）を初期化"""
+        # webhook_serviceでcoreテーブルを使用
         # - サブスクリプション状態管理（create/get/update）
-        # - ユーザープロフィール更新（プラン情報）
-        # - PaymentHistory保存
+        # - ユーザープロファイル更新（プラン情報）
         self.core_client = DynamoDBClient(os.environ["CORE_TABLE_NAME"])
+        
+        # Issue #27対応: PaymentHistory専用のpaymentsテーブルを追加
+        # - 7年保管TTL設定でcoreテーブル90日TTLと分離
+        # - 法的要件準拠の決済履歴管理
+        self.payments_client = DynamoDBClient(os.environ["PAYMENTS_TABLE_NAME"])
     
     # サブスクリプション管理メソッド
     
@@ -151,7 +155,7 @@ class WebhookServiceDatabase:
     
     async def save_payment_history(self, payment_history_data: Dict[str, Any]) -> bool:
         """
-        決済履歴をDynamoDBに保存（Phase 1実装）
+        決済履歴をpaymentsテーブルに保存（Issue #27対応）
         
         Args:
             payment_history_data: 決済履歴データ（PaymentHistory.to_dynamodb_item()の形式）
@@ -160,17 +164,19 @@ class WebhookServiceDatabase:
             bool: 保存成功可否
         """
         try:
-            await self.core_client.put_item(payment_history_data)
-            logger.info("Payment history saved successfully", extra={
+            # Issue #27対応: paymentsテーブルに保存（7年TTL設定）
+            await self.payments_client.put_item(payment_history_data)
+            logger.info("Payment history saved successfully to payments table", extra={
                 "user_id": payment_history_data.get("user_id"),
                 "payment_id": payment_history_data.get("stripe_payment_intent_id"),
                 "amount": payment_history_data.get("amount"),
-                "status": payment_history_data.get("status")
+                "status": payment_history_data.get("status"),
+                "ttl_expires_at": payment_history_data.get("expires_at")
             })
             return True
             
         except Exception as e:
-            logger.error("Failed to save payment history", extra={
+            logger.error("Failed to save payment history to payments table", extra={
                 "error": str(e),
                 "user_id": payment_history_data.get("user_id"),
                 "payment_id": payment_history_data.get("stripe_payment_intent_id")
@@ -218,18 +224,21 @@ class WebhookServiceDatabase:
     # - PaymentHistory管理はwebhook_serviceが唯一の責任者（設計書準拠）
 
     async def health_check(self) -> Dict[str, Any]:
-        """データベース接続ヘルスチェック（describe方式）"""
+        """データベース接続ヘルスチェック（core + payments両テーブル対応）"""
         try:
             current_time = get_current_jst()
             
             # coreテーブルの疎通確認（describe方式）
             await self.core_client.describe_table()
             
+            # Issue #27対応: paymentsテーブルの疎通確認
+            await self.payments_client.describe_table()
+            
             return {
                 "service": "webhook_service",
                 "database_status": "healthy",
                 "timestamp": to_jst_string(current_time),
-                "connected_tables": ["core"]  # webhook_serviceで使用するテーブルのみ
+                "connected_tables": ["core", "payments"]  # webhook_serviceで使用するテーブル
             }
             
         except Exception as e:

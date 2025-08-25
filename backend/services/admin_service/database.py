@@ -20,12 +20,17 @@ class AdminServiceDatabase:
     """管理者サービス専用データベースクライアント"""
     
     def __init__(self):
-        """4テーブル構成のDynamoDBクライアント初期化"""
+        """4テーブル構成 + payments テーブルのDynamoDBクライアント初期化"""
         # 4テーブル構成対応：環境変数からテーブル名取得
         self.core_client = DynamoDBClient(os.environ["CORE_TABLE_NAME"])
         self.chats_client = DynamoDBClient(os.environ["CHATS_TABLE_NAME"])  
         self.fruits_client = DynamoDBClient(os.environ["FRUITS_TABLE_NAME"])
         self.feedback_client = DynamoDBClient(os.environ["FEEDBACK_TABLE_NAME"])
+        
+        # Issue #27対応: PaymentHistory専用のpaymentsテーブルを追加
+        # - 7年保管TTL設定でcoreテーブル90日TTLと分離
+        # - 法的要件準拠の決済履歴管理
+        self.payments_client = DynamoDBClient(os.environ["PAYMENTS_TABLE_NAME"])
     
     # ユーザー統計メソッド
     async def get_total_user_count(self) -> int:
@@ -222,7 +227,7 @@ class AdminServiceDatabase:
 
     # ヘルスチェック
     async def health_check(self) -> Dict[str, Any]:
-        """データベース接続ヘルスチェック"""
+        """データベース接続ヘルスチェック（Issue #27対応: payments_client含む）"""
         try:
             current_time = get_current_jst()
             
@@ -242,11 +247,14 @@ class AdminServiceDatabase:
             if item:
                 await self.core_client.delete_item(pk=test_pk, sk=test_sk)
             
+            # Issue #27対応: paymentsテーブルの疎通確認
+            await self.payments_client.describe_table()
+            
             return {
                 "service": "admin_service",
                 "database_status": "healthy",
                 "timestamp": current_time.isoformat(),
-                "connected_tables": ["core", "chats", "fruits", "feedback"]
+                "connected_tables": ["core", "chats", "fruits", "feedback", "payments"]  # Issue #27対応
             }
             
         except Exception as e:
@@ -259,12 +267,13 @@ class AdminServiceDatabase:
 
     # Phase 3: PaymentHistory管理機能
     async def get_payment_history_list(self, request) -> Dict[str, Any]:
-        """決済履歴一覧取得（管理者専用）"""
+        """決済履歴一覧取得（管理者専用・Issue #27対応: payments_client使用）"""
         try:
-            # PaymentHistoryは7年保存のため、coreテーブルのPAYMENT#プレフィックスで検索
+            # Issue #27対応: PaymentHistory専用のpaymentsテーブルから取得
+            # 7年保存のpaymentsテーブルのPAYMENT#プレフィックスで検索
             query_params = {
                 "index_name": None,  # プライマリキーでクエリ
-                "projection_expression": "PK, SK, amount, #status, stripe_payment_intent_id, subscription_id, billing_period_start, billing_period_end, currency, created_at, payment_method_type, stripe_customer_id, metadata",
+                "projection_expression": "PK, SK, amount, #status, stripe_payment_intent_id, subscription_id, billing_period_start, billing_period_end, currency, created_at, customer_id, failure_reason",
                 "expression_attribute_names": {"#status": "status"}
             }
             
@@ -308,8 +317,8 @@ class AdminServiceDatabase:
                 
             query_params["limit"] = request.limit
             
-            # DynamoDBクエリ実行
-            result = await self.core_client.query(**query_params)
+            # Issue #27対応: payments_clientでクエリ実行
+            result = await self.payments_client.query(**query_params)
             
             # PaymentHistoryInfo形式に変換
             payments = []
@@ -323,10 +332,9 @@ class AdminServiceDatabase:
                     "currency": item.get("currency", "jpy"),
                     "billing_period_start": item.get("billing_period_start"),
                     "billing_period_end": item.get("billing_period_end"), 
-                    "payment_method_type": item.get("payment_method_type"),
-                    "stripe_customer_id": item.get("stripe_customer_id"),
-                    "created_at": item.get("created_at", ""),
-                    "metadata": item.get("metadata", {})
+                    "customer_id": item.get("customer_id"),  # payments テーブル対応
+                    "failure_reason": item.get("failure_reason"),  # payments テーブル対応
+                    "created_at": item.get("created_at", "")
                 }
                 payments.append(payment_info)
             
@@ -339,11 +347,11 @@ class AdminServiceDatabase:
             }
             
         except Exception as e:
-            logger.error(f"Failed to get payment history list: {str(e)}")
+            logger.error(f"Failed to get payment history list from payments table: {str(e)}")
             return {"payments": [], "total_count": 0, "has_next_page": False, "next_cursor": None}
 
     async def get_payment_analytics(self, start_date: Optional[str], end_date: Optional[str]) -> Dict[str, Any]:
-        """決済分析データ取得（管理者専用）"""
+        """決済分析データ取得（管理者専用・Issue #27対応: payments_client使用）"""
         try:
             # 期間指定がない場合は過去30日間
             if not start_date or not end_date:
@@ -352,7 +360,7 @@ class AdminServiceDatabase:
                 start_date = start_dt.strftime("%Y-%m-%d")
                 end_date = end_dt.strftime("%Y-%m-%d")
             
-            # 決済履歴を取得（期間フィルタ付き）
+            # Issue #27対応: payments_clientで決済履歴を取得（期間フィルタ付き）
             query_params = {
                 "pk": "PAYMENT#",
                 "filter_expression": "created_at BETWEEN :start_date AND :end_date",
@@ -360,35 +368,36 @@ class AdminServiceDatabase:
                     ":start_date": start_date,
                     ":end_date": end_date
                 },
-                "projection_expression": "amount, #status, payment_method_type, created_at",
+                "projection_expression": "amount, #status, created_at, failure_reason, customer_id",
                 "expression_attribute_names": {"#status": "status"}
             }
             
-            result = await self.core_client.query(**query_params)
+            result = await self.payments_client.query(**query_params)
             payments = result.get("items", [])
             
             # 分析データ計算
             total_revenue = 0.0
             successful_payments = 0
             failed_payments = 0
-            payment_method_dist = {}
             monthly_revenue = {}
             daily_volume = {}
+            failure_reasons = {}
             
             for payment in payments:
                 amount = payment.get("amount", 0)
                 status = payment.get("status", "unknown")
-                payment_method = payment.get("payment_method_type", "unknown")
                 created_at = payment.get("created_at", "")
+                failure_reason = payment.get("failure_reason")
                 
                 if status == "succeeded":
                     total_revenue += amount
                     successful_payments += 1
                 elif status in ["failed", "canceled"]:
                     failed_payments += 1
-                
-                # 支払い方法分布
-                payment_method_dist[payment_method] = payment_method_dist.get(payment_method, 0) + 1
+                    
+                    # 失敗理由集計（payments テーブル対応）
+                    if failure_reason:
+                        failure_reasons[failure_reason] = failure_reasons.get(failure_reason, 0) + 1
                 
                 # 月別売上（created_atから年月抽出）
                 if created_at:
@@ -422,12 +431,12 @@ class AdminServiceDatabase:
                 "success_rate": round(success_rate, 2),
                 "average_payment_amount": round(average_payment, 2),
                 "monthly_revenue_trend": monthly_trend,
-                "payment_method_distribution": payment_method_dist,
+                "failure_reason_distribution": failure_reasons,  # payments テーブル対応
                 "daily_payment_volume": daily_volume_array
             }
             
         except Exception as e:
-            logger.error(f"Failed to get payment analytics: {str(e)}")
+            logger.error(f"Failed to get payment analytics from payments table: {str(e)}")
             return {
                 "total_revenue": 0.0,
                 "successful_payments": 0,
@@ -435,27 +444,27 @@ class AdminServiceDatabase:
                 "success_rate": 0.0,
                 "average_payment_amount": 0.0,
                 "monthly_revenue_trend": [],
-                "payment_method_distribution": {},
+                "failure_reason_distribution": {},
                 "daily_payment_volume": []
             }
 
     async def get_payment_trends(self, months: int) -> List[Dict[str, Any]]:
-        """決済トレンドデータ取得（管理者専用）"""
+        """決済トレンドデータ取得（管理者専用・Issue #27対応: payments_client使用）"""
         try:
             # 指定月数分のデータを取得
             end_dt = get_current_jst()
             start_dt = end_dt - timedelta(days=months * 30)  # 概算
             
-            # 月別の決済データを取得
+            # Issue #27対応: payments_clientで月別の決済データを取得
             query_params = {
                 "pk": "PAYMENT#",
                 "filter_expression": "created_at >= :start_date",
                 "expression_attribute_values": {":start_date": start_dt.strftime("%Y-%m-%d")},
-                "projection_expression": "amount, #status, created_at",
+                "projection_expression": "amount, #status, created_at, failure_reason",
                 "expression_attribute_names": {"#status": "status"}
             }
             
-            result = await self.core_client.query(**query_params)
+            result = await self.payments_client.query(**query_params)
             payments = result.get("items", [])
             
             # 月別集計
@@ -469,13 +478,15 @@ class AdminServiceDatabase:
                 try:
                     month_key = created_at[:7]  # YYYY-MM
                     if month_key not in monthly_data:
-                        monthly_data[month_key] = {"revenue": 0, "count": 0, "success_count": 0}
+                        monthly_data[month_key] = {"revenue": 0, "count": 0, "success_count": 0, "failed_count": 0}
                     
                     monthly_data[month_key]["count"] += 1
                     
                     if payment.get("status") == "succeeded":
                         monthly_data[month_key]["revenue"] += payment.get("amount", 0)
                         monthly_data[month_key]["success_count"] += 1
+                    elif payment.get("status") in ["failed", "canceled"]:
+                        monthly_data[month_key]["failed_count"] += 1
                         
                 except:
                     continue
@@ -489,22 +500,23 @@ class AdminServiceDatabase:
                     "revenue": data["revenue"], 
                     "transaction_count": data["count"],
                     "success_count": data["success_count"],
+                    "failed_count": data["failed_count"],  # payments テーブル対応
                     "success_rate": round(success_rate, 2)
                 })
             
             return trend_data
             
         except Exception as e:
-            logger.error(f"Failed to get payment trends: {str(e)}")
+            logger.error(f"Failed to get payment trends from payments table: {str(e)}")
             return []
 
     async def export_payment_data(self, export_request) -> Dict[str, Any]:
-        """決済データエクスポート（管理者専用）"""
+        """決済データエクスポート（管理者専用・Issue #27対応: payments_client使用）"""
         try:
-            # エクスポート対象データ取得
+            # Issue #27対応: payments_clientでエクスポート対象データ取得
             query_params = {
                 "pk": "PAYMENT#",
-                "projection_expression": "PK, SK, amount, #status, stripe_payment_intent_id, subscription_id, billing_period_start, billing_period_end, currency, created_at, payment_method_type, metadata",
+                "projection_expression": "PK, SK, amount, #status, stripe_payment_intent_id, subscription_id, billing_period_start, billing_period_end, currency, created_at, customer_id, failure_reason",
                 "expression_attribute_names": {"#status": "status"}
             }
             
@@ -534,7 +546,8 @@ class AdminServiceDatabase:
                     query_params["expression_attribute_values"] = {}
                 query_params["expression_attribute_values"][":success_status"] = "succeeded"
             
-            result = await self.core_client.query(**query_params)
+            # Issue #27対応: payments_clientでクエリ実行
+            result = await self.payments_client.query(**query_params)
             payments = result.get("items", [])
             
             # S3に一時ファイルとしてアップロード（実装は簡略化）
@@ -546,11 +559,12 @@ class AdminServiceDatabase:
             return {
                 "export_url": f"https://homebiyori-exports.s3.amazonaws.com/{file_name}",
                 "file_name": file_name,
-                "total_records": len(payments)
+                "total_records": len(payments),
+                "source": "payments_table"  # Issue #27対応確認用
             }
             
         except Exception as e:
-            logger.error(f"Failed to export payment data: {str(e)}")
+            logger.error(f"Failed to export payment data from payments table: {str(e)}")
             raise Exception(f"Export failed: {str(e)}")
 
 

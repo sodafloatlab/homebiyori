@@ -1,10 +1,10 @@
 # データベース設計書
 
-## DynamoDB 4テーブル構成（最適化完了版）
+## DynamoDB 5テーブル構成（Issue #27対応版）
 
 **設計思想の変遷:**
-当初は3テーブル（統合）→ 5テーブル（機能分割）→ 7テーブル（細分化）→ **4テーブル（最適化完了）** に発展。  
-Single Table Design原則に基づき、関連性の高いエンティティを統合し、パフォーマンスとコストを最適化。
+当初は3テーブル（統合）→ 5テーブル（機能分割）→ 7テーブル（細分化）→ 4テーブル（最適化）→ **5テーブル（法的要件対応）** に発展。  
+Issue #27対応により、決済履歴の7年保管要件を満たすため専用のpaymentsテーブルを追加。Single Table Design原則を維持しつつ、法的コンプライアンス要件を満足。
 
 **最適化効果:**
 - ユーザー情報取得: **4回クエリ → 1回クエリ** でパフォーマンス大幅改善
@@ -19,11 +19,13 @@ graph TB
     Chats[prod-homebiyori-chats<br/>チャット履歴<br/>TTL管理による自動削除]
     Fruits[prod-homebiyori-fruits<br/>実の情報<br/>永続保存・感情価値]
     Feedback[prod-homebiyori-feedback<br/>フィードバック<br/>分析用・永続保存]
+    Payments[prod-homebiyori-payments<br/>決済履歴<br/>7年間TTL管理<br/>法的要件準拠]
     
     Core --> Chats
     Core --> Fruits
     Chats --> Fruits
     Core --> Feedback
+    Core --> Payments
 ```
 
 ## 1. prod-homebiyori-core（統合コアテーブル）
@@ -410,6 +412,72 @@ SK between "CHAT#2024-08-15T10:00:00+09:00" and "CHAT#2024-08-15T12:00:00+09:00"
 - **GSI2**: 満足度スコア別分析用
 - **効率的集計**: 複合キーによる高速グルーピング
 
+## 5. prod-homebiyori-payments（法的要件準拠）
+
+**設計意図:**
+- **Issue #27対応**: 決済履歴の7年間保管義務への法的コンプライアンス
+- **TTL分離**: coreテーブル（90日）とは独立した7年間TTL管理
+- **Stripe統合**: webhook_serviceでの確実な決済データ保存
+- **管理機能**: admin_serviceでの決済履歴管理・分析機能
+
+**エンティティ構造:**
+```json
+{
+  "PK": "USER#user_id",
+  "SK": "PAYMENT#2024-01-01T12:00:00+09:00",           // 決済日時
+  "user_id": "string",                                  // ユーザーID
+  "subscription_id": "string",                          // StripeサブスクリプションID
+  "stripe_payment_intent_id": "string",                 // Stripe PaymentIntent ID
+  "customer_id": "string",                              // Stripe Customer ID
+  "amount": "number",                                   // 決済金額（円）
+  "currency": "jpy",                                    // 通貨
+  "status": "succeeded|failed",                         // 決済ステータス
+  "billing_period_start": "2024-01-01T00:00:00+09:00", // 課金期間開始
+  "billing_period_end": "2024-01-31T23:59:59+09:00",   // 課金期間終了
+  "failure_reason": "string?",                          // 失敗理由（失敗時のみ）
+  "created_at": "2024-01-01T12:00:00+09:00",           // 作成日時（JST）
+  "expires_at": "2031-01-01T12:00:00+09:00",           // TTL期限（7年後）
+  "ttl": "1893398400"                                   // DynamoDB TTL（expires_atのUnixTime）
+}
+```
+
+**TTL管理戦略:**
+- **7年間保持**: 法的要件に基づく決済データの長期保存
+- **自動削除**: DynamoDB TTL機能による期限後の自動削除
+- **expires_at**: 人間が読める形式での期限表示
+- **ttl**: DynamoDB内部処理用のUnixタイムスタンプ
+
+**GSI設計:**
+```json
+{
+  "GSI1": {
+    "PartitionKey": "customer_id",     // Stripe Customer ID
+    "SortKey": なし,                   // 1顧客=1ユーザーの関係
+    "ProjectionType": "ALL",           // 全属性を投影
+    "Purpose": "Stripe Customer ID検索用"
+  }
+}
+```
+
+**アクセスパターン:**
+```
+// 1. ユーザー別決済履歴取得（時系列）
+QUERY prod-homebiyori-payments: PK=USER#user_id, SK begins_with PAYMENT#
+
+// 2. Stripe Customer ID検索（webhook処理用）
+QUERY prod-homebiyori-payments GSI1: GSI1PK=cus_StripeCustomerId123
+
+// 3. 特定期間の決済履歴取得
+QUERY prod-homebiyori-payments: PK=USER#user_id, 
+  SK BETWEEN PAYMENT#2024-01-01T00:00:00+09:00 AND PAYMENT#2024-01-31T23:59:59+09:00
+```
+
+**セキュリティ考慮事項:**
+- **最小権限アクセス**: webhook_serviceとadmin_serviceのみアクセス可能
+- **監査ログ**: 全ての決済データアクセスをCloudWatchログで記録
+- **暗号化**: DynamoDB保存時暗号化とHTTPS転送時暗号化
+- **データ匿名化**: 必要に応じて個人識別情報の匿名化対応
+
 ## データアクセスパターンと最適化
 
 ### 主要なクエリパターン
@@ -550,7 +618,7 @@ QUERY prod-homebiyori-core GSI2: GSI2PK=cus_StripeCustomerId123
 - 満足度スコア別分析
 - 低評価ユーザーの傾向分析
 
-## 4テーブル最適化の具体的効果
+## 5テーブル構成の具体的効果
 
 ### パフォーマンス改善
 - **ユーザー情報取得**: 4回クエリ→1回クエリ（**75%削減**）
@@ -584,6 +652,11 @@ QUERY prod-homebiyori-core GSI2: GSI2PK=cus_StripeCustomerId123
 - **全ユーザー共通**: 90日後に自動削除（expires_at unixtime）
 - **ストレージ最適化**: DynamoDB TTL機能による自動削除
 
+### 決済履歴の長期保存（Issue #27対応）
+- **法的要件準拠**: 7年間（2555日）保持後に自動削除
+- **TTL独立管理**: coreテーブルとは別のTTL設定による分離管理
+- **コンプライアンス**: 法人税法・消費者保護法の要件満足
+
 ### TTL更新処理フロー
 1. **プラン変更検知**: webhook_serviceがStripe Webhookを受信
 2. **TTL更新キューイング**: SQSにTTL更新リクエストを送信
@@ -610,9 +683,9 @@ QUERY prod-homebiyori-core GSI2: GSI2PK=cus_StripeCustomerId123
 ## 実装移行計画
 
 ### Phase 1: 新テーブル構造作成
-- Terraform で4テーブル構成作成
-- GSI設計の実装
-- TTL設定の適用
+- Terraform で5テーブル構成作成（Issue #27対応）
+- GSI設計の実装（paymentsテーブルGSI1含む）
+- TTL設定の適用（7年間決済データ保持）
 
 ### Phase 2: バックエンドAPI修正
 - 全8つのLambdaサービス対応
@@ -631,7 +704,9 @@ QUERY prod-homebiyori-core GSI2: GSI2PK=cus_StripeCustomerId123
 
 ## 受け入れ条件
 
-- ✅ 4テーブル構成でパフォーマンス改善確認（75%短縮目標）
+- ✅ 5テーブル構成でパフォーマンス改善確認（75%短縮目標）
 - ✅ データ整合性保証（統合テーブル内トランザクション）
 - ✅ 既存機能の動作確認完了
 - ✅ コスト削減効果の測定（GSI削除・冗長データ削除効果）
+- 🆕 Issue #27対応: 決済履歴7年間保持機能の動作確認
+- 🆕 paymentsテーブル独立TTL管理の動作確認

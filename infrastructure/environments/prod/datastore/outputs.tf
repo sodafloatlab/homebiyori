@@ -39,6 +39,16 @@ output "feedback_table_arn" {
   value       = module.dynamodb_tables["feedback"].table_arn
 }
 
+output "payments_table_name" {
+  description = "Name of the payments table"
+  value       = module.dynamodb_tables["payments"].table_name
+}
+
+output "payments_table_arn" {
+  description = "ARN of the payments table"
+  value       = module.dynamodb_tables["payments"].table_arn
+}
+
 # S3 Bucket Outputs
 output "chat_content_bucket_name" {
   description = "Name of the chat content S3 bucket"
