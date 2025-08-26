@@ -67,11 +67,10 @@ resource "aws_ssm_parameter" "maintenance_start_time" {
   # Tags are automatically applied via provider default_tags
 }
 
-# セキュリティパラメータ
-# API キーは手動設定方針のため、Terraformでは管理しない
-# 運用時にAWSコンソール/CLIで直接設定:
-# - /${var.environment}/homebiyori/internal/api_key (SecureString)
-# - /${var.environment}/homebiyori/admin/api_key (SecureString)
+# セキュリティパラメータ削除
+# 不要な概念のため削除（Issue #33対応）
+# - internal/api_key削除
+# - admin/api_key削除
 
 # Application configuration parameters
 resource "aws_ssm_parameter" "app_version" {
@@ -83,7 +82,8 @@ resource "aws_ssm_parameter" "app_version" {
   # Tags are automatically applied via provider default_tags
 }
 
-# 機能フラグは削除 - 運用時に必要に応じて手動追加
+# rate_limitsパラメータ削除 - 不要な概念（Issue #33対応）
+# ai_model_configパラメータ削除 - ひとまず削除（Issue #33対応）
 
 # ========================================
 # AI設定（新戦略：全ユーザー統一）
@@ -105,22 +105,14 @@ resource "aws_ssm_parameter" "tree_growth_thresholds" {
   # Tags are automatically applied via provider default_tags
 }
 
-# レート制限設定は削除 - アプリケーションレベルで固定値を使用
+# レート制限設定は削除済み - アプリケーションレベルで固定値を使用
 
 # ========================================
 # 新戦略パラメータ（1週間トライアル→有料化）
 # ========================================
 
-# チャット保持期間（全ユーザー統一）
-resource "aws_ssm_parameter" "chat_retention_days" {
-  name        = "/${var.environment}/homebiyori/chat/retention_days"
-  description = "Chat message retention period in days (unified for all users)"
-  type        = "String"
-  value       = "180"
-  
-  # 運用時のポリシー調整に備えて動的変更を許可
-  # Tags are automatically applied via provider default_tags
-}
+# チャット保持期間削除（パフォーマンス考慮）
+# 固定値180日をアプリケーション側に埋め込み（Issue #33対応）
 
 # トライアル期間設定
 resource "aws_ssm_parameter" "trial_duration_days" {

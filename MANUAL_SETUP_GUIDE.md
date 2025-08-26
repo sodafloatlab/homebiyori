@@ -168,11 +168,11 @@ aws bedrock list-foundation-models \
 **取得する情報：**
 - Stripe API Key (Secret)
 - Stripe Webhook Secret
-- Stripe Webhook Endpoint Secret
 
 **Terraformとの関連：**
 - Parameter Store経由でLambda環境変数に設定
 - `backend/data.tf`: SSM Parameter参照
+- stripe_webhook_endpoint_secret削除済み（Issue #33対応）
 
 ---
 
@@ -180,36 +180,53 @@ aws bedrock list-foundation-models \
 
 ### 4.1 必須パラメーター設定
 
-**作成するパラメーター：**
+**作成するパラメーター（Issue #33対応済み）：**
 ```bash
 # Stripe関連（必須）
 aws ssm put-parameter \
-  --name "/homebiyori/prod/stripe/api_key" \
+  --name "/prod/homebiyori/stripe/api_key" \
   --value "sk_live_xxxxxxxxxxxxxxxx" \
   --type "SecureString" \
   --description "Stripe API Secret Key for prod environment"
 
 aws ssm put-parameter \
-  --name "/homebiyori/prod/stripe/webhook_secret" \
+  --name "/prod/homebiyori/stripe/webhook_secret" \
   --value "whsec_xxxxxxxxxxxxxxxx" \
   --type "SecureString" \
   --description "Stripe Webhook Secret for prod environment"
 
+# 価格設定（本番環境確定後に更新）
 aws ssm put-parameter \
-  --name "/homebiyori/prod/stripe/webhook_endpoint_secret" \
-  --value "endpoint_secret_xxxxxxxx" \
-  --type "SecureString" \
-  --description "Stripe Webhook Endpoint Secret for prod environment"
+  --name "/prod/homebiyori/stripe/monthly_price_id" \
+  --value "price_actual_monthly_id" \
+  --type "String" \
+  --description "Stripe Monthly Plan Price ID" \
+  --overwrite
 
-# Google OAuth関連（推奨）
 aws ssm put-parameter \
-  --name "/homebiyori/prod/google/client_id" \
+  --name "/prod/homebiyori/stripe/yearly_price_id" \
+  --value "price_actual_yearly_id" \
+  --type "String" \
+  --description "Stripe Yearly Plan Price ID" \
+  --overwrite
+
+aws ssm put-parameter \
+  --name "/prod/homebiyori/stripe/first_month_promo_code" \
+  --value "promo_actual_code" \
+  --type "String" \
+  --description "Stripe First Month Promotion Code" \
+  --overwrite
+
+# Google OAuth関連（推奨・手動設定）
+# 注意: これらはTerraformで管理されていないため手動設定が必要
+aws ssm put-parameter \
+  --name "/prod/homebiyori/google/client_id" \
   --value "xxxxxxxx.googleusercontent.com" \
   --type "SecureString" \
   --description "Google OAuth Client ID for prod environment"
 
 aws ssm put-parameter \
-  --name "/homebiyori/prod/google/client_secret" \
+  --name "/prod/homebiyori/google/client_secret" \
   --value "GOCSPX-xxxxxxxxxxxxxxxx" \
   --type "SecureString" \
   --description "Google OAuth Client Secret for prod environment"

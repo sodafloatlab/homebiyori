@@ -17,9 +17,7 @@ output "parameter_names" {
     maintenance_end_time     = aws_ssm_parameter.maintenance_end_time.name
     app_version             = aws_ssm_parameter.app_version.name
     feature_flags           = aws_ssm_parameter.feature_flags.name
-    ai_model_config         = aws_ssm_parameter.ai_model_config.name
     tree_growth_thresholds  = aws_ssm_parameter.tree_growth_thresholds.name
-    rate_limits             = aws_ssm_parameter.rate_limits.name
   }
 }
 
@@ -31,8 +29,6 @@ output "parameter_arns" {
     aws_ssm_parameter.maintenance_end_time.arn,
     aws_ssm_parameter.app_version.arn,
     aws_ssm_parameter.feature_flags.arn,
-    aws_ssm_parameter.ai_model_config.arn,
-    aws_ssm_parameter.tree_growth_thresholds.arn,
-    aws_ssm_parameter.rate_limits.arn
+    aws_ssm_parameter.tree_growth_thresholds.arn
   ]
 }

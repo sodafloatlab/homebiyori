@@ -14,9 +14,6 @@ data "aws_ssm_parameter" "stripe_webhook_secret" {
   name = "/${var.project_name}/${var.environment}/stripe/webhook_secret"
 }
 
-data "aws_ssm_parameter" "stripe_webhook_endpoint_secret" {
-  name = "/${var.project_name}/${var.environment}/stripe/webhook_endpoint_secret"
-}
 
 # Import datastore state for table and queue information
 data "terraform_remote_state" "datastore" {

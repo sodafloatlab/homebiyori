@@ -11,7 +11,6 @@ Homebiyoriプロジェクトでは、機密情報の管理とシステム動的�
 **Stripe API設定** - backend/data.tfで参照
 - `/{environment}/homebiyori/stripe/api_key` (SecureString) 
 - `/{environment}/homebiyori/stripe/webhook_secret` (SecureString)
-- `/{environment}/homebiyori/stripe/webhook_endpoint_secret` (SecureString)
 
 **メンテナンス制御** - ignore_changes設定済み
 - `/{environment}/homebiyori/maintenance/enabled` (String)
@@ -19,19 +18,24 @@ Homebiyoriプロジェクトでは、機密情報の管理とシステム動的�
 - `/{environment}/homebiyori/maintenance/start_time` (String)
 - `/{environment}/homebiyori/maintenance/end_time` (String)
 
-**セキュリティ認証** - ignore_changes設定済み
-- `/{environment}/homebiyori/internal/api_key` (SecureString)
-- `/{environment}/homebiyori/admin/api_key` (SecureString)
+**セキュリティ認証** - 削除済み（Issue #33対応）
+- ~~`/{environment}/homebiyori/internal/api_key`~~ → 不要な概念のため削除
+- ~~`/{environment}/homebiyori/admin/api_key`~~ → 不要な概念のため削除
 
 **システム設定**
 - `/{environment}/homebiyori/app/version` (String)
 - `/{environment}/homebiyori/features/flags` (String - JSON)
-- `/{environment}/homebiyori/ai/model_config` (String - JSON) 
+- ~~`/{environment}/homebiyori/ai/model_config`~~ → 削除（Issue #33対応）
 - `/{environment}/homebiyori/tree/growth_thresholds` (String - JSON)
-- `/{environment}/homebiyori/security/rate_limits` (String - JSON)
+- ~~`/{environment}/homebiyori/security/rate_limits`~~ → 削除（Issue #33対応）
 
-### 🚫 削除済み
+### 🚫 削除済み（Issue #33対応）
 - ~~`/{environment}/homebiyori/contact/sns_topic_arn`~~ → Terraform環境変数`SNS_TOPIC_ARN`に変更
+- ~~`/{environment}/homebiyori/internal/api_key`~~ → 不要な概念のため削除
+- ~~`/{environment}/homebiyori/admin/api_key`~~ → 不要な概念のため削除
+- ~~`/{environment}/homebiyori/ai/model_config`~~ → ひとまず削除
+- ~~`/{environment}/homebiyori/security/rate_limits`~~ → 不要な概念のため削除
+- ~~`/{environment}/homebiyori/chat/retention_days`~~ → パフォーマンス考慮により固定値(180日)採用
 
 ### 環境変数経由参照（推奨）
 ```python
