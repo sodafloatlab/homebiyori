@@ -88,3 +88,21 @@ output "s3_bucket_arns" {
     logs = module.logs_bucket.bucket_arn
   }
 }
+
+# ========================================
+# SSM Parameter Store Outputs
+# ========================================
+output "ssm_parameter_names" {
+  description = "Map of all SSM parameter names for Lambda environment variables"
+  value       = module.ssm_parameters.parameter_names
+}
+
+output "ssm_parameter_arns" {
+  description = "List of all SSM parameter ARNs for IAM policy attachment"
+  value       = module.ssm_parameters.parameter_arns
+}
+
+output "maintenance_parameters" {
+  description = "Maintenance control parameter ARNs"
+  value       = module.ssm_parameters.maintenance_parameters
+}

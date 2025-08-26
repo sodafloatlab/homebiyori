@@ -6,12 +6,20 @@ data "aws_caller_identity" "current" {}
 data "aws_region" "current" {}
 
 # Parameter Store data sources for sensitive values
+# NOTE: SSM Parameters are now created in datastore layer
+# This provides better dependency management and logical separation
 data "aws_ssm_parameter" "stripe_api_key" {
-  name = "/${var.project_name}/${var.environment}/stripe/api_key"
+  name = "/${var.environment}/${var.project_name}/stripe/api_key"
+  
+  # Ensure datastore is deployed first (explicit dependency)
+  depends_on = [data.terraform_remote_state.datastore]
 }
 
 data "aws_ssm_parameter" "stripe_webhook_secret" {
-  name = "/${var.project_name}/${var.environment}/stripe/webhook_secret"
+  name = "/${var.environment}/${var.project_name}/stripe/webhook_secret"
+  
+  # Ensure datastore is deployed first (explicit dependency)
+  depends_on = [data.terraform_remote_state.datastore]
 }
 
 

@@ -185,3 +185,14 @@ module "logs_bucket" {
   }
 }
 
+# ========================================
+# SSM Parameter Store - データ保存層での管理
+# ========================================
+# backendレイヤーでの参照に先立ち、datastore層で作成
+module "ssm_parameters" {
+  source = "../../../modules/ssm-parameter"
+  
+  project_name = local.project_name
+  environment  = local.environment
+}
+
