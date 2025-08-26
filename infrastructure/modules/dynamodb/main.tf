@@ -16,17 +16,11 @@ locals {
   # Table naming
   table_name = "${var.project_name}-${var.environment}-${var.table_name}"
   
-  # Default tags
-  default_tags = {
-    Name        = local.table_name
-    Environment = var.environment
-    Project     = var.project_name
-    TableType   = var.table_type
-    ManagedBy   = "terraform"
-  }
-  
-  # Merged tags
-  tags = merge(local.default_tags, var.tags)
+  # Tags with table-specific additions
+  tags = merge(var.tags, {
+    Name      = local.table_name
+    TableType = var.table_type
+  })
   
   # GSI configuration
   global_secondary_indexes = var.global_secondary_indexes != null ? var.global_secondary_indexes : {}

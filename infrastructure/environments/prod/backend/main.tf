@@ -205,7 +205,7 @@ locals {
       }
       event_source_mappings = {
         ttl_updates = {
-          event_source_arn                   = data.terraform_remote_state.datastore.outputs.ttl_updates_queue_arn
+          event_source_arn                   = module.sqs.ttl_updates_queue_arn
           batch_size                         = 10
           maximum_batching_window_in_seconds = 5
           function_response_types            = ["ReportBatchItemFailures"]
@@ -236,7 +236,7 @@ locals {
               "sqs:DeleteMessage",
               "sqs:GetQueueAttributes"
             ]
-            Resource = [data.terraform_remote_state.datastore.outputs.ttl_updates_queue_arn]
+            Resource = [module.sqs.ttl_updates_queue_arn]
           },
           {
             Effect = "Allow"
@@ -430,7 +430,7 @@ locals {
 
 # Lambda Layers using reusable modules
 module "lambda_layers" {
-  source = "../../../modules/lambda-layer"
+  source = "../../../modules/lambda/layer"
 
   for_each = {
     for layer_name, layer_config in local.lambda_layer_configs :
@@ -456,7 +456,7 @@ module "lambda_layers" {
 
 # Lambda Functions using reusable modules
 module "lambda_functions" {
-  source = "../../../modules/lambda-function"
+  source = "../../../modules/lambda/functions"
 
   for_each = local.lambda_services
 
@@ -714,7 +714,7 @@ locals {
 
 # Stripe Webhook Lambda Functions（外部化IAMポリシー使用）
 module "stripe_webhook_functions" {
-  source = "../../../modules/lambda-function"
+  source = "../../../modules/lambda/functions"
 
   for_each = local.stripe_webhook_services
 
@@ -781,7 +781,7 @@ module "stripe_eventbridge_dlq" {
 
 # EventBridge Bus（再利用可能モジュール使用）
 module "stripe_eventbridge_bus" {
-  source = "../../../modules/eventbridge-bus"
+  source = "../../../modules/eventbridge/bus"
 
   bus_name           = "${local.environment}-${local.project_name}-stripe-webhook-bus"
   log_retention_days = var.log_retention_days
@@ -794,7 +794,7 @@ module "stripe_eventbridge_bus" {
 
 # EventBridge Rules & Targets（再利用可能モジュールで各イベント処理）
 module "stripe_eventbridge_rules" {
-  source = "../../../modules/eventbridge-rule"
+  source = "../../../modules/eventbridge/rule"
 
   for_each = {
     payment-succeeded = {
@@ -899,4 +899,16 @@ resource "aws_cloudwatch_metric_alarm" "stripe_dlq_messages" {
     Component = "stripe-eventbridge"
     Purpose   = "monitoring"
   })
+}
+
+# SQS Queues for microservices communication (moved from datastore state)
+module "sqs" {
+  source = "../../../modules/sqs"
+  
+  project_name = local.project_name
+  environment  = local.environment
+  common_tags  = var.common_tags
+  lambda_execution_role_arn = module.lambda_functions["ttl-updater-service"].function_role_arn
+
+  depends_on = [module.lambda_functions]
 }

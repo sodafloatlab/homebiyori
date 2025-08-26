@@ -14,7 +14,7 @@ terraform {
 # Local values for computed configurations
 locals {
   # Bucket naming
-  bucket_name = var.bucket_name_override != null ? var.bucket_name_override : "${var.project_name}-${var.environment}-${var.bucket_type}"
+  bucket_name = "${var.project_name}-${var.environment}-${var.bucket_type}"
   
   # Default tags
   default_tags = {
@@ -88,20 +88,16 @@ resource "aws_s3_bucket_lifecycle_configuration" "this" {
       id     = rule.value.id
       status = rule.value.enabled ? "Enabled" : "Disabled"
 
-      # Filter configuration - ensure at least one attribute is set
-      dynamic "filter" {
-        for_each = rule.value.filter != null ? [rule.value.filter] : []
+      # Filter configuration - always include at least empty filter
+      filter {
+        prefix = lookup(rule.value, "filter", null) != null ? lookup(rule.value.filter, "prefix", null) : null
         
-        content {
-          prefix = lookup(filter.value, "prefix", null)
+        dynamic "tag" {
+          for_each = lookup(rule.value, "filter", null) != null ? coalesce(lookup(rule.value.filter, "tags", null), {}) : {}
           
-          dynamic "tag" {
-            for_each = lookup(filter.value, "tags", {})
-            
-            content {
-              key   = tag.key
-              value = tag.value
-            }
+          content {
+            key   = tag.key
+            value = tag.value
           }
         }
       }
@@ -242,6 +238,3 @@ resource "aws_s3_bucket_logging" "this" {
   }
 }
 
-# Data sources
-data "aws_caller_identity" "current" {}
-data "aws_region" "current" {}

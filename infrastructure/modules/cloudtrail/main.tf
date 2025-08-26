@@ -11,7 +11,7 @@ terraform {
 }
 
 # CloudTrail本体
-resource "aws_cloudtrail" "main" {
+resource "aws_cloudtrail" "this" {
   name           = var.cloudtrail_name
   s3_bucket_name = var.s3_bucket_name
   s3_key_prefix  = var.s3_key_prefix
@@ -57,28 +57,24 @@ resource "aws_cloudtrail" "main" {
     }
   }
 
-  # タグ
-  tags = merge(var.common_tags, {
-    Name        = var.cloudtrail_name
-    Purpose     = "Security Audit Trail"
-    Environment = var.environment
-  })
-
+  tags = {
+    Name = var.cloudtrail_name
+  }
 }
 
 # CloudWatch Logs統合（オプション）
-resource "aws_cloudwatch_log_group" "cloudtrail" {
+resource "aws_cloudwatch_log_group" "this" {
   count             = var.enable_cloudwatch_logs ? 1 : 0
   name              = "/aws/cloudtrail/${var.cloudtrail_name}"
   retention_in_days = var.log_retention_days
 
-  tags = merge(var.common_tags, {
+  tags = {
     Name = "${var.cloudtrail_name}-logs"
-  })
+  }
 }
 
 # CloudWatch Logs用IAMロール
-resource "aws_iam_role" "cloudtrail_logs_role" {
+resource "aws_iam_role" "this" {
   count = var.enable_cloudwatch_logs ? 1 : 0
   name  = "${var.cloudtrail_name}-logs-role"
 
@@ -94,15 +90,13 @@ resource "aws_iam_role" "cloudtrail_logs_role" {
       }
     ]
   })
-
-  tags = var.common_tags
 }
 
 # CloudWatch Logs書き込み権限
-resource "aws_iam_role_policy" "cloudtrail_logs_policy" {
+resource "aws_iam_role_policy" "this" {
   count = var.enable_cloudwatch_logs ? 1 : 0
   name  = "${var.cloudtrail_name}-logs-policy"
-  role  = aws_iam_role.cloudtrail_logs_role[0].id
+  role  = aws_iam_role.this[0].id
 
   policy = jsonencode({
     Version = "2012-10-17"
@@ -124,7 +118,7 @@ resource "aws_iam_role_policy" "cloudtrail_logs_policy" {
 
 
 # CloudTrailイベント分析用のEventBridge統合（オプション）
-resource "aws_cloudtrail_event_data_store" "main" {
+resource "aws_cloudtrail_event_data_store" "this" {
   count                         = var.enable_event_data_store ? 1 : 0
   name                         = "${var.cloudtrail_name}-data-store"
   multi_region_enabled         = true
@@ -138,9 +132,9 @@ resource "aws_cloudtrail_event_data_store" "main" {
     }
   }
 
-  tags = merge(var.common_tags, {
+  tags = {
     Name = "${var.cloudtrail_name}-data-store"
-  })
+  }
 }
 
 # データソース

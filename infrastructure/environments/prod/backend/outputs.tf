@@ -241,3 +241,24 @@ output "api_gateway_log_group_arns" {
     admin = module.admin_api_gateway.cloudwatch_log_group_arn
   }
 }
+
+# SQS Queue Outputs (moved from datastore state)
+output "ttl_updates_queue_url" {
+  description = "URL of the TTL updates SQS queue"
+  value       = module.sqs.ttl_updates_queue_url
+}
+
+output "ttl_updates_queue_arn" {
+  description = "ARN of the TTL updates SQS queue"
+  value       = module.sqs.ttl_updates_queue_arn
+}
+
+output "webhook_events_queue_url" {
+  description = "URL of the webhook events SQS queue"
+  value       = module.sqs.webhook_events_queue_url
+}
+
+output "webhook_events_queue_arn" {
+  description = "ARN of the webhook events SQS queue"
+  value       = module.sqs.webhook_events_queue_arn
+}

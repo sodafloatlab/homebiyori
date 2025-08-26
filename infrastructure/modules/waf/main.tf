@@ -161,9 +161,9 @@ resource "aws_wafv2_web_acl" "main" {
     }
   }
 
-  tags = merge(var.common_tags, {
+  tags = {
     Name = "${var.project_name}-${var.environment}-web-acl"
-  })
+  }
 
   visibility_config {
     cloudwatch_metrics_enabled = true
@@ -181,7 +181,6 @@ resource "aws_wafv2_ip_set" "allowed_ips" {
   ip_address_version = "IPV4"
   addresses          = var.allowed_ips
 
-  tags = var.common_tags
 }
 
 # IP Set for maintenance mode allowed IPs
@@ -193,7 +192,6 @@ resource "aws_wafv2_ip_set" "maintenance_allowed_ips" {
   ip_address_version = "IPV4"
   addresses          = var.maintenance_allowed_ips
 
-  tags = var.common_tags
 }
 
 # Custom response body for maintenance mode
@@ -208,7 +206,6 @@ resource "aws_cloudwatch_log_group" "waf" {
   name              = "/aws/wafv2/${var.project_name}-${var.environment}"
   retention_in_days = var.log_retention_days
 
-  tags = var.common_tags
 }
 
 # WAF Logging Configuration

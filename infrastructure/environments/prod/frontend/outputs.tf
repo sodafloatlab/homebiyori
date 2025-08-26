@@ -1,12 +1,17 @@
-# S3 outputs - referenced from datastore layer
+# S3 Static Bucket outputs (moved from datastore state)
 output "static_bucket_name" {
   description = "Name of the static assets bucket"
-  value       = data.terraform_remote_state.datastore.outputs.static_bucket_name
+  value       = module.static_bucket.bucket_id
 }
 
-output "images_bucket_name" {
-  description = "Name of the images bucket"  
-  value       = data.terraform_remote_state.datastore.outputs.images_bucket_name
+output "static_bucket_arn" {
+  description = "ARN of the static assets bucket"
+  value       = module.static_bucket.bucket_arn
+}
+
+output "static_bucket_domain_name" {
+  description = "Regional domain name of the static assets bucket"
+  value       = module.static_bucket.bucket_regional_domain_name
 }
 
 # CloudFront outputs

@@ -72,21 +72,22 @@ locals {
       attributes = [
         { name = "PK", type = "S" },
         { name = "SK", type = "S" },
-        { name = "GSI1PK", type = "S" },  # FEEDBACK#{feedback_type}#{reason_category}
-        { name = "GSI2PK", type = "S" },  # FEEDBACK#{feedback_type}#{satisfaction_score}
-        { name = "created_at", type = "S" }   # GSI1SK、GSI2SKで共通使用
+        { name = "feedback_type", type = "S" },    # GSI1PK
+        { name = "reason_category", type = "S" },   # GSI1SK
+        { name = "satisfaction_score", type = "S" }, # GSI2PK
+        { name = "created_at", type = "S" }          # GSI2SK
       ]
       global_secondary_indexes = {
-        # カテゴリー別分析GSI
+        # 理由カテゴリ別分析GSI (design_database.md準拠)
         GSI1 = {
-          hash_key        = "GSI1PK"      # FEEDBACK#{feedback_type}#{reason_category}
-          range_key       = "created_at"  # 時系列分析
+          hash_key        = "feedback_type"     # subscription_cancellation|account_deletion
+          range_key       = "reason_category"   # price|features|usability|competitors|other
           projection_type = "ALL"
         }
-        # 満足度別分析GSI
+        # 満足度スコア別分析GSI (design_database.md準拠)
         GSI2 = {
-          hash_key        = "GSI2PK"      # FEEDBACK#{feedback_type}#{satisfaction_score}
-          range_key       = "created_at"  # 時系列分析
+          hash_key        = "satisfaction_score" # 1-5
+          range_key       = "created_at"         # 時系列分析
           projection_type = "ALL"
         }
       }
@@ -114,14 +115,6 @@ locals {
       }
     }
   }
-  
-  # Common tags
-  common_tags = merge(var.common_tags, {
-    Environment = local.environment
-    Project     = local.project_name
-    ManagedBy   = "terraform"
-    Layer       = "datastore"
-  })
 }
 
 # DynamoDB Tables using reusable modules
@@ -150,102 +143,16 @@ module "dynamodb_tables" {
   point_in_time_recovery_enabled = var.enable_point_in_time_recovery
   server_side_encryption_enabled = true
   
-  tags = merge(local.common_tags, {
+  tags = {
     TableType = each.value.table_type
-  })
+  }
 }
 
 # S3 Buckets using reusable modules
-module "chat_content_bucket" {
-  source = "../../../modules/s3"
-  
-  project_name = local.project_name
-  environment  = local.environment
-  bucket_type  = "chat-content"
-  bucket_purpose = "Store chat messages and conversation content"
-  
-  enable_versioning = false
-  
-  # Lifecycle configuration for cost optimization
-  lifecycle_rules = [
-    {
-      id      = "chat_content_lifecycle"
-      enabled = true
-      transitions = [
-        {
-          days          = 30
-          storage_class = "STANDARD_IA"
-        },
-        {
-          days          = 90
-          storage_class = "GLACIER_IR"
-        },
-        {
-          days          = 365
-          storage_class = "DEEP_ARCHIVE"
-        }
-      ]
-    }
-  ]
-  
-  tags = merge(local.common_tags, {
-    BucketType = "chat-content"
-    Purpose    = "long-term-storage"
-  })
-}
 
-module "images_bucket" {
-  source = "../../../modules/s3"
-  
-  project_name = local.project_name
-  environment  = local.environment
-  bucket_type  = "images"
-  bucket_purpose = "Store user uploaded images"
-  
-  enable_versioning = false
-  
-  # Lifecycle configuration for cost optimization
-  lifecycle_rules = [
-    {
-      id      = "images_lifecycle"
-      enabled = true
-      transitions = [
-        {
-          days          = 30
-          storage_class = "STANDARD_IA"
-        },
-        {
-          days          = 90
-          storage_class = "GLACIER_IR"
-        }
-      ]
-    }
-  ]
-  
-  tags = merge(local.common_tags, {
-    BucketType = "images"
-    Purpose    = "user-content"
-  })
-}
-
-module "static_bucket" {
-  source = "../../../modules/s3"
-  
-  project_name = local.project_name
-  environment  = local.environment
-  bucket_type  = "static"
-  bucket_purpose = "Store static website assets"
-  
-  enable_versioning = true
-  
-  tags = merge(local.common_tags, {
-    BucketType = "static"
-    Purpose    = "website-hosting"
-  })
-}
 
 module "logs_bucket" {
-  source = "../../../modules/s3"
+  source = "../../../modules/s3/app"
   
   project_name = local.project_name
   environment  = local.environment
@@ -259,38 +166,22 @@ module "logs_bucket" {
     {
       id      = "logs_lifecycle"
       enabled = true
+      filter  = {}  # Apply to all objects
       transitions = [
         {
-          days          = 30
-          storage_class = "STANDARD_IA"
-        },
-        {
-          days          = 90
-          storage_class = "GLACIER_IR"
-        },
-        {
-          days          = 365
-          storage_class = "DEEP_ARCHIVE"
+          days          = var.logs_transition_to_glacier_days
+          storage_class = "GLACIER"
         }
       ]
       expiration = {
-        days = 2555  # 7 years retention for logs
+        days = var.logs_expiration_days
       }
     }
   ]
   
-  tags = merge(local.common_tags, {
+  tags = {
     BucketType = "logs"
     Purpose    = "log-storage"
-  })
+  }
 }
 
-# SQS Queues for microservices communication
-module "sqs" {
-  source = "../../../modules/sqs"
-  
-  project_name                = local.project_name
-  environment                 = local.environment
-  common_tags                 = local.common_tags
-  lambda_execution_role_arn   = "*"  # Will be updated after backend is deployed
-}

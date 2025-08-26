@@ -12,6 +12,29 @@ locals {
   })
 }
 
+# S3 Static Bucket (moved from datastore state)
+module "static_bucket" {
+  source = "../../../modules/s3/app"
+  
+  project_name = local.project_name
+  environment  = local.environment
+  bucket_type  = "static"
+  bucket_purpose = "Store static website assets for CloudFront distribution"
+  
+  enable_versioning = true
+  
+  # CloudFront OAC integration requires specific public access settings
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
+  
+  tags = merge(local.common_tags, {
+    BucketType = "static"
+    Purpose    = "website-hosting"
+    Integration = "cloudfront-oac"
+  })
+}
 
 # WAF for security
 module "waf" {
@@ -37,11 +60,9 @@ module "cloudfront" {
   environment                 = local.environment
   common_tags                 = local.common_tags
   
-  # S3 bucket information from datastore layer
-  static_bucket_name          = data.terraform_remote_state.datastore.outputs.static_bucket_name
-  static_bucket_domain_name   = "${data.terraform_remote_state.datastore.outputs.static_bucket_name}.s3.${var.aws_region}.amazonaws.com"
-  images_bucket_name          = data.terraform_remote_state.datastore.outputs.images_bucket_name
-  images_bucket_domain_name   = "${data.terraform_remote_state.datastore.outputs.images_bucket_name}.s3.${var.aws_region}.amazonaws.com"
+  # S3 bucket information from local static bucket
+  static_bucket_name          = module.static_bucket.bucket_id
+  static_bucket_domain_name   = module.static_bucket.bucket_regional_domain_name
   
   # API Gateway information from backend layer  
   api_gateway_url             = data.terraform_remote_state.backend.outputs.user_api_gateway_url

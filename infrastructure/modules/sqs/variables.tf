@@ -10,11 +10,6 @@ variable "environment" {
   type        = string
 }
 
-variable "common_tags" {
-  description = "Common tags to apply to all resources"
-  type        = map(string)
-  default     = {}
-}
 
 variable "lambda_execution_role_arn" {
   description = "ARN of the Lambda execution role for SQS permissions"

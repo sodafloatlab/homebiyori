@@ -16,29 +16,11 @@ variable "project_name" {
   default     = "homebiyori"
 }
 
-# S3バケット設定
-variable "enable_mfa_delete" {
-  description = "MFA削除保護を有効にするか（本番環境推奨）"
-  type        = bool
-  default     = false  # 初期設定では無効（rootユーザー+MFA必要のため）
-}
-
-variable "transition_to_ia_days" {
-  description = "Standard-IAストレージクラスへの移行日数"
-  type        = number
-  default     = 30
-}
-
+# S3ライフサイクル設定
 variable "transition_to_glacier_days" {
   description = "Glacierストレージクラスへの移行日数"
   type        = number
   default     = 90
-}
-
-variable "transition_to_deep_archive_days" {
-  description = "Deep Archiveストレージクラスへの移行日数"
-  type        = number
-  default     = 365
 }
 
 variable "noncurrent_version_expiration_days" {
@@ -47,9 +29,10 @@ variable "noncurrent_version_expiration_days" {
   default     = 2555  # 約7年
 }
 
-variable "bucket_size_alarm_threshold" {
-  description = "バケットサイズアラームのしきい値（バイト）"
-  type        = number
-  default     = 107374182400  # 100GB
+# S3バケット削除保護設定
+variable "enable_mfa_delete" {
+  description = "S3バケットのMFA削除を有効にするか（本番環境ではtrue推奨）"
+  type        = bool
+  default     = false
 }
 

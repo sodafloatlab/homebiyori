@@ -8,11 +8,6 @@ variable "environment" {
   type        = string
 }
 
-variable "common_tags" {
-  description = "Common tags to apply to all resources"
-  type        = map(string)
-  default     = {}
-}
 
 variable "rate_limit" {
   description = "Rate limit for requests per 5-minute window"

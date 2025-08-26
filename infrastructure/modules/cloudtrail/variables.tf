@@ -21,12 +21,6 @@ variable "environment" {
   type        = string
 }
 
-variable "common_tags" {
-  description = "共通タグ"
-  type        = map(string)
-  default     = {}
-}
-
 # データイベント監査対象
 variable "dynamodb_tables_to_audit" {
   description = "監査対象のDynamoDBテーブルARNリスト"

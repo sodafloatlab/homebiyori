@@ -23,18 +23,7 @@ locals {
 resource "aws_iam_role" "firehose_delivery_role" {
   name = "${local.project_name}-${local.environment}-firehose-logs-role"
 
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Effect = "Allow"
-        Principal = {
-          Service = "firehose.amazonaws.com"
-        }
-        Action = "sts:AssumeRole"
-      }
-    ]
-  })
+  assume_role_policy = file("${path.module}/policies/firehose_assume_role_policy.json")
 
   tags = merge(local.layer_tags, {
     Component = "logging"
@@ -47,32 +36,8 @@ resource "aws_iam_role_policy" "firehose_delivery_policy" {
   name = "${local.project_name}-${local.environment}-firehose-logs-policy"
   role = aws_iam_role.firehose_delivery_role.id
 
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Effect = "Allow"
-        Action = [
-          "s3:AbortMultipartUpload",
-          "s3:GetBucketLocation",
-          "s3:GetObject",
-          "s3:ListBucket",
-          "s3:ListBucketMultipartUploads",
-          "s3:PutObject"
-        ]
-        Resource = [
-          data.terraform_remote_state.datastore.outputs.logs_bucket_arn,
-          "${data.terraform_remote_state.datastore.outputs.logs_bucket_arn}/*"
-        ]
-      },
-      {
-        Effect = "Allow"
-        Action = [
-          "logs:PutLogEvents"
-        ]
-        Resource = "*"
-      }
-    ]
+  policy = templatefile("${path.module}/policies/firehose_delivery_policy.json", {
+    logs_bucket_arn = data.terraform_remote_state.datastore.outputs.logs_bucket_arn
   })
 }
 
@@ -106,18 +71,7 @@ module "logs_delivery_stream" {
 resource "aws_iam_role" "cloudwatch_logs_role" {
   name = "${local.project_name}-${local.environment}-cloudwatch-logs-role"
 
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Effect = "Allow"
-        Principal = {
-          Service = "logs.amazonaws.com"
-        }
-        Action = "sts:AssumeRole"
-      }
-    ]
-  })
+  assume_role_policy = file("${path.module}/policies/cloudwatch_logs_assume_role_policy.json")
 
   tags = merge(local.layer_tags, {
     Component = "logging" 
@@ -130,18 +84,8 @@ resource "aws_iam_role_policy" "cloudwatch_logs_policy" {
   name = "${local.project_name}-${local.environment}-cloudwatch-logs-policy"
   role = aws_iam_role.cloudwatch_logs_role.id
 
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Effect = "Allow"
-        Action = [
-          "firehose:PutRecord",
-          "firehose:PutRecordBatch"
-        ]
-        Resource = module.logs_delivery_stream.delivery_stream_arn
-      }
-    ]
+  policy = templatefile("${path.module}/policies/cloudwatch_logs_policy.json", {
+    delivery_stream_arn = module.logs_delivery_stream.delivery_stream_arn
   })
 }
 

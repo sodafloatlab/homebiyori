@@ -13,7 +13,7 @@ terraform {
 }
 
 # 1. TTL Updates Queue - For subscription plan changes
-resource "aws_sqs_queue" "ttl_updates" {
+resource "aws_sqs_queue" "this" {
   name                       = "${var.project_name}-${var.environment}-ttl-updates"
   delay_seconds              = 0
   max_message_size           = 262144
@@ -23,30 +23,27 @@ resource "aws_sqs_queue" "ttl_updates" {
 
   # Dead letter queue configuration
   redrive_policy = jsonencode({
-    deadLetterTargetArn = aws_sqs_queue.ttl_updates_dlq.arn
+    deadLetterTargetArn = aws_sqs_queue.dlq.arn
     maxReceiveCount     = 3
   })
 
-  tags = merge(var.common_tags, {
-    Name     = "${var.project_name}-${var.environment}-ttl-updates"
-    Type     = "ttl-management"
-    Consumer = "ttl_updater_service"
-  })
+  tags = {
+    Name = "${var.project_name}-${var.environment}-ttl-updates"
+  }
 }
 
 # TTL Updates Dead Letter Queue
-resource "aws_sqs_queue" "ttl_updates_dlq" {
+resource "aws_sqs_queue" "dlq" {
   name                       = "${var.project_name}-${var.environment}-ttl-updates-dlq"
   message_retention_seconds  = 1209600  # 14 days
 
-  tags = merge(var.common_tags, {
+  tags = {
     Name = "${var.project_name}-${var.environment}-ttl-updates-dlq"
-    Type = "dead-letter-queue"
-  })
+  }
 }
 
 # 2. Webhook Events Queue - For Stripe webhook processing
-resource "aws_sqs_queue" "webhook_events" {
+resource "aws_sqs_queue" "webhook" {
   name                       = "${var.project_name}-${var.environment}-webhook-events"
   delay_seconds              = 0
   max_message_size           = 262144
@@ -56,31 +53,28 @@ resource "aws_sqs_queue" "webhook_events" {
 
   # Dead letter queue configuration
   redrive_policy = jsonencode({
-    deadLetterTargetArn = aws_sqs_queue.webhook_events_dlq.arn
+    deadLetterTargetArn = aws_sqs_queue.webhook_dlq.arn
     maxReceiveCount     = 3
   })
 
-  tags = merge(var.common_tags, {
-    Name     = "${var.project_name}-${var.environment}-webhook-events"
-    Type     = "webhook-processing"
-    Consumer = "webhook_service"
-  })
+  tags = {
+    Name = "${var.project_name}-${var.environment}-webhook-events"
+  }
 }
 
 # Webhook Events Dead Letter Queue
-resource "aws_sqs_queue" "webhook_events_dlq" {
+resource "aws_sqs_queue" "webhook_dlq" {
   name                       = "${var.project_name}-${var.environment}-webhook-events-dlq"
   message_retention_seconds  = 1209600  # 14 days
 
-  tags = merge(var.common_tags, {
+  tags = {
     Name = "${var.project_name}-${var.environment}-webhook-events-dlq"
-    Type = "dead-letter-queue"
-  })
+  }
 }
 
 # SQS Queue Policies for Lambda access
-resource "aws_sqs_queue_policy" "ttl_updates_policy" {
-  queue_url = aws_sqs_queue.ttl_updates.id
+resource "aws_sqs_queue_policy" "this" {
+  queue_url = aws_sqs_queue.this.id
 
   policy = jsonencode({
     Version = "2012-10-17"
@@ -95,14 +89,14 @@ resource "aws_sqs_queue_policy" "ttl_updates_policy" {
           "sqs:DeleteMessage",
           "sqs:GetQueueAttributes"
         ]
-        Resource = aws_sqs_queue.ttl_updates.arn
+        Resource = aws_sqs_queue.this.arn
       }
     ]
   })
 }
 
-resource "aws_sqs_queue_policy" "webhook_events_policy" {
-  queue_url = aws_sqs_queue.webhook_events.id
+resource "aws_sqs_queue_policy" "webhook" {
+  queue_url = aws_sqs_queue.webhook.id
 
   policy = jsonencode({
     Version = "2012-10-17"
@@ -118,7 +112,7 @@ resource "aws_sqs_queue_policy" "webhook_events_policy" {
           "sqs:DeleteMessage",
           "sqs:GetQueueAttributes"
         ]
-        Resource = aws_sqs_queue.webhook_events.arn
+        Resource = aws_sqs_queue.webhook.arn
       }
     ]
   })

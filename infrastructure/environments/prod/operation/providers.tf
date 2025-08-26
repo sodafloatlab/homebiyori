@@ -28,6 +28,7 @@ provider "aws" {
       Project     = "homebiyori"
       Environment = var.environment
       ManagedBy   = "terraform"
+      Layer       = "operation"
     }
   }
 }

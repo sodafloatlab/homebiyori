@@ -29,19 +29,6 @@ resource "aws_cloudfront_distribution" "main" {
     }
   }
 
-  # Origin for images (S3)
-  origin {
-    domain_name              = var.images_bucket_domain_name
-    origin_id                = "S3-${var.images_bucket_name}"
-    origin_access_control_id = aws_cloudfront_origin_access_control.main.id
-
-    custom_origin_config {
-      http_port              = 80
-      https_port             = 443
-      origin_protocol_policy = "https-only"
-      origin_ssl_protocols   = ["TLSv1.2"]
-    }
-  }
 
   # Origin for API Gateway
   origin {
@@ -78,27 +65,6 @@ resource "aws_cloudfront_distribution" "main" {
     compress = true
   }
 
-  # Cache behavior for images
-  ordered_cache_behavior {
-    path_pattern     = "/images/*"
-    allowed_methods  = ["GET", "HEAD", "OPTIONS"]
-    cached_methods   = ["GET", "HEAD"]
-    target_origin_id = "S3-${var.images_bucket_name}"
-
-    forwarded_values {
-      query_string = false
-      cookies {
-        forward = "none"
-      }
-    }
-
-    viewer_protocol_policy = "redirect-to-https"
-    min_ttl                = 0
-    default_ttl            = 86400   # 24 hours
-    max_ttl                = 31536000 # 1 year
-
-    compress = true
-  }
 
   # Cache behavior for API requests
   ordered_cache_behavior {
@@ -157,9 +123,9 @@ resource "aws_cloudfront_distribution" "main" {
   # WAF association
   web_acl_id = var.waf_web_acl_id
 
-  tags = merge(var.common_tags, {
+  tags = {
     Name = "${var.project_name}-${var.environment}-cloudfront"
-  })
+  }
 }
 
 # CloudFront Origin Request Policy for API Gateway
@@ -207,4 +173,28 @@ resource "aws_cloudfront_cache_policy" "static_assets" {
     enable_accept_encoding_brotli = true
     enable_accept_encoding_gzip   = true
   }
+}
+
+# S3 Bucket Policy for CloudFront OAC
+resource "aws_s3_bucket_policy" "static_bucket_policy" {
+  bucket = var.static_bucket_name
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid       = "AllowCloudFrontServicePrincipal"
+        Effect    = "Allow"
+        Principal = {
+          Service = "cloudfront.amazonaws.com"
+        }
+        Action   = "s3:GetObject"
+        Resource = "arn:aws:s3:::${var.static_bucket_name}/*"
+        Condition = {
+          StringEquals = {
+            "AWS:SourceArn" = aws_cloudfront_distribution.main.arn
+          }
+        }
+      }
+    ]
+  })
 }

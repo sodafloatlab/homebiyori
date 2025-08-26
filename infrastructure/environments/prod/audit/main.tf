@@ -1,60 +1,33 @@
 # 本番環境監査ログ設定
-# CloudTrail + S3による包括的な監査ログ基盤
+# CloudTrail + S3によるシンプルな監査ログ基盤
 
-# プロジェクト共通変数読み込み
 locals {
   project_name = var.project_name
   environment  = var.environment
   
   # 監査ログ用の命名規則
-  audit_bucket_name    = "${local.project_name}-${local.environment}-audit-logs"
-  cloudtrail_name      = "${local.project_name}-${local.environment}-audit-trail"
-  security_topic_name  = "${local.project_name}-${local.environment}-security-alerts"
-  
-  # 共通タグ
-  common_tags = {
-    Project     = local.project_name
-    Environment = local.environment
-    Purpose     = "security-audit"
-    Compliance  = "SOC2-ISO27001"
-  }
+  audit_bucket_name = "${local.project_name}-${local.environment}-audit-logs"
+  cloudtrail_name   = "${local.project_name}-${local.environment}-audit-trail"
 }
-
-# CloudTrailと監査ログS3のみに絞った構成
 
 # 監査ログ専用S3バケット
 module "audit_s3_bucket" {
-  source = "../../../modules/audit-s3"
+  source = "../../../modules/s3/audit"
 
   # 基本設定
-  bucket_name = local.audit_bucket_name
-  environment = local.environment
+  bucket_name   = local.audit_bucket_name
+  force_destroy = false
 
-  # セキュリティ設定
-  enable_mfa_delete = var.enable_mfa_delete
-  kms_key_id       = null  # 新規KMSキー作成
-
-  # ライフサイクル設定（コンプライアンス要件）
-  transition_to_ia_days               = var.transition_to_ia_days
-  transition_to_glacier_days          = var.transition_to_glacier_days
-  transition_to_deep_archive_days     = var.transition_to_deep_archive_days
-  noncurrent_version_expiration_days  = var.noncurrent_version_expiration_days
-
-  # 通知機能は無効化
-  enable_notifications         = false
-  security_alert_topic_arn     = null
-
-  # 基本監視のみ有効
-  enable_cloudwatch_monitoring = false
-  bucket_size_alarm_threshold  = var.bucket_size_alarm_threshold
-  alarm_sns_topic_arns        = []
-
-  # アクセスログは無効化
-  enable_access_logging    = false
-  access_log_bucket_name   = null
-
-  # タグ
-  common_tags = local.common_tags
+  # ライフサイクル設定（90日後Glacier、7年後削除）
+  transition_to_glacier_days         = var.transition_to_glacier_days
+  noncurrent_version_expiration_days = var.noncurrent_version_expiration_days
+  
+  # バケットポリシー（JSON外だし）
+  bucket_policy = templatefile("${path.module}/policies/cloudtrail_bucket_policy.json", {
+    bucket_arn = "arn:aws:s3:::${local.audit_bucket_name}"
+    region     = data.aws_region.current.name
+    account_id = data.aws_caller_identity.current.account_id
+  })
 }
 
 # CloudTrail監査設定
@@ -85,9 +58,6 @@ module "cloudtrail" {
   enable_insights         = false
   enable_event_data_store = false
   log_retention_days      = 90
-
-  # タグ
-  common_tags = local.common_tags
 
   depends_on = [module.audit_s3_bucket]
 }

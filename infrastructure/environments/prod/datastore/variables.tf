@@ -31,3 +31,16 @@ variable "enable_point_in_time_recovery" {
   type        = bool
   default     = true
 }
+
+# S3 Logs Bucket lifecycle variables
+variable "logs_transition_to_glacier_days" {
+  description = "Number of days after which logs are transitioned to Glacier"
+  type        = number
+  default     = 90
+}
+
+variable "logs_expiration_days" {
+  description = "Number of days after which logs are permanently deleted"
+  type        = number
+  default     = 400
+}

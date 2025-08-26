@@ -50,36 +50,6 @@ output "payments_table_arn" {
 }
 
 # S3 Bucket Outputs
-output "chat_content_bucket_name" {
-  description = "Name of the chat content S3 bucket"
-  value       = module.chat_content_bucket.bucket_id
-}
-
-output "chat_content_bucket_arn" {
-  description = "ARN of the chat content S3 bucket"
-  value       = module.chat_content_bucket.bucket_arn
-}
-
-output "images_bucket_name" {
-  description = "Name of the images S3 bucket"
-  value       = module.images_bucket.bucket_id
-}
-
-output "images_bucket_arn" {
-  description = "ARN of the images S3 bucket"
-  value       = module.images_bucket.bucket_arn
-}
-
-output "static_bucket_name" {
-  description = "Name of the static S3 bucket"
-  value       = module.static_bucket.bucket_id
-}
-
-output "static_bucket_arn" {
-  description = "ARN of the static S3 bucket"
-  value       = module.static_bucket.bucket_arn
-}
-
 output "logs_bucket_name" {
   description = "Name of the logs S3 bucket"
   value       = module.logs_bucket.bucket_id
@@ -108,40 +78,13 @@ output "dynamodb_table_arns" {
 output "s3_bucket_names" {
   description = "Map of all S3 bucket names"
   value = {
-    chat-content = module.chat_content_bucket.bucket_id
-    images       = module.images_bucket.bucket_id
-    static       = module.static_bucket.bucket_id
-    logs         = module.logs_bucket.bucket_id
+    logs = module.logs_bucket.bucket_id
   }
 }
 
 output "s3_bucket_arns" {
   description = "Map of all S3 bucket ARNs"
   value = {
-    chat-content = module.chat_content_bucket.bucket_arn
-    images       = module.images_bucket.bucket_arn
-    static       = module.static_bucket.bucket_arn
-    logs         = module.logs_bucket.bucket_arn
+    logs = module.logs_bucket.bucket_arn
   }
-}
-
-# SQS Queue Outputs
-output "ttl_updates_queue_url" {
-  description = "URL of the TTL updates SQS queue"
-  value       = module.sqs.ttl_updates_queue_url
-}
-
-output "ttl_updates_queue_arn" {
-  description = "ARN of the TTL updates SQS queue"
-  value       = module.sqs.ttl_updates_queue_arn
-}
-
-output "webhook_events_queue_url" {
-  description = "URL of the webhook events SQS queue"
-  value       = module.sqs.webhook_events_queue_url
-}
-
-output "webhook_events_queue_arn" {
-  description = "ARN of the webhook events SQS queue"
-  value       = module.sqs.webhook_events_queue_arn
 }

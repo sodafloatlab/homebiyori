@@ -8,11 +8,6 @@ variable "environment" {
   type        = string
 }
 
-variable "common_tags" {
-  description = "Common tags to apply to all resources"
-  type        = map(string)
-  default     = {}
-}
 
 variable "static_bucket_name" {
   description = "Name of the S3 bucket for static assets"
@@ -21,16 +16,6 @@ variable "static_bucket_name" {
 
 variable "static_bucket_domain_name" {
   description = "Domain name of the S3 bucket for static assets"
-  type        = string
-}
-
-variable "images_bucket_name" {
-  description = "Name of the S3 bucket for images"
-  type        = string
-}
-
-variable "images_bucket_domain_name" {
-  description = "Domain name of the S3 bucket for images"
   type        = string
 }
 
