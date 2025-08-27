@@ -1,21 +1,30 @@
-'use client';
+/**
+ * FAQ Page - SSG対応版
+ * 
+ * ■機能概要■
+ * - よくある質問ページ（SSG最適化）
+ * - 静的生成でSEO最適化
+ * - メタデータ最適化
+ */
 
-import React, { useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { ArrowLeft, Home, ChevronDown, ChevronUp, HelpCircle, Search, User, Crown, MessageCircle, Settings, Shield, Mail } from 'lucide-react';
-import Breadcrumb from '@/components/ui/Breadcrumb';
-import Footer from '@/components/layout/Footer';
-import { motion, AnimatePresence } from 'framer-motion';
+import type { Metadata } from 'next';
+import FAQClient from '@/components/features/faq/FAQClient';
 
-interface FAQItem {
-  id: string;
-  category: string;
-  question: string;
-  answer: string;
-  keywords: string[];
-}
+// メタデータ設定（SSG対応）
+export const metadata: Metadata = {
+  title: 'よくある質問 - ほめびより',
+  description: 'ほめびよりのよくある質問と回答。アカウント作成、AIキャラクター、プレミアム機能、技術的問題など、サービスに関するQ&Aをまとめています。',
+  keywords: ['よくある質問', 'FAQ', 'Q&A', 'サポート', 'ヘルプ', 'ほめびより'],
+  openGraph: {
+    title: 'よくある質問 - ほめびより',
+    description: 'ほめびよりのよくある質問と回答をまとめています。お探しの情報がきっと見つかります。',
+    type: 'website',
+    locale: 'ja_JP',
+  },
+};
 
-const faqData: FAQItem[] = [
+// 静的FAQデータ
+const faqData = [
   // アカウント・ログイン関連
   {
     id: 'account-1',
@@ -44,8 +53,8 @@ const faqData: FAQItem[] = [
     id: 'character-1',
     category: 'character',
     question: 'AIキャラクターの違いは何ですか？',
-    answer: 'たまさんは温かく包み込むような優しさ、まどか姉さんは明るく前向きなエネルギー、ヒデじいは人生経験豊富な深い洞察力が特徴です。それぞれ異なる個性で、あなたの育児を支えてくれます。',
-    keywords: ['たまさん', 'まどか姉さん', 'ヒデじい', 'キャラクター', '個性', '違い']
+    answer: 'みっちゃんは温かく包み込むような優しさ、まどかさんは明るく前向きなエネルギー、ヒデじいは人生経験豊富な深い洞察力が特徴です。それぞれ異なる個性で、あなたの育児を支えてくれます。',
+    keywords: ['みっちゃん', 'まどかさん', 'ヒデじい', 'キャラクター', '個性', '違い']
   },
   {
     id: 'character-2',
@@ -65,28 +74,21 @@ const faqData: FAQItem[] = [
   // 機能・使い方関連
   {
     id: 'usage-1',
-    category: 'usage',
+    category: 'tree',
     question: '成長の木はどのように成長しますか？',
     answer: 'チャットでの文字数に応じて木が成長します。AIとの会話を続けることで、あなたの育児努力が可視化され、達成感を得られます。6つの成長段階があり、それぞれ異なる見た目になります。',
     keywords: ['成長の木', '文字数', '可視化', '達成感', '段階']
   },
   {
-    id: 'usage-4',
-    category: 'usage',
-    question: '無料版でも利用できますか？',
-    answer: 'はい、無料版でもほめびよりの全ての基本機能をご利用いただけます。チャット履歴は30日間保存され、ほめの実の記録は永続的に残ります。プレミアム版では、ディープモード、グループチャット、チャット履歴の180日保存が追加されます。',
-    keywords: ['無料', '無料版', 'チャット履歴', '30日間', 'ほめの実', '永続']
-  },
-  {
     id: 'usage-2',
-    category: 'usage',
+    category: 'tree',
     question: 'ほめの実とは何ですか？',
     answer: 'AIがあなたの感情を検出した際に生成される特別なメッセージです。疲れや喜び、愛情などの感情が込められた会話から、AIが「ほめの実」として褒めの言葉を残してくれます。',
     keywords: ['ほめの実', '感情', '検出', '褒め', 'メッセージ']
   },
   {
     id: 'usage-3',
-    category: 'usage',
+    category: 'character',
     question: '褒めモードと聞くモードの違いは？',
     answer: '褒めモードはあなたの頑張りを積極的に褒めてくれるモード、聞くモードは話を聞いて共感してくれるモードです。今の気分に合わせて選択してください。',
     keywords: ['褒めモード', '聞くモード', '違い', '気分', '共感']
@@ -115,22 +117,6 @@ const faqData: FAQItem[] = [
     keywords: ['解約', 'キャンセル', '途中', '期間', 'プレミアム']
   },
 
-  // 技術的な問題
-  {
-    id: 'technical-1',
-    category: 'technical',
-    question: 'アプリが重い・遅いです',
-    answer: 'ブラウザのキャッシュをクリアする、他のタブを閉じる、ページを再読み込みするなどを試してください。それでも改善しない場合は、ご利用の端末やブラウザの情報と合わせてお問い合わせください。',
-    keywords: ['重い', '遅い', 'キャッシュ', '再読み込み', 'ブラウザ']
-  },
-  {
-    id: 'technical-2',
-    category: 'technical',
-    question: 'スマートフォンで正しく表示されません',
-    answer: 'ほめびよりはモバイルファーストで設計されており、スマートフォンでの利用を推奨しています。表示に問題がある場合は、ブラウザを最新版に更新してください。',
-    keywords: ['スマートフォン', 'モバイル', '表示', 'ブラウザ', '更新']
-  },
-
   // プライバシー・セキュリティ
   {
     id: 'privacy-1',
@@ -145,307 +131,25 @@ const faqData: FAQItem[] = [
     question: 'チャット内容は保存されますか？',
     answer: 'チャット履歴はより良いサービス提供のために一定期間保存されますが、個人を特定する情報と紐付けることなく、匿名化された形で処理されます。',
     keywords: ['チャット', '履歴', '保存', '匿名化', 'サービス向上']
+  },
+
+  // サポート
+  {
+    id: 'support-1',
+    category: 'support',
+    question: 'アプリが重い・遅いです',
+    answer: 'ブラウザのキャッシュをクリアする、他のタブを閉じる、ページを再読み込みするなどを試してください。それでも改善しない場合は、ご利用の端末やブラウザの情報と合わせてお問い合わせください。',
+    keywords: ['重い', '遅い', 'キャッシュ', '再読み込み', 'ブラウザ']
+  },
+  {
+    id: 'support-2',
+    category: 'support',
+    question: 'スマートフォンで正しく表示されません',
+    answer: 'ほめびよりはモバイルファーストで設計されており、スマートフォンでの利用を推奨しています。表示に問題がある場合は、ブラウザを最新版に更新してください。',
+    keywords: ['スマートフォン', 'モバイル', '表示', 'ブラウザ', '更新']
   }
 ];
 
-const categories = [
-  { id: 'all', label: 'すべて', icon: <HelpCircle className="w-4 h-4" /> },
-  { id: 'account', label: 'アカウント・ログイン', icon: <User className="w-4 h-4" /> },
-  { id: 'character', label: 'AIキャラクター', icon: <MessageCircle className="w-4 h-4" /> },
-  { id: 'usage', label: '機能・使い方', icon: <Settings className="w-4 h-4" /> },
-  { id: 'premium', label: 'プレミアム機能', icon: <Crown className="w-4 h-4" /> },
-  { id: 'technical', label: '技術的な問題', icon: <Settings className="w-4 h-4" /> },
-  { id: 'privacy', label: 'プライバシー', icon: <Shield className="w-4 h-4" /> }
-];
-
 export default function FAQPage() {
-  const router = useRouter();
-  const [searchQuery, setSearchQuery] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState('all');
-  const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
-
-  const handleNavigate = (screen: string) => {
-    console.log('Navigate to:', screen);
-  };
-
-  const breadcrumbItems = [
-    {
-      label: 'ホーム',
-      href: '/',
-      icon: <Home className="w-4 h-4" />
-    },
-    {
-      label: 'よくある質問',
-      href: '/faq'
-    }
-  ];
-
-  // フィルタリング機能
-  const filteredFAQs = faqData.filter(item => {
-    const matchesCategory = selectedCategory === 'all' || item.category === selectedCategory;
-    const matchesSearch = searchQuery === '' || 
-      item.question.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      item.answer.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      item.keywords.some(keyword => keyword.toLowerCase().includes(searchQuery.toLowerCase()));
-    
-    return matchesCategory && matchesSearch;
-  });
-
-  // アコーディオンの開閉
-  const toggleExpanded = (id: string) => {
-    const newExpanded = new Set(expandedItems);
-    if (newExpanded.has(id)) {
-      newExpanded.delete(id);
-    } else {
-      newExpanded.add(id);
-    }
-    setExpandedItems(newExpanded);
-  };
-
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-green-50 to-lime-50">
-      {/* ヘッダー */}
-      <div className="bg-white/95 backdrop-blur-md border-b border-emerald-100 sticky top-0 z-40">
-        <div className="max-w-4xl mx-auto px-4 py-3">
-          {/* メインヘッダー */}
-          <div className="flex items-center justify-between">
-            {/* 左側：戻るボタンとタイトル */}
-            <div className="flex items-center space-x-3">
-              <motion.button
-                onClick={() => router.push('/')}
-                className="p-2 rounded-xl hover:bg-emerald-50 transition-colors group"
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-              >
-                <ArrowLeft className="w-5 h-5 text-emerald-600 group-hover:text-emerald-700" />
-              </motion.button>
-              
-              <div>
-                <h1 className="text-xl font-bold text-emerald-800">よくある質問</h1>
-                <p className="text-sm text-emerald-600 mt-0.5">お困りの際はこちらをご確認ください</p>
-              </div>
-            </div>
-
-            {/* 右側：ホームボタン */}
-            <div className="flex items-center space-x-2">
-              <motion.button
-                onClick={() => router.push('/')}
-                className="p-2 rounded-xl hover:bg-emerald-50 transition-colors group"
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                title="ホームに戻る"
-              >
-                <Home className="w-5 h-5 text-emerald-600 group-hover:text-emerald-700" />
-              </motion.button>
-            </div>
-          </div>
-
-          {/* パンくずナビゲーション */}
-          <motion.div 
-            className="mt-3 pt-3 border-t border-emerald-50"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.1 }}
-          >
-            <Breadcrumb items={breadcrumbItems} />
-          </motion.div>
-        </div>
-
-        {/* プログレスバー */}
-        <motion.div 
-          className="h-0.5 bg-gradient-to-r from-emerald-500 to-green-400"
-          initial={{ scaleX: 0 }}
-          animate={{ scaleX: 1 }}
-          transition={{ duration: 0.5, delay: 0.2 }}
-          style={{ transformOrigin: 'left' }}
-        />
-      </div>
-
-      <div className="max-w-4xl mx-auto p-6">
-        {/* ヘッダー */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="text-center mb-8"
-        >
-          <div className="w-20 h-20 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4">
-            <HelpCircle className="w-10 h-10 text-emerald-600" />
-          </div>
-          <h2 className="text-2xl font-bold text-emerald-800 mb-2">
-            よくある質問
-          </h2>
-          <p className="text-emerald-600 text-sm">
-            ほめびよりの使い方やよくあるご質問にお答えします
-          </p>
-        </motion.div>
-
-        {/* 検索とフィルター */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1 }}
-          className="bg-white rounded-2xl shadow-lg p-6 mb-8"
-        >
-          {/* 検索バー */}
-          <div className="relative mb-6">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="質問や回答を検索..."
-              className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
-            />
-          </div>
-
-          {/* カテゴリフィルター */}
-          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-2">
-            {categories.map((category) => (
-              <button
-                key={category.id}
-                onClick={() => setSelectedCategory(category.id)}
-                className={`flex items-center justify-center space-x-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                  selectedCategory === category.id
-                    ? 'bg-emerald-500 text-white shadow-sm'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                }`}
-              >
-                {category.icon}
-                <span className="hidden md:inline">{category.label}</span>
-              </button>
-            ))}
-          </div>
-        </motion.div>
-
-        {/* FAQ一覧 */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
-          className="space-y-4"
-        >
-          {filteredFAQs.length === 0 ? (
-            <div className="bg-white rounded-2xl shadow-lg p-8 text-center">
-              <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <Search className="w-8 h-8 text-gray-400" />
-              </div>
-              <h3 className="text-lg font-semibold text-gray-800 mb-2">
-                該当する質問が見つかりませんでした
-              </h3>
-              <p className="text-gray-600 mb-4">
-                検索キーワードを変更するか、お問い合わせフォームをご利用ください
-              </p>
-              <button
-                onClick={() => router.push('/contact')}
-                className="inline-flex items-center space-x-2 px-4 py-2 bg-emerald-500 text-white rounded-lg hover:bg-emerald-600 transition-colors"
-              >
-                <Mail className="w-4 h-4" />
-                <span>お問い合わせする</span>
-              </button>
-            </div>
-          ) : (
-            filteredFAQs.map((item, index) => (
-              <motion.div
-                key={item.id}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: index * 0.05 }}
-                className="bg-white rounded-2xl shadow-lg overflow-hidden"
-              >
-                <button
-                  onClick={() => toggleExpanded(item.id)}
-                  className="w-full px-6 py-4 text-left hover:bg-gray-50 transition-colors flex items-center justify-between"
-                >
-                  <div className="flex-1">
-                    <div className="flex items-center space-x-2 mb-1">
-                      {categories.find(cat => cat.id === item.category)?.icon}
-                      <span className="text-xs text-emerald-600 font-medium">
-                        {categories.find(cat => cat.id === item.category)?.label}
-                      </span>
-                    </div>
-                    <h3 className="font-semibold text-gray-800 text-left">
-                      {item.question}
-                    </h3>
-                  </div>
-                  <div className="ml-4">
-                    {expandedItems.has(item.id) ? (
-                      <ChevronUp className="w-5 h-5 text-gray-500" />
-                    ) : (
-                      <ChevronDown className="w-5 h-5 text-gray-500" />
-                    )}
-                  </div>
-                </button>
-
-                <AnimatePresence>
-                  {expandedItems.has(item.id) && (
-                    <motion.div
-                      initial={{ height: 0, opacity: 0 }}
-                      animate={{ height: "auto", opacity: 1 }}
-                      exit={{ height: 0, opacity: 0 }}
-                      transition={{ duration: 0.3 }}
-                      className="overflow-hidden"
-                    >
-                      <div className="px-6 pb-4 border-t border-gray-100">
-                        <div className="pt-4">
-                          <p className="text-gray-700 leading-relaxed">
-                            {item.answer}
-                          </p>
-                          {item.keywords.length > 0 && (
-                            <div className="mt-4 flex flex-wrap gap-2">
-                              {item.keywords.slice(0, 3).map((keyword, kidx) => (
-                                <span
-                                  key={kidx}
-                                  className="px-2 py-1 bg-emerald-100 text-emerald-700 text-xs rounded-full"
-                                >
-                                  {keyword}
-                                </span>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </motion.div>
-            ))
-          )}
-        </motion.div>
-
-        {/* お問い合わせへの案内 */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.4 }}
-          className="mt-12 bg-gradient-to-r from-emerald-50 to-green-50 rounded-2xl p-8 text-center border border-emerald-200"
-        >
-          <h3 className="text-lg font-semibold text-emerald-800 mb-4">
-            解決しない場合は
-          </h3>
-          <p className="text-emerald-600 mb-6">
-            上記で解決しない問題やご質問がございましたら、<br />
-            お気軽にお問い合わせください
-          </p>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <button
-              onClick={() => router.push('/contact')}
-              className="inline-flex items-center justify-center space-x-2 px-6 py-3 bg-emerald-500 text-white rounded-xl font-medium hover:bg-emerald-600 focus:outline-none focus:ring-2 focus:ring-emerald-500 transition-colors"
-            >
-              <Mail className="w-5 h-5" />
-              <span>お問い合わせする</span>
-            </button>
-            <button
-              onClick={() => router.push('/')}
-              className="inline-flex items-center justify-center space-x-2 px-6 py-3 bg-white text-emerald-700 border border-emerald-300 rounded-xl font-medium hover:bg-emerald-50 focus:outline-none focus:ring-2 focus:ring-emerald-500 transition-colors"
-            >
-              <ArrowLeft className="w-5 h-5" />
-              <span>前のページに戻る</span>
-            </button>
-          </div>
-        </motion.div>
-      </div>
-
-      <Footer onNavigate={handleNavigate} />
-    </div>
-  );
+  return <FAQClient faqData={faqData} />;
 }

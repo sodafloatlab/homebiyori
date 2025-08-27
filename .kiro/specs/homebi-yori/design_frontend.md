@@ -217,9 +217,335 @@ src/
 - **画像最適化** (Next.js Image)
 
 ### SEO対応
-- **SSG/ISR** モード活用
+- **戦略的混在レンダリング** (SSG + CSR ハイブリッド構成)
 - **メタタグ** 動的生成
 - **構造化データ** 対応
+- **sitemap.xml** 自動生成
+- **robots.txt** クローラー制御
+
+## レンダリング戦略設計（SSG/CSR混在構成）
+
+### 🎯 戦略概要
+**Strategic Mixed Configuration**: SEO最適化とユーザーエクスペリエンス向上のため、ページ特性に応じてSSG（Static Site Generation）とCSR（Client-Side Rendering）を戦略的に使い分け
+
+### 📄 SSG対応ページ（Static Site Generation）
+
+#### **Marketing & SEO重要ページ**
+```typescript
+// 対象ページと設計意図
+{
+  '/': {
+    strategy: 'SSG',
+    reason: 'ランディングページ - SEO最重要・Google検索最適化',
+    components: {
+      server: 'src/app/page.tsx', // 静的データ生成
+      client: 'src/components/features/HomePageClient.tsx' // インタラクション処理
+    },
+    seo_features: ['Open Graph', 'Twitter Cards', 'JSON-LD構造化データ'],
+    performance: 'First Paint < 1.2s, LCP < 2.5s'
+  },
+  '/faq': {
+    strategy: 'SSG',
+    reason: 'サポートページ - 検索流入対策・静的FAQ最適化',
+    components: {
+      server: 'src/app/faq/page.tsx', // 静的FAQデータ
+      client: 'src/components/features/faq/FAQClient.tsx' // 検索・フィルター機能
+    },
+    interactive_features: ['リアルタイム検索', 'カテゴリフィルター', 'アコーディオン展開'],
+    seo_benefits: ['FAQ Rich Results', 'Site Links', 'Knowledge Graph']
+  },
+  '/legal/terms': {
+    strategy: 'SSG',
+    reason: '法的文書 - 信頼性・クローラー最適化',
+    components: {
+      server: 'src/app/legal/terms/page.tsx',
+      client: 'src/components/features/legal/TermsOfServiceClient.tsx'
+    },
+    compliance: ['GDPR対応', '消費者契約法対応', '電子契約法対応']
+  },
+  '/legal/privacy': {
+    strategy: 'SSG',
+    reason: 'プライバシーポリシー - コンプライアンス・透明性',
+    last_modified: '2024-08-27',
+    change_frequency: 'yearly'
+  },
+  '/legal/commercial': {
+    strategy: 'SSG',
+    reason: '特定商取引法 - 法的要求事項・事業透明性',
+    priority: 0.5
+  }
+}
+```
+
+#### **SSG技術実装**
+```typescript
+// メタデータ最適化（例: src/app/page.tsx）
+export const metadata: Metadata = {
+  title: 'ほめびより - 育児を頑張るあなたを褒めるAI',
+  description: 'AIが優しく寄り添い、育児の努力を認めて褒めてくれる。忙しい毎日の中で、自己肯定感を高めるひとときを。7日間無料トライアル実施中。',
+  keywords: ['育児', 'AI', '褒める', 'サポート', '無料トライアル', '子育て', '自己肯定感'],
+  openGraph: {
+    title: 'ほめびより - 育児を頑張るあなたを褒めるAI',
+    description: 'AIが優しく寄り添い、育児の努力を認めて褒めてくれる。7日間無料トライアル実施中。',
+    type: 'website',
+    locale: 'ja_JP',
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'ほめびより - 育児を頑張るあなたを褒めるAI',
+    description: 'AIが優しく寄り添い、育児の努力を認めて褒めてくれる。7日間無料トライアル実施中。',
+  },
+};
+
+// 静的データ生成とクライアント分離パターン
+export default function HomePage() {
+  // サーバーサイドで生成される静的データ
+  const features = [/* 静的機能データ */];
+  const characters = [/* AIキャラクター情報 */];
+  const journeySteps = [/* ユーザージャーニー */];
+
+  // クライアントコンポーネントに渡す
+  return (
+    <HomePageClient 
+      characters={characters}
+      features={features}
+      journeySteps={journeySteps}
+    />
+  );
+}
+```
+
+### 🔧 CSR対応ページ（Client-Side Rendering）
+
+#### **認証必須・動的コンテンツページ**
+```typescript
+// 対象ページと設計意図
+{
+  '/auth/*': {
+    strategy: 'CSR',
+    reason: '認証フロー - OAuth状態管理・動的認証処理',
+    incompatible_with_ssg: [
+      'Google OAuth リダイレクト処理',
+      'JWT トークン管理',
+      'リアルタイム認証状態',
+      'セッション管理'
+    ]
+  },
+  '/dashboard': {
+    strategy: 'CSR', 
+    reason: 'ユーザーダッシュボード - 個人データ表示・認証ガード',
+    dynamic_content: [
+      '個人の木の成長状態',
+      'ユーザー固有チャット履歴', 
+      'カスタム設定',
+      'リアルタイム通知'
+    ]
+  },
+  '/chat/*': {
+    strategy: 'CSR',
+    reason: 'チャット機能 - リアルタイム通信・状態管理',
+    real_time_features: [
+      'WebSocket通信',
+      'AIレスポンス生成',
+      'チャット履歴管理',
+      'キャラクター状態'
+    ]
+  },
+  '/settings/*': {
+    strategy: 'CSR',
+    reason: 'ユーザー設定 - 個人設定管理・認証必須',
+    private_data: ['プロフィール', '通知設定', 'サブスクリプション']
+  }
+}
+```
+
+### 🌐 SEO最適化システム
+
+#### **自動生成システム**
+```typescript
+// src/app/sitemap.ts - 動的sitemap.xml生成
+export default function sitemap(): MetadataRoute.Sitemap {
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://homebiyori.com';
+  
+  return [
+    {
+      url: baseUrl,
+      lastModified: new Date(),
+      changeFrequency: 'monthly',
+      priority: 1.0, // ランディングページ最優先
+    },
+    {
+      url: `${baseUrl}/faq`,
+      lastModified: new Date(),
+      changeFrequency: 'weekly', 
+      priority: 0.8, // サポートページ高優先度
+    },
+    // 法的文書は低頻度更新・中優先度
+    {
+      url: `${baseUrl}/legal/terms`,
+      lastModified: new Date('2024-08-27'),
+      changeFrequency: 'yearly',
+      priority: 0.5,
+    },
+  ];
+}
+
+// src/app/robots.ts - 検索エンジン制御
+export default function robots(): MetadataRoute.Robots {
+  return {
+    rules: [
+      {
+        userAgent: '*',
+        allow: ['/', '/faq', '/legal/terms', '/legal/privacy', '/legal/commercial', '/contact'],
+        disallow: ['/auth/', '/dashboard/', '/settings/', '/api/'], // 認証・プライベートページ除外
+        crawlDelay: 1,
+      },
+      {
+        userAgent: 'Googlebot',
+        allow: '/',
+        crawlDelay: 0, // Google は制限なし
+      },
+    ],
+    sitemap: `${baseUrl}/sitemap.xml`,
+  };
+}
+```
+
+### ⚡ アイコンレンダリング統一設計
+
+#### **静的データとReact Child問題の解決**
+```typescript
+// 問題: SSG環境でJSX要素を静的データに含む
+// ❌ 旧方式 - React Child Error発生
+const features = [
+  {
+    icon: <Heart className="w-8 h-8" />, // JSX要素直接格納 → エラー
+    title: "毎日の頑張りを褒めてくれる"
+  }
+];
+
+// ✅ 新方式 - 文字列識別子 + 動的マッピング  
+const features = [
+  {
+    iconType: "Heart", // 文字列識別子
+    title: "毎日の頑張りを褒めてくれる"
+  }
+];
+
+// クライアントコンポーネントでマッピング
+const getIcon = (iconType: string, className: string = "w-8 h-8") => {
+  const iconProps = { className };
+  
+  switch (iconType) {
+    case 'Heart':
+      return <Heart {...iconProps} />;
+    case 'TrendingUp':
+      return <TrendingUp {...iconProps} />;
+    case 'Users':
+      return <Users {...iconProps} />;
+    default:
+      return <CheckCircle {...iconProps} />;
+  }
+};
+```
+
+### 🏗️ Next.js 15最適化設定
+
+#### **混在構成対応設定**
+```typescript
+// next.config.ts - ハイブリッド構成最適化
+const nextConfig: NextConfig = {
+  // パフォーマンス最適化
+  compress: true,
+  poweredByHeader: false,
+  
+  // 画像最適化（SSG/CSR両対応）
+  images: {
+    deviceSizes: [640, 750, 828, 1080, 1200, 1920, 2048, 3840], // レスポンシブ対応
+    imageSizes: [16, 32, 48, 64, 96, 128, 256, 384],
+    formats: ['image/webp', 'image/avif'], // 次世代フォーマット
+  },
+  
+  // 実験的機能（Next.js 15対応）
+  experimental: {
+    optimizeCss: true,
+    optimizeServerReact: true,
+  },
+  
+  // セキュリティヘッダー
+  async headers() {
+    return [
+      {
+        source: '/(.*)',
+        headers: [
+          { key: 'X-Frame-Options', value: 'DENY' },
+          { key: 'X-Content-Type-Options', value: 'nosniff' },
+          { key: 'Referrer-Policy', value: 'origin-when-cross-origin' },
+        ],
+      },
+    ];
+  },
+};
+```
+
+### 📊 パフォーマンス目標
+
+#### **SSGページパフォーマンス指標**
+```typescript
+{
+  'Core Web Vitals': {
+    'LCP (Largest Contentful Paint)': '< 2.5s',
+    'FID (First Input Delay)': '< 100ms', 
+    'CLS (Cumulative Layout Shift)': '< 0.1'
+  },
+  'SEO指標': {
+    'First Paint': '< 1.2s',
+    'Speed Index': '< 3.0s',
+    'Time to Interactive': '< 5.0s'
+  },
+  'モバイル最適化': {
+    'Mobile PageSpeed Score': '> 90',
+    'Mobile Usability': '100%',
+    'Progressive Web App': 'Installable'
+  }
+}
+```
+
+### 🔍 アーキテクチャ決定記録
+
+#### **SSG/CSR選択基準**
+1. **SSG選択条件**:
+   - SEO重要度が高い
+   - コンテンツが静的または準静的
+   - 認証不要でアクセス可能
+   - 高頻度でのアクセスが想定される
+
+2. **CSR選択条件**:
+   - 認証が必要
+   - ユーザー固有のデータを表示
+   - リアルタイム性が重要
+   - 動的なインタラクションが中心
+
+3. **混在実装パターン**:
+   - サーバーコンポーネント: 静的データ生成・SEO最適化
+   - クライアントコンポーネント: インタラクション・状態管理
+   - 段階的エンハンスメント: JavaScript無効時も基本機能動作
+
+### 🚀 実装効果
+
+#### **SEO効果**
+- **Google検索**: 0.8秒以内のFirst Paint達成
+- **構造化データ**: Rich Results対応完了
+- **サイトマップ**: 自動生成・更新システム
+- **クローラー最適化**: robots.txt精密制御
+
+#### **UX効果**  
+- **静的ページ**: 即座ロード・オフライン対応
+- **動的ページ**: リアルタイム更新・状態保持
+- **レスポンシブ**: 全デバイス最適化
+- **アクセシビリティ**: WCAG 2.1 AA準拠
+
+この戦略的混在構成により、SEO最適化とユーザーエクスペリエンス向上を両立し、育児支援サービスとしての価値提供を最大化。
 
 ## 開発・テスト戦略
 
