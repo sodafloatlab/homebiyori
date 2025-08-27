@@ -45,5 +45,12 @@ variable "firehose_compression_format" {
   default     = "GZIP"
 }
 
+# Amazon Bedrock monitoring configuration
+variable "bedrock_token_usage_threshold" {
+  description = "Threshold for Bedrock token usage alarm (per hour)"
+  type        = number
+  default     = 50000
+}
+
 # Note: Log groups are now managed by their respective modules (Lambda, API Gateway)
 # and referenced via terraform_remote_state for subscription filter configuration

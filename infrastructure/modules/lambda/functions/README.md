@@ -26,7 +26,7 @@ module "user_service" {
   
   filename = "path/to/user-service.zip"
   handler  = "handler.lambda_handler"
-  runtime  = "python3.11"
+  runtime  = "python3.13"
   
   timeout     = 30
   memory_size = 256
@@ -152,7 +152,7 @@ module "health_check_service" {
 | Name | Description | Type | Default |
 |------|-------------|------|---------|
 | `handler` | Lambda handler function | `string` | `"handler.lambda_handler"` |
-| `runtime` | Lambda runtime | `string` | `"python3.11"` |
+| `runtime` | Lambda runtime | `string` | `"python3.13"` |
 | `timeout` | Timeout in seconds | `number` | `30` |
 | `memory_size` | Memory size in MB | `number` | `256` |
 | `layers` | Lambda Layer ARNs | `list(string)` | `[]` |

@@ -16,17 +16,12 @@ locals {
   # Layer naming
   layer_name = "${var.project_name}-${var.environment}-${var.layer_name}"
   
-  # Default tags
-  default_tags = {
+  # Module-specific tags (merged with provider default_tags)
+  tags = merge({
     Name        = local.layer_name
-    Environment = var.environment
-    Project     = var.project_name
     LayerType   = var.layer_type
-    ManagedBy   = "terraform"
-  }
-  
-  # Merged tags
-  tags = merge(local.default_tags, var.tags)
+    Module      = "lambda-layer"
+  }, var.tags)
 }
 
 # Lambda Layer
@@ -41,6 +36,9 @@ resource "aws_lambda_layer_version" "this" {
   
   # License information
   license_info = var.license_info
+  
+  # Note: aws_lambda_layer_version doesn't support tags directly
+  # Tags would typically be applied to resources that reference this layer
 }
 
 # Data sources

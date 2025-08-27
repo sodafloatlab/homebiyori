@@ -16,17 +16,13 @@ locals {
   # Default log group name if not provided
   firehose_log_group = var.log_group_name != "" ? var.log_group_name : "/aws/kinesis/firehose/${var.firehose_name}"
   
-  # Default tags
-  default_tags = {
+  # Module-specific tags (merged with provider default_tags)
+  tags = merge({
     Name        = var.firehose_name
-    Environment = var.environment
-    Project     = var.project_name
     Component   = "logging"
     Purpose     = "log-delivery"
-  }
-  
-  # Merged tags
-  tags = merge(local.default_tags, var.additional_tags)
+    Module      = "datafirehose"
+  }, var.additional_tags)
 }
 
 # CloudWatch Log Group for Firehose itself

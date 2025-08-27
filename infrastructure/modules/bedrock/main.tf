@@ -1,140 +1,36 @@
-# Bedrock Model Access
-# Note: Bedrock models need to be enabled manually in the AWS Console first
-# This module mainly provides configuration and monitoring setup
+# Amazon Bedrock Configuration
+# 
+# 重要事項:
+# - Amazon Bedrock のモデルは AWS コンソールで手動有効化が必要です
+# - 現在の利用LLMは Amazon Nova です（Claude-3-Haiku から移行済み）
+# - ガードレール機能はコスト面から採用を見送りました
+# - メトリクスフィルター、アラーム、ダッシュボードは operation スタックに移行しました
 
-data "aws_bedrock_foundation_model" "claude_haiku" {
-  model_id = "anthropic.claude-3-haiku-20240307-v1:0"
-}
+# Amazon Nova モデルの手動有効化が必要
+# AWS Console > Amazon Bedrock > Model access で以下モデルを有効化:
+# - amazon.nova-lite-v1:0
 
-# CloudWatch Log Group for Bedrock API calls
-resource "aws_cloudwatch_log_group" "bedrock" {
-  name              = "/aws/bedrock/${var.project_name}-${var.environment}"
-  retention_in_days = var.log_retention_days
+# Bedrock Model Invocation Logging Configuration
+# S3への直接ログ出力（CloudWatchLogsは不使用）
+resource "aws_bedrock_model_invocation_logging_configuration" "main" {
+  logging_config {
+    # CloudWatch Logsは使用しない
+    cloudwatch_config {
+      log_group_name = null
+      role_arn      = null
+    }
 
-  tags = merge(var.additional_tags, {
-    Name = "${var.project_name}-${var.environment}-bedrock-logs"
-  })
-}
+    # S3バケットへのログ出力設定（AWS公式ドキュメント準拠パス）
+    s3_config {
+      bucket_name = var.logs_bucket_name
+      key_prefix  = "bedrock-invocation-logs"
+    }
 
-# CloudWatch Metric Filters for Bedrock monitoring
-resource "aws_cloudwatch_log_metric_filter" "bedrock_invocations" {
-  name           = "BedrockInvocations"
-  log_group_name = aws_cloudwatch_log_group.bedrock.name
-  pattern        = "[timestamp, request_id, \"BEDROCK_INVOKE\", ...]"
-
-  metric_transformation {
-    name      = "BedrockInvocations"
-    namespace = "${var.project_name}/${var.environment}/Bedrock"
-    value     = "1"
+    # テキストデータのみログ出力、埋め込み/画像/ビデオは除外
+    text_data_delivery_enabled       = true
+    image_data_delivery_enabled      = false
+    embedding_data_delivery_enabled  = false
+    video_data_delivery_enabled      = false
   }
-}
+}  
 
-resource "aws_cloudwatch_log_metric_filter" "bedrock_errors" {
-  name           = "BedrockErrors"
-  log_group_name = aws_cloudwatch_log_group.bedrock.name
-  pattern        = "[timestamp, request_id, \"BEDROCK_ERROR\", ...]"
-
-  metric_transformation {
-    name      = "BedrockErrors"
-    namespace = "${var.project_name}/${var.environment}/Bedrock"
-    value     = "1"
-  }
-}
-
-resource "aws_cloudwatch_log_metric_filter" "bedrock_token_usage" {
-  name           = "BedrockTokenUsage"
-  log_group_name = aws_cloudwatch_log_group.bedrock.name
-  pattern        = "[timestamp, request_id, \"BEDROCK_TOKENS\", input_tokens, output_tokens]"
-
-  metric_transformation {
-    name      = "BedrockInputTokens"
-    namespace = "${var.project_name}/${var.environment}/Bedrock"
-    value     = "$input_tokens"
-  }
-}
-
-# CloudWatch Alarms for Bedrock monitoring
-resource "aws_cloudwatch_metric_alarm" "bedrock_error_rate" {
-  alarm_name          = "${var.project_name}-${var.environment}-bedrock-error-rate"
-  comparison_operator = "GreaterThanThreshold"
-  evaluation_periods  = "2"
-  metric_name         = "BedrockErrors"
-  namespace           = "${var.project_name}/${var.environment}/Bedrock"
-  period              = "300"
-  statistic           = "Sum"
-  threshold           = "5"
-  alarm_description   = "This metric monitors Bedrock error rate"
-  alarm_actions       = var.alarm_topic_arn != "" ? [var.alarm_topic_arn] : []
-
-  insufficient_data_actions = []
-
-  tags = var.additional_tags
-}
-
-resource "aws_cloudwatch_metric_alarm" "bedrock_high_token_usage" {
-  alarm_name          = "${var.project_name}-${var.environment}-bedrock-high-token-usage"
-  comparison_operator = "GreaterThanThreshold"
-  evaluation_periods  = "1"
-  metric_name         = "BedrockInputTokens"
-  namespace           = "${var.project_name}/${var.environment}/Bedrock"
-  period              = "3600"  # 1 hour
-  statistic           = "Sum"
-  threshold           = var.token_usage_alarm_threshold
-  alarm_description   = "This metric monitors high Bedrock token usage"
-  alarm_actions       = var.alarm_topic_arn != "" ? [var.alarm_topic_arn] : []
-
-  insufficient_data_actions = []
-
-  tags = var.additional_tags
-}
-
-# CloudWatch Dashboard for Bedrock metrics
-resource "aws_cloudwatch_dashboard" "bedrock" {
-  dashboard_name = "${var.project_name}-${var.environment}-bedrock"
-
-  dashboard_body = jsonencode({
-    widgets = [
-      {
-        type   = "metric"
-        x      = 0
-        y      = 0
-        width  = 12
-        height = 6
-
-        properties = {
-          metrics = [
-            ["${var.project_name}/${var.environment}/Bedrock", "BedrockInvocations"],
-            [".", "BedrockErrors"]
-          ]
-          view    = "timeSeries"
-          stacked = false
-          region  = data.aws_region.current.name
-          title   = "Bedrock API Calls"
-          period  = 300
-        }
-      },
-      {
-        type   = "metric"
-        x      = 0
-        y      = 6
-        width  = 12
-        height = 6
-
-        properties = {
-          metrics = [
-            ["${var.project_name}/${var.environment}/Bedrock", "BedrockInputTokens"]
-          ]
-          view    = "timeSeries"
-          stacked = false
-          region  = data.aws_region.current.name
-          title   = "Token Usage"
-          period  = 300
-        }
-      }
-    ]
-  })
-}
-
-# Data sources
-data "aws_region" "current" {}
-data "aws_caller_identity" "current" {}

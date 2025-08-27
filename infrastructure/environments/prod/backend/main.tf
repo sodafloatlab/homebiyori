@@ -1,105 +1,60 @@
+# ========================================
 # Homebiyori Backend Infrastructure - Production Environment
+# ========================================
 # Uses reusable modules following Terraform best practices
+# Architecture: API Gateway + Lambda + DynamoDB + Cognito + EventBridge
 
-# Local values for shared configurations
+# ========================================
+# LOCAL VARIABLES - Configuration Definitions
+# ========================================
 locals {
-  # Project configuration
+  # ----------------------------------------
+  # Project Metadata
+  # ----------------------------------------
   project_name = var.project_name
   environment  = var.environment
   region       = data.aws_region.current.name
   account_id   = data.aws_caller_identity.current.account_id
 
-  # Lambda service configurations
+  # ----------------------------------------
+  # Lambda Service Configurations
+  # ----------------------------------------
+  # Main application services with individual IAM policies
+  # Each service maps to a specific Lambda function with:
+  # - Runtime settings (memory, timeout, layers)
+  # - Environment variables (table names, parameters)
+  # - IAM permissions (DynamoDB, SSM, external APIs)
   lambda_services = {
+    # User Management Service - Authentication, profiles, subscription status
     user-service = {
       memory_size = 256
       timeout     = 30
       layers      = ["common"]
       environment_variables = {
         CORE_TABLE_NAME = data.terraform_remote_state.datastore.outputs.core_table_name
+        ENVIRONMENT     = var.environment
       }
-      iam_policy_document = jsonencode({
-        Version = "2012-10-17"
-        Statement = [
-          {
-            Effect = "Allow"
-            Action = [
-              "dynamodb:GetItem",
-              "dynamodb:PutItem",
-              "dynamodb:UpdateItem",
-              "dynamodb:Query"
-            ]
-            Resource = [
-              data.terraform_remote_state.datastore.outputs.core_table_arn,
-              "${data.terraform_remote_state.datastore.outputs.core_table_arn}/index/*"
-            ]
-            Condition = {
-              "ForAllValues:StringLike" = {
-                "dynamodb:LeadingKeys" = ["USER#*"]
-              }
-            }
-          },
-          {
-            Effect = "Allow"
-            Action = ["ssm:GetParameter"]
-            Resource = [
-              "arn:aws:ssm:${local.region}:${local.account_id}:parameter/${local.project_name}/${local.environment}/*"
-            ]
-          }
-        ]
-      })
+      # JSONファイルから読み込み、プレースホルダー置換
+      iam_policy_template = "policies/user_service_policy.json"
     }
 
+    # Chat AI Service - LLM conversations, memory management (common layer only)
     chat-service = {
       memory_size = 512
       timeout     = 60
-      layers      = ["common", "ai"]
+      layers      = ["common"]
       environment_variables = {
         CORE_TABLE_NAME     = data.terraform_remote_state.datastore.outputs.core_table_name
         CHATS_TABLE_NAME    = data.terraform_remote_state.datastore.outputs.chats_table_name
         FRUITS_TABLE_NAME   = data.terraform_remote_state.datastore.outputs.fruits_table_name
-        BEDROCK_MODEL_ID    = var.bedrock_model_id
+        ENVIRONMENT         = var.environment
+        TREE_SERVICE_URL    = module.user_api_gateway.invoke_url
       }
-      iam_policy_document = jsonencode({
-        Version = "2012-10-17"
-        Statement = [
-          {
-            Effect = "Allow"
-            Action = [
-              "dynamodb:GetItem",
-              "dynamodb:PutItem",
-              "dynamodb:Query"
-            ]
-            Resource = [
-              data.terraform_remote_state.datastore.outputs.core_table_arn,
-              "${data.terraform_remote_state.datastore.outputs.core_table_arn}/index/*",
-              data.terraform_remote_state.datastore.outputs.chats_table_arn,
-              data.terraform_remote_state.datastore.outputs.fruits_table_arn
-            ]
-            Condition = {
-              "ForAllValues:StringLike" = {
-                "dynamodb:LeadingKeys" = ["USER#*"]
-              }
-            }
-          },
-          {
-            Effect = "Allow"
-            Action = ["bedrock:InvokeModel"]
-            Resource = [
-              "arn:aws:bedrock:${local.region}::foundation-model/${var.bedrock_model_id}"
-            ]
-          },
-          {
-            Effect = "Allow"
-            Action = ["ssm:GetParameter"]
-            Resource = [
-              "arn:aws:ssm:${local.region}:${local.account_id}:parameter/${local.project_name}/${local.environment}/*"
-            ]
-          }
-        ]
-      })
+      # JSONファイルから読み込み、プレースホルダー置換
+      iam_policy_template = "policies/chat_service_policy.json"
     }
 
+    # Tree Growth Service - Fruit management and progress visualization
     tree-service = {
       memory_size = 256
       timeout     = 30
@@ -107,183 +62,56 @@ locals {
       environment_variables = {
         CORE_TABLE_NAME   = data.terraform_remote_state.datastore.outputs.core_table_name
         FRUITS_TABLE_NAME = data.terraform_remote_state.datastore.outputs.fruits_table_name
+        ENVIRONMENT       = var.environment
       }
-      iam_policy_document = jsonencode({
-        Version = "2012-10-17"
-        Statement = [
-          {
-            Effect = "Allow"
-            Action = [
-              "dynamodb:GetItem",
-              "dynamodb:PutItem",
-              "dynamodb:UpdateItem",
-              "dynamodb:Query"
-            ]
-            Resource = [
-              data.terraform_remote_state.datastore.outputs.core_table_arn,
-              "${data.terraform_remote_state.datastore.outputs.core_table_arn}/index/*",
-              data.terraform_remote_state.datastore.outputs.fruits_table_arn
-            ]
-            Condition = {
-              "ForAllValues:StringLike" = {
-                "dynamodb:LeadingKeys" = ["USER#*"]
-              }
-            }
-          },
-          {
-            Effect = "Allow"
-            Action = ["ssm:GetParameter"]
-            Resource = [
-              "arn:aws:ssm:${local.region}:${local.account_id}:parameter/${local.project_name}/${local.environment}/*"
-            ]
-          }
-        ]
-      })
+      # JSONファイルから読み込み、プレースホルダー置換
+      iam_policy_template = "policies/tree_service_policy.json"
     }
 
+    # Health Check Service - API status and maintenance mode monitoring
     health-check-service = {
       memory_size = 128
       timeout     = 10
       layers      = []
-      environment_variables = {}
-      iam_policy_document = jsonencode({
-        Version = "2012-10-17"
-        Statement = [
-          {
-            Effect = "Allow"
-            Action = ["ssm:GetParameter"]
-            Resource = [
-              "arn:aws:ssm:${local.region}:${local.account_id}:parameter/${local.project_name}/${local.environment}/maintenance/*"
-            ]
-          }
-        ]
-      })
+      environment_variables = {
+        ENVIRONMENT = var.environment
+      }
+      # JSONファイルから読み込み、プレースホルダー置換
+      iam_policy_template = "policies/health_check_service_policy.json"
     }
 
 
+    # Notification Service - User alerts and system messages
     notification-service = {
       memory_size = 256
       timeout     = 30
       layers      = ["common"]
       environment_variables = {
         CORE_TABLE_NAME = data.terraform_remote_state.datastore.outputs.core_table_name
+        ENVIRONMENT     = var.environment
       }
-      iam_policy_document = jsonencode({
-        Version = "2012-10-17"
-        Statement = [
-          {
-            Effect = "Allow"
-            Action = [
-              "dynamodb:GetItem",
-              "dynamodb:PutItem",
-              "dynamodb:UpdateItem",
-              "dynamodb:Query"
-            ]
-            Resource = [
-              data.terraform_remote_state.datastore.outputs.core_table_arn,
-              "${data.terraform_remote_state.datastore.outputs.core_table_arn}/index/*"
-            ]
-          },
-          {
-            Effect = "Allow"
-            Action = ["ssm:GetParameter"]
-            Resource = [
-              "arn:aws:ssm:${local.region}:${local.account_id}:parameter/${local.project_name}/${local.environment}/*"
-            ]
-          }
-        ]
-      })
+      # JSONファイルから読み込み、プレースホルダー置換
+      iam_policy_template = "policies/notification_service_policy.json"
     }
 
-    ttl-updater-service = {
-      memory_size = 512
-      timeout     = 300
-      layers      = ["common"]
-      environment_variables = {
-        CORE_TABLE_NAME   = data.terraform_remote_state.datastore.outputs.core_table_name
-        CHATS_TABLE_NAME  = data.terraform_remote_state.datastore.outputs.chats_table_name
-      }
-      event_source_mappings = {
-        ttl_updates = {
-          event_source_arn                   = module.sqs.ttl_updates_queue_arn
-          batch_size                         = 10
-          maximum_batching_window_in_seconds = 5
-          function_response_types            = ["ReportBatchItemFailures"]
-        }
-      }
-      iam_policy_document = jsonencode({
-        Version = "2012-10-17"
-        Statement = [
-          {
-            Effect = "Allow"
-            Action = [
-              "dynamodb:GetItem",
-              "dynamodb:PutItem",
-              "dynamodb:UpdateItem",
-              "dynamodb:Query",
-              "dynamodb:BatchWriteItem"
-            ]
-            Resource = [
-              data.terraform_remote_state.datastore.outputs.core_table_arn,
-              "${data.terraform_remote_state.datastore.outputs.core_table_arn}/index/*",
-              data.terraform_remote_state.datastore.outputs.chats_table_arn
-            ]
-          },
-          {
-            Effect = "Allow"
-            Action = [
-              "sqs:ReceiveMessage",
-              "sqs:DeleteMessage",
-              "sqs:GetQueueAttributes"
-            ]
-            Resource = [module.sqs.ttl_updates_queue_arn]
-          },
-          {
-            Effect = "Allow"
-            Action = ["ssm:GetParameter"]
-            Resource = [
-              "arn:aws:ssm:${local.region}:${local.account_id}:parameter/${local.project_name}/${local.environment}/*"
-            ]
-          }
-        ]
-      })
-    }
 
+    # Billing Service - Stripe integration and subscription management
     billing-service = {
       memory_size = 256
       timeout     = 30
       layers      = ["common"]
       environment_variables = {
         CORE_TABLE_NAME          = data.terraform_remote_state.datastore.outputs.core_table_name
+        FEEDBACK_TABLE_NAME      = data.terraform_remote_state.datastore.outputs.feedback_table_name
         STRIPE_API_KEY_PARAMETER = data.aws_ssm_parameter.stripe_api_key.name
+        ENVIRONMENT              = var.environment
+        FRONTEND_URL             = "https://homebiyori.com"
       }
-      iam_policy_document = jsonencode({
-        Version = "2012-10-17"
-        Statement = [
-          {
-            Effect = "Allow"
-            Action = [
-              "dynamodb:GetItem",
-              "dynamodb:PutItem",
-              "dynamodb:UpdateItem",
-              "dynamodb:Query"
-            ]
-            Resource = [
-              data.terraform_remote_state.datastore.outputs.core_table_arn,
-              "${data.terraform_remote_state.datastore.outputs.core_table_arn}/index/*"
-            ]
-          },
-          {
-            Effect = "Allow"
-            Action = ["ssm:GetParameter"]
-            Resource = [
-              "arn:aws:ssm:${local.region}:${local.account_id}:parameter/${local.project_name}/${local.environment}/*"
-            ]
-          }
-        ]
-      })
+      # JSONファイルから読み込み、プレースホルダー置換
+      iam_policy_template = "policies/billing_service_policy.json"
     }
 
+    # Admin Service - System administration and monitoring dashboard
     admin-service = {
       memory_size = 512
       timeout     = 30
@@ -294,164 +122,81 @@ locals {
         FRUITS_TABLE_NAME   = data.terraform_remote_state.datastore.outputs.fruits_table_name
         FEEDBACK_TABLE_NAME = data.terraform_remote_state.datastore.outputs.feedback_table_name
         PAYMENTS_TABLE_NAME = data.terraform_remote_state.datastore.outputs.payments_table_name
+        ENVIRONMENT         = var.environment
       }
-      iam_policy_document = jsonencode({
-        Version = "2012-10-17"
-        Statement = [
-          {
-            Effect = "Allow"
-            Action = [
-              "dynamodb:GetItem",
-              "dynamodb:Query",
-              "dynamodb:Scan"
-            ]
-            Resource = [
-              data.terraform_remote_state.datastore.outputs.core_table_arn,
-              "${data.terraform_remote_state.datastore.outputs.core_table_arn}/index/*",
-              data.terraform_remote_state.datastore.outputs.chats_table_arn,
-              data.terraform_remote_state.datastore.outputs.fruits_table_arn,
-              data.terraform_remote_state.datastore.outputs.feedback_table_arn,
-              "${data.terraform_remote_state.datastore.outputs.feedback_table_arn}/index/*",
-              data.terraform_remote_state.datastore.outputs.payments_table_arn,
-              "${data.terraform_remote_state.datastore.outputs.payments_table_arn}/index/*"
-            ]
-          },
-          {
-            Effect = "Allow"
-            Action = [
-              "cloudwatch:GetMetricStatistics",
-              "lambda:GetFunction",
-              "lambda:ListFunctions"
-            ]
-            Resource = ["*"]
-          },
-          {
-            Effect = "Allow"
-            Action = [
-              "ssm:GetParameter",
-              "ssm:PutParameter"
-            ]
-            Resource = [
-              "arn:aws:ssm:${local.region}:${local.account_id}:parameter/${local.project_name}/${local.environment}/*"
-            ]
-          }
-        ]
-      })
+      # JSONファイルから読み込み、プレースホルダー置換
+      iam_policy_template = "policies/admin_service_policy.json"
     }
 
+    # Contact Service - Customer inquiry handling and SNS notifications
     contact-service = {
       memory_size = 256
       timeout     = 30
       layers      = ["common"]
       environment_variables = {
         SNS_TOPIC_ARN = module.contact_notifications.topic_arn
+        ENVIRONMENT   = var.environment
       }
-      iam_policy_document = jsonencode({
-        Version = "2012-10-17"
-        Statement = [
-          {
-            Effect = "Allow"
-            Action = [
-              "sns:Publish",
-              "sns:GetTopicAttributes"
-            ]
-            Resource = [module.contact_notifications.topic_arn]
-          },
-          {
-            Effect = "Allow"
-            Action = [
-              "sqs:SendMessage"
-            ]
-            Resource = [module.contact_notifications.dlq_arn]
-          },
-          {
-            Effect = "Allow"
-            Action = [
-              "logs:CreateLogGroup",
-              "logs:CreateLogStream", 
-              "logs:PutLogEvents"
-            ]
-            Resource = [
-              "arn:aws:logs:${local.region}:${local.account_id}:log-group:/aws/lambda/${local.project_name}-${local.environment}-contact-service*"
-            ]
-          },
-          {
-            Effect = "Allow"
-            Action = ["ssm:GetParameter"]
-            Resource = [
-              "arn:aws:ssm:${local.region}:${local.account_id}:parameter/${local.project_name}/${local.environment}/*"
-            ]
-          }
-        ]
-      })
+      # JSONファイルから読み込み、プレースホルダー置換
+      iam_policy_template = "policies/contact_service_policy.json"
     }
   }
 
-  # Additional tags specific to backend layer (default_tags handle basic tags)
-  layer_tags = {
-    Layer = "backend"
-  }
+  # ----------------------------------------
+  # Layer Configurations
+  # ----------------------------------------
 
-  # Lambda Layer ARNs
+  # Lambda Layer ARN Mapping - dynamically select created or existing layers
   layer_arns = {
-    common = var.create_common_layer ? module.lambda_layers["common"].layer_arn : var.common_layer_arn
-    ai     = var.create_ai_layer ? module.lambda_layers["ai"].layer_arn : var.ai_layer_arn
+    common = var.create_common_layer ? module.lambda_layers[0].layer_arn : var.common_layer_arn
   }
 
-  # Lambda layer configurations
-  lambda_layer_configs = {
-    common = {
-      layer_name   = "common"
-      layer_type   = "common"
-      description  = "Common dependencies for Homebiyori Lambda functions"
-      filename     = var.common_layer_zip_path
-      compatible_runtimes = ["python3.11", "python3.12"]
-      license_info = "MIT"
-      tags = {
-        Component = "lambda-infrastructure"
-        Purpose   = "shared-dependencies"
-      }
+  # Lambda Layer Runtime Configuration - ZIP files and dependencies (common only)
+  lambda_layer_config = {
+    layer_name   = "common"
+    layer_type   = "common"
+    description  = "Common dependencies for Homebiyori Lambda functions"
+    filename     = "${path.module}/src/layers/common.zip"
+    compatible_runtimes = ["python3.13"]
+    license_info = "MIT"
+    tags = {
+      Component = "lambda-infrastructure"
+      Purpose   = "shared-dependencies"
     }
-    ai = {
-      layer_name   = "ai"
-      layer_type   = "ai"
-      description  = "AI/ML dependencies for Homebiyori Lambda functions (Bedrock, LangChain)"
-      filename     = var.ai_layer_zip_path
-      compatible_runtimes = ["python3.11", "python3.12"]
-      license_info = "MIT"
-      tags = {
-        Component = "lambda-infrastructure"
-        Purpose   = "ai-dependencies"
-      }
-    }
+  }
+
+  # Lambda Functions ZIP file paths
+  lambda_zip_paths = {
+    for service_name in keys(local.lambda_services) :
+    service_name => "${path.module}/src/functions/${service_name}.zip"
+  }
+
+  # Stripe Webhook Functions ZIP file paths
+  stripe_webhook_zip_paths = {
+    for webhook_name in keys(local.stripe_webhook_services) :
+    webhook_name => "${path.module}/src/functions/${webhook_name}.zip"
   }
 }
 
 
-# Lambda Layers using reusable modules
+# Lambda Layer using reusable module (common only)
 module "lambda_layers" {
+  count = var.create_common_layer ? 1 : 0
   source = "../../../modules/lambda/layer"
-
-  for_each = {
-    for layer_name, layer_config in local.lambda_layer_configs :
-    layer_name => layer_config
-    if (layer_name == "common" && var.create_common_layer) || 
-       (layer_name == "ai" && var.create_ai_layer)
-  }
 
   project_name = local.project_name
   environment  = local.environment
-  layer_name   = each.value.layer_name
-  layer_type   = each.value.layer_type
-  description  = each.value.description
+  layer_name   = local.lambda_layer_config.layer_name
+  layer_type   = local.lambda_layer_config.layer_type
+  description  = local.lambda_layer_config.description
 
-  filename                 = each.value.filename
-  source_code_hash         = lookup(var.lambda_layer_source_code_hashes, each.key, null)
-  compatible_runtimes      = each.value.compatible_runtimes
+  filename                 = local.lambda_layer_config.filename
+  source_code_hash         = filebase64sha256(local.lambda_layer_config.filename)
+  compatible_runtimes      = local.lambda_layer_config.compatible_runtimes
   compatible_architectures = ["x86_64"]
-  license_info            = each.value.license_info
+  license_info            = local.lambda_layer_config.license_info
 
-  tags = merge(local.layer_tags, each.value.tags)
+  tags = local.lambda_layer_config.tags
 }
 
 # Lambda Functions using reusable modules
@@ -464,8 +209,8 @@ module "lambda_functions" {
   environment  = local.environment
   service_name = each.key
 
-  filename         = var.lambda_zip_paths[each.key]
-  source_code_hash = lookup(var.lambda_source_code_hashes, each.key, null)
+  filename         = local.lambda_zip_paths[each.key]
+  source_code_hash = filebase64sha256(local.lambda_zip_paths[each.key])
 
   memory_size = each.value.memory_size
   timeout     = each.value.timeout
@@ -481,34 +226,45 @@ module "lambda_functions" {
   # Environment variables
   environment_variables = each.value.environment_variables
 
-  # IAM policy
-  iam_policy_document = each.value.iam_policy_document
+  # IAM policy（JSONファイルからテンプレート読み込み、プレースホルダー置換）
+  iam_policy_document = templatefile(
+    "${path.module}/${each.value.iam_policy_template}",
+    local.policy_template_vars
+  )
 
-  # Event source mappings (for ttl-updater-service)
+  # Event source mappings
   event_source_mappings = lookup(each.value, "event_source_mappings", {})
 
   # API Gateway permissions (will be handled by API Gateway module)
   lambda_permissions = {}
 
-  tags = merge(local.layer_tags, {
+  tags = {
     Service = each.key
-  })
+  }
 }
 
-# Cognito authentication
-module "cognito" {
-  source = "../../../modules/cognito"
+# Cognito User Pool for End Users (Google OAuth only)
+module "cognito_users" {
+  source = "../../../modules/cognito/user"
   
   project_name         = local.project_name
   environment          = local.environment
-  additional_tags      = local.layer_tags
-  user_callback_urls   = var.callback_urls
-  user_logout_urls     = var.logout_urls
-  admin_callback_urls  = var.callback_urls
-  admin_logout_urls    = var.logout_urls
+  additional_tags      = {}
+  callback_urls        = var.callback_urls
+  logout_urls          = var.logout_urls
   enable_google_oauth  = var.enable_google_oauth
-  google_client_id     = var.google_client_id
-  google_client_secret = var.google_client_secret
+  google_client_id     = data.aws_ssm_parameter.google_client_id.value
+  google_client_secret = data.aws_ssm_parameter.google_client_secret.value
+}
+
+# Cognito User Pool for Admins (Email/Password authentication only)
+module "cognito_admins" {
+  source = "../../../modules/cognito/admin"
+  
+  project_name    = local.project_name
+  environment     = local.environment
+  additional_tags = {}
+  enable_mfa      = true  # Enhanced security for admin accounts
 }
 
 # User API Gateway - Public and authenticated user endpoints
@@ -519,7 +275,8 @@ module "user_api_gateway" {
   environment  = local.environment
   api_type     = "user"
   
-  cognito_user_pool_arn = module.cognito.users_pool_arn
+  cognito_user_pool_arn = module.cognito_users.user_pool_arn
+  enable_cognito_auth   = true
   log_retention_days    = var.log_retention_days
   
   lambda_services = {
@@ -532,8 +289,8 @@ module "user_api_gateway" {
       use_proxy           = false
       enable_cors         = true
     }
-    users = {
-      path_part             = "users"
+    user = {
+      path_part             = "user"
       lambda_function_name  = module.lambda_functions["user-service"].function_name
       lambda_invoke_arn     = module.lambda_functions["user-service"].invoke_arn
       http_method          = "ANY"
@@ -591,9 +348,9 @@ module "user_api_gateway" {
   cors_allow_origin       = "'*'"
   enable_detailed_logging = true
   
-  tags = merge(local.layer_tags, {
+  tags = {
     APIType = "user"
-  })
+  }
 }
 
 # Admin API Gateway - Administrative endpoints
@@ -604,7 +361,8 @@ module "admin_api_gateway" {
   environment  = local.environment
   api_type     = "admin"
   
-  cognito_user_pool_arn = module.cognito.admins_pool_arn
+  cognito_user_pool_arn = module.cognito_admins.user_pool_arn
+  enable_cognito_auth   = true
   log_retention_days    = var.log_retention_days
   
   lambda_services = {
@@ -622,21 +380,22 @@ module "admin_api_gateway" {
   cors_allow_origin       = "'https://admin.homebiyori.com'"
   enable_detailed_logging = true
   
-  tags = merge(local.layer_tags, {
+  tags = {
     APIType = "admin"
-  })
+  }
 }
 
-# Bedrock monitoring
+# Amazon Bedrock logging configuration
 module "bedrock" {
   source = "../../../modules/bedrock"
   
-  project_name = local.project_name
-  environment  = local.environment
-  additional_tags = local.layer_tags
+  project_name     = local.project_name
+  environment      = local.environment
+  logs_bucket_name = data.terraform_remote_state.datastore.outputs.logs_bucket_name
+  additional_tags  = {}
 }
 
-# SNS topic for contact inquiries
+# SNS topic for contact inquiries (subscriptions managed manually)
 module "contact_notifications" {
   source = "../../../modules/sns"
 
@@ -645,17 +404,13 @@ module "contact_notifications" {
   aws_region    = local.region
   aws_account_id = local.account_id
 
-  # Email subscriptions (must be confirmed manually after deployment)
-  subscription_emails = var.contact_notification_emails
+  # No automatic email subscriptions - managed manually
+  subscription_emails = []
 
-  # Monitoring
-  enable_monitoring = true
-  alarm_actions     = []
-
-  tags = merge(local.layer_tags, {
+  tags = {
     Component = "contact-notifications"
     Purpose   = "operator-alerts"
-  })
+  }
 }
 
 # =====================================
@@ -701,14 +456,20 @@ locals {
     }
   }
 
-  # IAMポリシーのプレースホルダー置換用変数
+  # IAMポリシーのプレースホルダー置換用変数（全サービス対応）
   policy_template_vars = {
-    core_table_arn     = data.terraform_remote_state.datastore.outputs.core_table_arn
-    payments_table_arn = data.terraform_remote_state.datastore.outputs.payments_table_arn
-    region             = local.region
-    account_id         = local.account_id
-    project_name       = local.project_name
-    environment        = local.environment
+    core_table_arn       = data.terraform_remote_state.datastore.outputs.core_table_arn
+    chats_table_arn      = data.terraform_remote_state.datastore.outputs.chats_table_arn
+    fruits_table_arn     = data.terraform_remote_state.datastore.outputs.fruits_table_arn
+    feedback_table_arn   = data.terraform_remote_state.datastore.outputs.feedback_table_arn
+    payments_table_arn   = data.terraform_remote_state.datastore.outputs.payments_table_arn
+    sns_topic_arn        = module.contact_notifications.topic_arn
+    contact_dlq_arn      = module.contact_notifications.dlq_arn
+    ai_unified_model_id  = data.aws_ssm_parameter.ai_unified_model_id.value
+    region               = local.region
+    account_id           = local.account_id
+    project_name         = local.project_name
+    environment          = local.environment
   }
 }
 
@@ -722,8 +483,8 @@ module "stripe_webhook_functions" {
   environment  = local.environment
   service_name = each.key
 
-  filename         = var.stripe_webhook_zip_paths[each.key]
-  source_code_hash = lookup(var.stripe_webhook_source_code_hashes, each.key, null)
+  filename         = local.stripe_webhook_zip_paths[each.key]
+  source_code_hash = filebase64sha256(local.stripe_webhook_zip_paths[each.key])
 
   memory_size = each.value.memory_size
   timeout     = each.value.timeout
@@ -748,13 +509,11 @@ module "stripe_webhook_functions" {
   # No API Gateway permissions (EventBridge triggers)
   lambda_permissions = {}
 
-  tags = merge(local.layer_tags, {
+  tags = {
     Service   = each.key
     Component = "stripe-webhooks"
-    EventType = split("-", each.key)[1] == "payment" ? 
-                "${split("-", each.key)[1]}-${split("-", each.key)[2]}" : 
-                "subscription-updated"
-  })
+    EventType = split("-", each.key)[1] == "payment" ? "${split("-", each.key)[1]}-${split("-", each.key)[2]}" : "subscription-updated"
+  }
 }
 
 # SQS Dead Letter Queue for EventBridge failed events
@@ -762,21 +521,16 @@ module "stripe_eventbridge_dlq" {
   source = "../../../modules/sqs"
 
   queue_name = "${local.project_name}-${local.environment}-stripe-eventbridge-dlq"
-  aws_region = local.region
   
   # DLQ specific settings
   message_retention_seconds = 1209600  # 14 days
   visibility_timeout_seconds = 300     # 5 minutes
-  max_receive_count = null            # No redrive for DLQ itself
-  
-  # Monitoring
-  enable_monitoring = true
-  alarm_actions = []
+  enable_dlq = false                  # DLQ itself doesn't need another DLQ
 
-  tags = merge(local.layer_tags, {
+  tags = {
     Component = "stripe-eventbridge"
     Purpose   = "dead-letter-queue"
-  })
+  }
 }
 
 # EventBridge Bus（再利用可能モジュール使用）
@@ -786,10 +540,10 @@ module "stripe_eventbridge_bus" {
   bus_name           = "${local.environment}-${local.project_name}-stripe-webhook-bus"
   log_retention_days = var.log_retention_days
 
-  tags = merge(local.layer_tags, {
+  tags = {
     Component = "stripe-eventbridge"
     Purpose   = "webhook-processing"
-  })
+  }
 }
 
 # EventBridge Rules & Targets（再利用可能モジュールで各イベント処理）
@@ -852,63 +606,14 @@ module "stripe_eventbridge_rules" {
   }
   dlq_arn = module.stripe_eventbridge_dlq.queue_arn
 
-  tags = merge(local.layer_tags, {
+  tags = {
     Component = "stripe-eventbridge"
     EventType = each.key
-  })
-}
-
-# CloudWatch Alarms for Stripe EventBridge monitoring
-resource "aws_cloudwatch_metric_alarm" "eventbridge_failed_invocations" {
-  alarm_name          = "${local.project_name}-${local.environment}-eventbridge-failed-invocations"
-  comparison_operator = "GreaterThanThreshold"
-  evaluation_periods  = "2"
-  metric_name         = "FailedInvocations"
-  namespace           = "AWS/Events"
-  period              = "300"
-  statistic           = "Sum"
-  threshold           = "1"
-  alarm_description   = "This metric monitors failed EventBridge rule invocations"
-  
-  dimensions = {
-    EventBusName = module.stripe_eventbridge_bus.eventbridge_bus_name
   }
-
-  tags = merge(local.layer_tags, {
-    Component = "stripe-eventbridge"
-    Purpose   = "monitoring"
-  })
 }
 
-resource "aws_cloudwatch_metric_alarm" "stripe_dlq_messages" {
-  alarm_name          = "${local.project_name}-${local.environment}-stripe-dlq-messages"
-  comparison_operator = "GreaterThanThreshold"
-  evaluation_periods  = "1"
-  metric_name         = "ApproximateNumberOfVisibleMessages"
-  namespace           = "AWS/SQS"
-  period              = "300"
-  statistic           = "Average"
-  threshold           = "0"
-  alarm_description   = "This metric monitors messages in Stripe EventBridge DLQ"
-  
-  dimensions = {
-    QueueName = module.stripe_eventbridge_dlq.queue_name
-  }
+# CloudWatch監視定義はoperationステートに移動済み
+# 以下のリソースはoperation/main.tfで管理：
+# - aws_cloudwatch_metric_alarm.eventbridge_failed_invocations
+# - aws_cloudwatch_metric_alarm.stripe_dlq_messages
 
-  tags = merge(local.layer_tags, {
-    Component = "stripe-eventbridge"
-    Purpose   = "monitoring"
-  })
-}
-
-# SQS Queues for microservices communication (moved from datastore state)
-module "sqs" {
-  source = "../../../modules/sqs"
-  
-  project_name = local.project_name
-  environment  = local.environment
-  common_tags  = var.common_tags
-  lambda_execution_role_arn = module.lambda_functions["ttl-updater-service"].function_role_arn
-
-  depends_on = [module.lambda_functions]
-}

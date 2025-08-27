@@ -24,36 +24,32 @@ variable "additional_tags" {
   default     = {}
 }
 
-# User Pool URLs
-variable "user_callback_urls" {
-  description = "List of allowed callback URLs for user OAuth"
+variable "callback_urls" {
+  description = "List of allowed callback URLs for OAuth"
   type        = list(string)
-  default     = ["http://localhost:3000", "https://localhost:3000"]
+  default     = ["http://localhost:3000/auth/callback"]
+  
+  validation {
+    condition     = length(var.callback_urls) > 0
+    error_message = "At least one callback URL must be provided."
+  }
 }
 
-variable "user_logout_urls" {
-  description = "List of allowed logout URLs for users"
+variable "logout_urls" {
+  description = "List of allowed logout URLs"
   type        = list(string)
-  default     = ["http://localhost:3000", "https://localhost:3000"]
-}
-
-# Admin Pool URLs
-variable "admin_callback_urls" {
-  description = "List of allowed callback URLs for admin OAuth"
-  type        = list(string)
-  default     = ["http://localhost:3001/admin", "https://localhost:3001/admin"]
-}
-
-variable "admin_logout_urls" {
-  description = "List of allowed logout URLs for admins"
-  type        = list(string)
-  default     = ["http://localhost:3001/admin", "https://localhost:3001/admin"]
+  default     = ["http://localhost:3000"]
+  
+  validation {
+    condition     = length(var.logout_urls) > 0
+    error_message = "At least one logout URL must be provided."
+  }
 }
 
 variable "enable_google_oauth" {
   description = "Enable Google OAuth integration"
   type        = bool
-  default     = false
+  default     = true
 }
 
 variable "google_client_id" {
@@ -78,17 +74,4 @@ variable "google_client_secret" {
     condition     = var.enable_google_oauth ? length(var.google_client_secret) > 0 : true
     error_message = "Google client secret is required when Google OAuth is enabled."
   }
-}
-
-variable "create_identity_pool" {
-  description = "Create Cognito Identity Pool for temporary AWS credentials"
-  type        = bool
-  default     = false
-}
-
-# Admin-specific settings
-variable "enable_admin_mfa" {
-  description = "Enable MFA for admin users"
-  type        = bool
-  default     = true
 }

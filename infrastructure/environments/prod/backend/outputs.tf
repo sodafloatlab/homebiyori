@@ -80,78 +80,72 @@ output "admin_api_execution_arn" {
   value       = module.admin_api_gateway.execution_arn
 }
 
-# Cognito Outputs
+# Cognito Outputs - Users Pool
 output "user_pool_id" {
-  description = "ID of the User Pool"
-  value       = module.cognito.users_pool_id
+  description = "ID of the Users Pool"
+  value       = module.cognito_users.user_pool_id
 }
 
 output "user_pool_arn" {
-  description = "ARN of the User Pool"
-  value       = module.cognito.users_pool_arn
+  description = "ARN of the Users Pool"
+  value       = module.cognito_users.user_pool_arn
 }
 
 output "user_pool_client_id" {
-  description = "ID of the User Pool Client"
-  value       = module.cognito.users_pool_client_id
+  description = "ID of the Users Pool Client"
+  value       = module.cognito_users.user_pool_client_id
 }
 
 output "user_pool_domain" {
-  description = "Domain of the User Pool"
-  value       = module.cognito.users_pool_domain
+  description = "Domain of the Users Pool"
+  value       = module.cognito_users.user_pool_domain
 }
 
+# Cognito Outputs - Admins Pool
 output "admin_pool_id" {
-  description = "ID of the Admin Pool"
-  value       = module.cognito.admins_pool_id
+  description = "ID of the Admins Pool"
+  value       = module.cognito_admins.user_pool_id
 }
 
 output "admin_pool_arn" {
-  description = "ARN of the Admin Pool"
-  value       = module.cognito.admins_pool_arn
+  description = "ARN of the Admins Pool"
+  value       = module.cognito_admins.user_pool_arn
 }
 
 output "admin_pool_client_id" {
-  description = "ID of the Admin Pool Client"
-  value       = module.cognito.admins_pool_client_id
+  description = "ID of the Admins Pool Client"
+  value       = module.cognito_admins.user_pool_client_id
 }
 
 # Bedrock outputs
-output "bedrock_model_id" {
-  description = "ID of the Bedrock foundation model"
-  value       = module.bedrock.model_id
+output "bedrock_logging_configuration_id" {
+  description = "ID of the Bedrock model invocation logging configuration"
+  value       = module.bedrock.logging_configuration_id
 }
 
-output "bedrock_dashboard_url" {
-  description = "URL of the CloudWatch dashboard for Bedrock"
-  value       = module.bedrock.dashboard_url
+output "bedrock_logs_bucket" {
+  description = "S3 bucket name for Bedrock logs"
+  value       = module.bedrock.logs_bucket_name
 }
 
 # Lambda Layer Outputs
 output "lambda_layer_arns" {
   description = "Map of all Lambda layer ARNs"
-  value = {
-    for layer_name, layer_config in module.lambda_layers :
-    layer_name => layer_config.layer_arn
-  }
+  value = var.create_common_layer ? {
+    common = module.lambda_layers[0].layer_arn
+  } : {}
 }
 
 output "lambda_layer_versions" {
   description = "Map of all Lambda layer versions"
-  value = {
-    for layer_name, layer_config in module.lambda_layers :
-    layer_name => layer_config.layer_version
-  }
+  value = var.create_common_layer ? {
+    common = module.lambda_layers[0].layer_version
+  } : {}
 }
 
 output "common_layer_arn" {
   description = "ARN of the common Lambda layer"
-  value       = var.create_common_layer ? module.lambda_layers["common"].layer_arn : var.common_layer_arn
-}
-
-output "ai_layer_arn" {
-  description = "ARN of the AI Lambda layer"
-  value       = var.create_ai_layer ? module.lambda_layers["ai"].layer_arn : var.ai_layer_arn
+  value       = var.create_common_layer ? module.lambda_layers[0].layer_arn : var.common_layer_arn
 }
 
 # IAM Role ARN for Lambda execution
@@ -184,15 +178,6 @@ output "contact_dlq_url" {
   value       = module.contact_notifications.dlq_url
 }
 
-output "contact_alarm_arn" {
-  description = "ARN of the CloudWatch alarm for contact notification failures"
-  value       = module.contact_notifications.alarm_arn
-}
-
-output "contact_dashboard_url" {
-  description = "URL of the CloudWatch dashboard for contact notifications"
-  value       = module.contact_notifications.dashboard_url
-}
 
 output "contact_service_function_name" {
   description = "Name of the contact service Lambda function"
@@ -242,23 +227,50 @@ output "api_gateway_log_group_arns" {
   }
 }
 
-# SQS Queue Outputs (moved from datastore state)
-output "ttl_updates_queue_url" {
-  description = "URL of the TTL updates SQS queue"
-  value       = module.sqs.ttl_updates_queue_url
+# SQS Queue Outputs (moved from datastore state) - see EventBridge section below for details
+
+# ========================================
+# Stripe EventBridge Outputs - for operation monitoring
+# ========================================
+
+output "stripe_eventbridge_bus_name" {
+  description = "Name of the Stripe EventBridge custom bus"
+  value       = module.stripe_eventbridge_bus.eventbridge_bus_name
 }
 
-output "ttl_updates_queue_arn" {
-  description = "ARN of the TTL updates SQS queue"
-  value       = module.sqs.ttl_updates_queue_arn
+output "stripe_eventbridge_bus_arn" {
+  description = "ARN of the Stripe EventBridge custom bus"
+  value       = module.stripe_eventbridge_bus.eventbridge_bus_arn
 }
 
-output "webhook_events_queue_url" {
-  description = "URL of the webhook events SQS queue"
-  value       = module.sqs.webhook_events_queue_url
+output "stripe_eventbridge_dlq_name" {
+  description = "Name of the Stripe EventBridge dead letter queue"
+  value       = module.stripe_eventbridge_dlq.queue_name
 }
 
-output "webhook_events_queue_arn" {
-  description = "ARN of the webhook events SQS queue"
-  value       = module.sqs.webhook_events_queue_arn
+output "stripe_eventbridge_dlq_arn" {
+  description = "ARN of the Stripe EventBridge dead letter queue"
+  value       = module.stripe_eventbridge_dlq.queue_arn
+}
+
+output "stripe_eventbridge_dlq_url" {
+  description = "URL of the Stripe EventBridge dead letter queue"
+  value       = module.stripe_eventbridge_dlq.queue_url
+}
+
+# Stripe Webhook Lambda Function Outputs
+output "stripe_webhook_function_names" {
+  description = "Map of Stripe webhook Lambda function names"
+  value = {
+    for service_name, lambda_config in module.stripe_webhook_functions :
+    service_name => lambda_config.function_name
+  }
+}
+
+output "stripe_webhook_function_arns" {
+  description = "Map of Stripe webhook Lambda function ARNs"
+  value = {
+    for service_name, lambda_config in module.stripe_webhook_functions :
+    service_name => lambda_config.function_arn
+  }
 }

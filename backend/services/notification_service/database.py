@@ -19,12 +19,9 @@ class NotificationServiceDatabase:
     """通知サービス専用データベースクライアント"""
     
     def __init__(self):
-        """4テーブル構成のDynamoDBクライアント初期化"""
-        # 4テーブル構成対応：環境変数からテーブル名取得
+        """CORE_TABLE_NAMEのみ使用するDynamoDBクライアント初期化"""
+        # 実際に使用するのはCORE_TABLE_NAMEのみ
         self.core_client = DynamoDBClient(os.environ["CORE_TABLE_NAME"])
-        self.chats_client = DynamoDBClient(os.environ["CHATS_TABLE_NAME"])
-        self.fruits_client = DynamoDBClient(os.environ["FRUITS_TABLE_NAME"])
-        self.feedback_client = DynamoDBClient(os.environ["FEEDBACK_TABLE_NAME"])
     
     # ユーザー通知メソッド
     async def create_user_notification(self, item_data: Dict[str, Any]) -> None:

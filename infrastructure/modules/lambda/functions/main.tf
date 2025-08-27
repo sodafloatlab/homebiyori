@@ -38,17 +38,12 @@ locals {
     var.environment_variables
   )
   
-  # Default tags
-  default_tags = {
+  # Module-specific tags (merged with provider default_tags)
+  tags = merge({
     Name        = local.function_name
-    Environment = var.environment
-    Project     = var.project_name
     Service     = var.service_name
-    ManagedBy   = "terraform"
-  }
-  
-  # Merged tags
-  tags = merge(local.default_tags, var.tags)
+    Module      = "lambda-functions"
+  }, var.tags)
 }
 
 # Lambda execution role

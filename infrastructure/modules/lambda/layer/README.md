@@ -17,7 +17,7 @@ module "common_layer" {
   filename         = "common_layer.zip"
   source_code_hash = filebase64sha256("common_layer.zip")
   
-  compatible_runtimes      = ["python3.11", "python3.12"]
+  compatible_runtimes      = ["python3.13"]
   compatible_architectures = ["x86_64"]
   
   tags = {
@@ -37,7 +37,7 @@ module "common_layer" {
 | `description` | Description of the Lambda layer | `string` | `""` |
 | `filename` | Path to the layer deployment package | `string` | - |
 | `source_code_hash` | SHA256 hash of the package file | `string` | `null` |
-| `compatible_runtimes` | Compatible Lambda runtimes | `list(string)` | `["python3.11", "python3.12"]` |
+| `compatible_runtimes` | Compatible Lambda runtimes | `list(string)` | `["python3.13"]` |
 | `compatible_architectures` | Compatible architectures | `list(string)` | `["x86_64"]` |
 | `license_info` | License information | `string` | `"MIT"` |
 | `tags` | Additional tags | `map(string)` | `{}` |

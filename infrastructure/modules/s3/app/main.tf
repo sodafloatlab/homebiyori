@@ -16,18 +16,13 @@ locals {
   # Bucket naming
   bucket_name = "${var.project_name}-${var.environment}-${var.bucket_type}"
   
-  # Default tags
-  default_tags = {
+  # Module-specific tags (merged with provider default_tags)
+  tags = merge({
     Name        = local.bucket_name
-    Environment = var.environment
-    Project     = var.project_name
     BucketType  = var.bucket_type
     Purpose     = var.bucket_purpose
-    ManagedBy   = "terraform"
-  }
-  
-  # Merged tags
-  tags = merge(local.default_tags, var.tags)
+    Module      = "s3-app"
+  }, var.tags)
   
   # Lifecycle configuration
   has_lifecycle_config = length(var.lifecycle_rules) > 0

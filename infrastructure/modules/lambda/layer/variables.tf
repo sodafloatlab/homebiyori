@@ -44,7 +44,7 @@ variable "source_code_hash" {
 variable "compatible_runtimes" {
   description = "List of compatible Lambda runtimes"
   type        = list(string)
-  default     = ["python3.11", "python3.12"]
+  default     = ["python3.13"]
 }
 
 variable "compatible_architectures" {

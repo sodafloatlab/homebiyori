@@ -157,7 +157,7 @@ module "logs_bucket" {
   project_name = local.project_name
   environment  = local.environment
   bucket_type  = "logs"
-  bucket_purpose = "Store CloudWatch Logs via Kinesis Data Firehose"
+  bucket_purpose = "Store CloudWatch Logs via Kinesis Data Firehose and Bedrock Invocation Logs"
   
   enable_versioning = false
   
@@ -178,6 +178,13 @@ module "logs_bucket" {
       }
     }
   ]
+  
+  # Bucket policy to allow Bedrock service to write invocation logs (AWS公式ドキュメント準拠)
+  bucket_policy = templatefile("${path.module}/policies/bedrock_s3_bucket_policy.json", {
+    bucket_name = "${local.project_name}-${local.environment}-logs"
+    account_id  = data.aws_caller_identity.current.account_id
+    aws_region  = data.aws_region.current.name
+  })
   
   tags = {
     BucketType = "logs"

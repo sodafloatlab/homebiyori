@@ -1,0 +1,42 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": [
+        "dynamodb:GetItem",
+        "dynamodb:Query",
+        "dynamodb:Scan"
+      ],
+      "Resource": [
+        "${core_table_arn}",
+        "${core_table_arn}/index/*",
+        "${chats_table_arn}",
+        "${fruits_table_arn}",
+        "${feedback_table_arn}",
+        "${feedback_table_arn}/index/*",
+        "${payments_table_arn}",
+        "${payments_table_arn}/index/*"
+      ]
+    },
+    {
+      "Effect": "Allow",
+      "Action": [
+        "cloudwatch:GetMetricStatistics",
+        "lambda:GetFunction",
+        "lambda:ListFunctions"
+      ],
+      "Resource": ["*"]
+    },
+    {
+      "Effect": "Allow",
+      "Action": [
+        "ssm:GetParameter",
+        "ssm:PutParameter"
+      ],
+      "Resource": [
+        "arn:aws:ssm:${region}:${account_id}:parameter/${project_name}/${environment}/*"
+      ]
+    }
+  ]
+}

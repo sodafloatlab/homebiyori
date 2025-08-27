@@ -26,90 +26,20 @@ variable "common_tags" {
   }
 }
 
-# Lambda configuration - 9 microservices
-variable "user_service_zip_path" {
-  description = "Path to the User Service Lambda deployment package"
-  type        = string
-  default     = "user_service.zip"
-}
+# Lambda configuration - individual paths are managed via local.lambda_zip_paths
+# These variables are deprecated - paths are now handled dynamically
 
-variable "chat_service_zip_path" {
-  description = "Path to the Chat Service Lambda deployment package"
-  type        = string
-  default     = "chat_service.zip"
-}
-
-variable "tree_service_zip_path" {
-  description = "Path to the Tree Service Lambda deployment package"
-  type        = string
-  default     = "tree_service.zip"
-}
-
-variable "health_check_service_zip_path" {
-  description = "Path to the Health Check Service Lambda deployment package"
-  type        = string
-  default     = "health_check_service.zip"
-}
-
-variable "webhook_service_zip_path" {
-  description = "Path to the Webhook Service Lambda deployment package"
-  type        = string
-  default     = "webhook_service.zip"
-}
-
-variable "notification_service_zip_path" {
-  description = "Path to the Notification Service Lambda deployment package"
-  type        = string
-  default     = "notification_service.zip"
-}
-
-variable "ttl_updater_service_zip_path" {
-  description = "Path to the TTL Updater Service Lambda deployment package"
-  type        = string
-  default     = "ttl_updater_service.zip"
-}
-
-variable "billing_service_zip_path" {
-  description = "Path to the Billing Service Lambda deployment package"
-  type        = string
-  default     = "billing_service.zip"
-}
-
-variable "admin_service_zip_path" {
-  description = "Path to the Admin Service Lambda deployment package"
-  type        = string
-  default     = "admin_service.zip"
-}
-
-variable "contact_service_zip_path" {
-  description = "Path to the Contact Service Lambda deployment package"
-  type        = string
-  default     = "contact_service.zip"
-}
-
-# Lambda Layers configuration
-variable "common_layer_zip_path" {
-  description = "Path to the Common Layer deployment package"
-  type        = string
-  default     = "common_layer.zip"
-}
-
-variable "ai_layer_zip_path" {
-  description = "Path to the AI Layer deployment package"
-  type        = string
-  default     = "ai_layer.zip"
-}
-
+# Lambda Layers configuration - commonレイヤーのみ
 variable "create_common_layer" {
   description = "Whether to create the common dependencies layer"
   type        = bool
   default     = true
 }
 
-variable "create_ai_layer" {
-  description = "Whether to create the AI dependencies layer"
-  type        = bool
-  default     = true
+variable "common_layer_arn" {
+  description = "ARN of existing common Lambda layer (if create_common_layer=false)"
+  type        = string
+  default     = ""
 }
 
 variable "environment_variables" {
@@ -122,14 +52,23 @@ variable "environment_variables" {
 variable "callback_urls" {
   description = "List of allowed callback URLs for OAuth"
   type        = list(string)
-  default     = ["https://d123456789.cloudfront.net"]
+  default = [
+    "https://homebiyori.com/auth/callback",
+    "https://www.homebiyori.com/auth/callback",
+    "http://localhost:3000/auth/callback"
+  ]
 }
 
 variable "logout_urls" {
   description = "List of allowed logout URLs for OAuth"
   type        = list(string)
-  default     = ["https://d123456789.cloudfront.net"]
+  default = [
+    "https://homebiyori.com",
+    "https://www.homebiyori.com",
+    "http://localhost:3000"
+  ]
 }
+
 
 variable "enable_google_oauth" {
   description = "Enable Google OAuth integration"
@@ -137,19 +76,8 @@ variable "enable_google_oauth" {
   default     = true
 }
 
-variable "google_client_id" {
-  description = "Google OAuth client ID"
-  type        = string
-  default     = ""
-  sensitive   = true
-}
-
-variable "google_client_secret" {
-  description = "Google OAuth client secret"
-  type        = string
-  default     = ""
-  sensitive   = true
-}
+# Google OAuth credentials are now managed via Parameter Store
+# These variables are deprecated - credentials are retrieved from SSM
 
 # Additional variables needed for the new architecture
 variable "bedrock_model_id" {
@@ -158,68 +86,25 @@ variable "bedrock_model_id" {
   default     = "anthropic.claude-3-haiku-20240307-v1:0"
 }
 
-variable "lambda_zip_paths" {
-  description = "Map of Lambda service names to their zip file paths"
+# Lambda deployment package paths
+variable "lambda_zip_path" {
+  description = "Path to the main Lambda deployment package"
+  type        = string
+  default     = "../../../lambda_function.zip"
+}
+
+variable "stripe_webhook_zip_paths" {
+  description = "Map of Stripe webhook Lambda function names to their zip file paths"
   type        = map(string)
-  default = {
-    user-service           = "user_service.zip"
-    chat-service          = "chat_service.zip"
-    tree-service          = "tree_service.zip"
-    health-check-service  = "health_check_service.zip"
-    notification-service  = "notification_service.zip"
-    ttl-updater-service   = "ttl_updater_service.zip"
-    billing-service       = "billing_service.zip"
-    admin-service         = "admin_service.zip"
-    contact-service       = "contact_service.zip"
+  default     = {
+    handle-payment-succeeded    = "../../../webhook_service/stripe/handle_payment_succeeded.zip"
+    handle-payment-failed       = "../../../webhook_service/stripe/handle_payment_failed.zip"
+    handle-subscription-updated = "../../../webhook_service/stripe/handle_subscription_updated.zip"
   }
 }
 
-variable "lambda_source_code_hashes" {
-  description = "Map of Lambda service names to their source code hashes"
-  type        = map(string)
-  default     = {}
-}
-
-variable "lambda_layer_source_code_hashes" {
-  description = "Map of Lambda layer names to their source code hashes"
-  type        = map(string)
-  default     = {}
-}
-
-variable "common_layer_arn" {
-  description = "ARN of the common Lambda layer"
-  type        = string
-  default     = ""
-}
-
-variable "ai_layer_arn" {
-  description = "ARN of the AI Lambda layer"
-  type        = string
-  default     = ""
-}
-
-# Contact Service configuration
-variable "contact_notification_emails" {
-  description = "List of email addresses to receive contact inquiry notifications"
-  type        = list(string)
-  default     = [
-    "support@homebiyori.com",
-    "admin@homebiyori.com"
-  ]
-
-  validation {
-    condition = alltrue([
-      for email in var.contact_notification_emails : can(regex("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$", email))
-    ])
-    error_message = "All contact notification emails must be valid email addresses."
-  }
-}
-
-variable "enable_contact_monitoring" {
-  description = "Enable CloudWatch monitoring for contact notifications"
-  type        = bool
-  default     = true
-}
+# Contact Service configuration - subscriptions managed manually
+# Automatic email subscriptions are disabled
 
 # CloudWatch Logs retention configuration
 variable "log_retention_days" {
@@ -239,23 +124,8 @@ variable "log_retention_days" {
 # Stripe EventBridge Variables - Issue #28
 # =====================================
 
-# Stripe webhook Lambda zip paths
-variable "stripe_webhook_zip_paths" {
-  description = "Paths to Stripe webhook Lambda deployment packages"
-  type        = map(string)
-  default = {
-    handle-payment-succeeded     = "handle_payment_succeeded.zip"
-    handle-payment-failed        = "handle_payment_failed.zip"
-    handle-subscription-updated  = "handle_subscription_updated.zip"
-  }
-}
-
-# Stripe webhook Lambda source code hashes
-variable "stripe_webhook_source_code_hashes" {
-  description = "Source code hashes for Stripe webhook Lambda functions"
-  type        = map(string)
-  default     = {}
-}
+# Stripe webhook deployments are managed via local.stripe_webhook_zip_paths
+# These variables are deprecated - paths are handled dynamically
 
 # Stripe Partner Event Source ID
 variable "stripe_partner_source_id" {

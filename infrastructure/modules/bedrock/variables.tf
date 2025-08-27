@@ -31,3 +31,8 @@ variable "token_usage_alarm_threshold" {
   type        = number
   default     = 100000
 }
+
+variable "logs_bucket_name" {
+  description = "Name of the S3 bucket for Bedrock invocation logs"
+  type        = string
+}

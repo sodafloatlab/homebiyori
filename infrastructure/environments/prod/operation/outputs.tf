@@ -58,3 +58,39 @@ output "firehose_log_group_arn" {
   description = "ARN of the CloudWatch log group for Firehose"
   value       = module.logs_delivery_stream.firehose_log_group_arn
 }
+
+# ========================================
+# Stripe EventBridge Monitoring Outputs
+# ========================================
+# Added from backend state for centralized monitoring
+
+output "eventbridge_failed_invocations_alarm_arn" {
+  description = "ARN of the EventBridge failed invocations CloudWatch alarm"
+  value       = aws_cloudwatch_metric_alarm.eventbridge_failed_invocations.arn
+}
+
+output "eventbridge_failed_invocations_alarm_name" {
+  description = "Name of the EventBridge failed invocations CloudWatch alarm"
+  value       = aws_cloudwatch_metric_alarm.eventbridge_failed_invocations.alarm_name
+}
+
+output "stripe_dlq_messages_alarm_arn" {
+  description = "ARN of the Stripe DLQ messages CloudWatch alarm"
+  value       = aws_cloudwatch_metric_alarm.stripe_dlq_messages.arn
+}
+
+output "stripe_dlq_messages_alarm_name" {
+  description = "Name of the Stripe DLQ messages CloudWatch alarm"
+  value       = aws_cloudwatch_metric_alarm.stripe_dlq_messages.alarm_name
+}
+
+# Monitoring summary
+output "stripe_eventbridge_monitoring_summary" {
+  description = "Summary of Stripe EventBridge monitoring resources"
+  value = {
+    eventbridge_bus_name = data.terraform_remote_state.backend.outputs.stripe_eventbridge_bus_name
+    dlq_name             = data.terraform_remote_state.backend.outputs.stripe_eventbridge_dlq_name
+    failed_invocations_alarm = aws_cloudwatch_metric_alarm.eventbridge_failed_invocations.alarm_name
+    dlq_messages_alarm       = aws_cloudwatch_metric_alarm.stripe_dlq_messages.alarm_name
+  }
+}

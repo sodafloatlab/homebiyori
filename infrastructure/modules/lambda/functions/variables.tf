@@ -46,11 +46,11 @@ variable "handler" {
 variable "runtime" {
   description = "The Lambda runtime"
   type        = string
-  default     = "python3.11"
+  default     = "python3.13"
   
   validation {
     condition = contains([
-      "python3.8", "python3.9", "python3.10", "python3.11", "python3.12",
+      "python3.11", "python3.12", "python3.13",
       "nodejs18.x", "nodejs20.x",
       "java11", "java17", "java21",
       "dotnet6", "dotnet8",

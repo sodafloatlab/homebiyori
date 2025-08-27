@@ -22,6 +22,27 @@ data "aws_ssm_parameter" "stripe_webhook_secret" {
   depends_on = [data.terraform_remote_state.datastore]
 }
 
+data "aws_ssm_parameter" "ai_unified_model_id" {
+  name = "/${var.environment}/${var.project_name}/llm/unified/model-id"
+  
+  # Ensure datastore is deployed first (explicit dependency)
+  depends_on = [data.terraform_remote_state.datastore]
+}
+
+data "aws_ssm_parameter" "google_client_id" {
+  name = "/${var.environment}/${var.project_name}/oauth/google/client_id"
+  
+  # Ensure datastore is deployed first (explicit dependency)
+  depends_on = [data.terraform_remote_state.datastore]
+}
+
+data "aws_ssm_parameter" "google_client_secret" {
+  name = "/${var.environment}/${var.project_name}/oauth/google/client_secret"
+  
+  # Ensure datastore is deployed first (explicit dependency)
+  depends_on = [data.terraform_remote_state.datastore]
+}
+
 
 # Import datastore state for table and queue information
 data "terraform_remote_state" "datastore" {

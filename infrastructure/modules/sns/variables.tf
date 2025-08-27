@@ -32,17 +32,6 @@ variable "tags" {
   default     = {}
 }
 
-variable "enable_monitoring" {
-  description = "Enable CloudWatch monitoring and alarms"
-  type        = bool
-  default     = true
-}
-
-variable "alarm_actions" {
-  description = "List of ARNs to notify when alarm triggers"
-  type        = list(string)
-  default     = []
-}
 
 variable "subscription_emails" {
   description = "List of email addresses to subscribe to the topic (Note: Subscriptions must be confirmed manually)"

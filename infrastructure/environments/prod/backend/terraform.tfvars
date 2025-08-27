@@ -11,16 +11,19 @@ environment_variables = {
   BEDROCK_MODEL_ID = "anthropic.claude-3-haiku-20240307-v1:0"
 }
 
-# Cognito configuration
+# Cognito configuration - homebiyori.com domain
 callback_urls = [
-  "https://homebiyori.example.com",
-  "http://localhost:3000"  # For development
+  "https://homebiyori.com/auth/callback",
+  "https://www.homebiyori.com/auth/callback",
+  "http://localhost:3000/auth/callback"  # For development
 ]
 
 logout_urls = [
-  "https://homebiyori.example.com/logout",
-  "http://localhost:3000/logout"
+  "https://homebiyori.com",
+  "https://www.homebiyori.com",
+  "http://localhost:3000"
 ]
+
 
 enable_google_oauth = true
 # Note: Set google_client_id and google_client_secret as environment variables:

@@ -327,3 +327,37 @@ resource "aws_ssm_parameter" "stripe_test_mode" {
   
   # Tags are automatically applied via provider default_tags
 }
+
+# ========================================
+# Google OAuth設定
+# ========================================
+
+# Google OAuth Client ID
+resource "aws_ssm_parameter" "google_client_id" {
+  name        = "/${var.environment}/homebiyori/oauth/google/client_id"
+  description = "Google OAuth Client ID - managed via AWS Console/CLI"
+  type        = "String"
+  value       = "placeholder_google_client_id_set_manually"
+  
+  # 手動設定方針：セキュリティ重要パラメータはTerraform管理外
+  lifecycle {
+    ignore_changes = [value]
+  }
+  
+  # Tags are automatically applied via provider default_tags
+}
+
+# Google OAuth Client Secret
+resource "aws_ssm_parameter" "google_client_secret" {
+  name        = "/${var.environment}/homebiyori/oauth/google/client_secret"
+  description = "Google OAuth Client Secret - managed via AWS Console/CLI"
+  type        = "SecureString"
+  value       = "placeholder_google_client_secret_set_manually"
+  
+  # 手動設定方針：セキュリティ重要パラメータはTerraform管理外
+  lifecycle {
+    ignore_changes = [value]
+  }
+  
+  # Tags are automatically applied via provider default_tags
+}

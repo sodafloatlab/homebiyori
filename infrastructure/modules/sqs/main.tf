@@ -1,7 +1,5 @@
-# SQS Queues for Homebiyori
-# Based on microservices architecture requirements:
-# - TTL updates queue for subscription plan changes
-# - Webhook events queue for Stripe webhook processing
+# Generic SQS Queue Module for Homebiyori
+# Creates a single SQS queue with optional dead letter queue
 
 terraform {
   required_providers {
@@ -12,108 +10,47 @@ terraform {
   }
 }
 
-# 1. TTL Updates Queue - For subscription plan changes
+# Main SQS Queue
 resource "aws_sqs_queue" "this" {
-  name                       = "${var.project_name}-${var.environment}-ttl-updates"
-  delay_seconds              = 0
-  max_message_size           = 262144
-  message_retention_seconds  = 1209600  # 14 days
-  receive_wait_time_seconds  = 0
-  visibility_timeout_seconds = 300      # 5 minutes for Lambda processing
+  name                       = var.queue_name
+  delay_seconds              = var.delay_seconds
+  max_message_size           = var.max_message_size
+  message_retention_seconds  = var.message_retention_seconds
+  receive_wait_time_seconds  = var.receive_wait_time_seconds
+  visibility_timeout_seconds = var.visibility_timeout_seconds
 
-  # Dead letter queue configuration
-  redrive_policy = jsonencode({
-    deadLetterTargetArn = aws_sqs_queue.dlq.arn
-    maxReceiveCount     = 3
+  # Dead letter queue configuration (optional)
+  redrive_policy = var.enable_dlq ? jsonencode({
+    deadLetterTargetArn = aws_sqs_queue.dlq[0].arn
+    maxReceiveCount     = var.max_receive_count
+  }) : null
+
+  # Server-side encryption (optional)
+  sqs_managed_sse_enabled = var.enable_encryption
+
+  tags = merge(var.tags, {
+    Name = var.queue_name
   })
-
-  tags = {
-    Name = "${var.project_name}-${var.environment}-ttl-updates"
-  }
 }
 
-# TTL Updates Dead Letter Queue
+# Dead Letter Queue (conditional)
 resource "aws_sqs_queue" "dlq" {
-  name                       = "${var.project_name}-${var.environment}-ttl-updates-dlq"
-  message_retention_seconds  = 1209600  # 14 days
+  count = var.enable_dlq ? 1 : 0
 
-  tags = {
-    Name = "${var.project_name}-${var.environment}-ttl-updates-dlq"
-  }
-}
+  name                       = "${var.queue_name}-dlq"
+  message_retention_seconds  = var.message_retention_seconds
 
-# 2. Webhook Events Queue - For Stripe webhook processing
-resource "aws_sqs_queue" "webhook" {
-  name                       = "${var.project_name}-${var.environment}-webhook-events"
-  delay_seconds              = 0
-  max_message_size           = 262144
-  message_retention_seconds  = 1209600  # 14 days
-  receive_wait_time_seconds  = 0
-  visibility_timeout_seconds = 180      # 3 minutes for webhook processing
+  # Server-side encryption (optional)
+  sqs_managed_sse_enabled = var.enable_encryption
 
-  # Dead letter queue configuration
-  redrive_policy = jsonencode({
-    deadLetterTargetArn = aws_sqs_queue.webhook_dlq.arn
-    maxReceiveCount     = 3
+  tags = merge(var.tags, {
+    Name = "${var.queue_name}-dlq"
   })
-
-  tags = {
-    Name = "${var.project_name}-${var.environment}-webhook-events"
-  }
 }
 
-# Webhook Events Dead Letter Queue
-resource "aws_sqs_queue" "webhook_dlq" {
-  name                       = "${var.project_name}-${var.environment}-webhook-events-dlq"
-  message_retention_seconds  = 1209600  # 14 days
-
-  tags = {
-    Name = "${var.project_name}-${var.environment}-webhook-events-dlq"
-  }
-}
-
-# SQS Queue Policies for Lambda access
+# Queue Policy (optional)
 resource "aws_sqs_queue_policy" "this" {
+  count     = var.queue_policy != null ? 1 : 0
   queue_url = aws_sqs_queue.this.id
-
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Effect = "Allow"
-        Principal = {
-          AWS = var.lambda_execution_role_arn
-        }
-        Action = [
-          "sqs:ReceiveMessage",
-          "sqs:DeleteMessage",
-          "sqs:GetQueueAttributes"
-        ]
-        Resource = aws_sqs_queue.this.arn
-      }
-    ]
-  })
-}
-
-resource "aws_sqs_queue_policy" "webhook" {
-  queue_url = aws_sqs_queue.webhook.id
-
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Effect = "Allow"
-        Principal = {
-          AWS = var.lambda_execution_role_arn
-        }
-        Action = [
-          "sqs:SendMessage",
-          "sqs:ReceiveMessage",
-          "sqs:DeleteMessage",
-          "sqs:GetQueueAttributes"
-        ]
-        Resource = aws_sqs_queue.webhook.arn
-      }
-    ]
-  })
+  policy    = var.queue_policy
 }

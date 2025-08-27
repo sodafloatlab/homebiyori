@@ -51,25 +51,25 @@ app.add_middleware(
 # ルーター登録
 app.include_router(
     notification_router,
-    prefix="/api/notification",
+    prefix="/api/notifications",
     tags=["notifications"]
 )
 
 app.include_router(
     internal_router,
-    prefix="/internal/notification",
+    prefix="/internal/notifications",
     tags=["internal-api"]
 )
 
 app.include_router(
     admin_router,
-    prefix="/admin/notification",
+    prefix="/admin/notifications",
     tags=["admin-notifications"]
 )
 
 app.include_router(
     health_router,
-    prefix="/api/notification",
+    prefix="/api/notifications",
     tags=["health"]
 )
 

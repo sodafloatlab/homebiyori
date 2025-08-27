@@ -1,19 +1,14 @@
-output "model_id" {
-  description = "ID of the Bedrock foundation model"
-  value       = data.aws_bedrock_foundation_model.claude_haiku.model_id
+output "logging_configuration_id" {
+  description = "ID of the Bedrock model invocation logging configuration"
+  value       = aws_bedrock_model_invocation_logging_configuration.main.id
 }
 
-output "model_arn" {
-  description = "ARN of the Bedrock foundation model"
-  value       = data.aws_bedrock_foundation_model.claude_haiku.model_arn
+output "logs_bucket_name" {
+  description = "S3 bucket name for Bedrock logs"
+  value       = var.logs_bucket_name
 }
 
-output "log_group_name" {
-  description = "Name of the CloudWatch log group for Bedrock"
-  value       = aws_cloudwatch_log_group.bedrock.name
-}
-
-output "dashboard_url" {
-  description = "URL of the CloudWatch dashboard for Bedrock"
-  value       = "https://console.aws.amazon.com/cloudwatch/home?region=${data.aws_region.current.name}#dashboards:name=${aws_cloudwatch_dashboard.bedrock.dashboard_name}"
+output "logs_key_prefix" {
+  description = "S3 key prefix for Bedrock logs"
+  value       = "bedrock-invocation-logs"
 }

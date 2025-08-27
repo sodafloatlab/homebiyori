@@ -671,6 +671,7 @@ class StripeClient:
                 "success_url": success_url,
                 "cancel_url": cancel_url,
                 "payment_method_collection": "if_required",
+                "customer_update": {"email": "auto"},
                 "subscription_data": {
                     "metadata": {
                         "user_id": homebiyori_user_id,  # homebiyori user_id

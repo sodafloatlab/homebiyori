@@ -19,17 +19,12 @@ locals {
   # CloudWatch log group naming
   log_group_name = "API-Gateway-Execution-Logs_${aws_api_gateway_rest_api.this.id}/${var.environment}"
   
-  # Default tags
-  default_tags = {
+  # Module-specific tags (merged with provider default_tags)
+  tags = merge({
     Name        = local.api_name
-    Environment = var.environment
-    Project     = var.project_name
     APIType     = var.api_type
-    ManagedBy   = "terraform"
-  }
-  
-  # Merged tags
-  tags = merge(local.default_tags, var.tags)
+    Module      = "apigateway"
+  }, var.tags)
 }
 
 # API Gateway REST API
@@ -46,7 +41,7 @@ resource "aws_api_gateway_rest_api" "this" {
 
 # API Gateway Authorizer (if Cognito authentication is enabled)
 resource "aws_api_gateway_authorizer" "cognito" {
-  count = var.cognito_user_pool_arn != null ? 1 : 0
+  count = var.enable_cognito_auth ? 1 : 0
   
   name                   = "${local.api_name}-cognito-authorizer"
   rest_api_id           = aws_api_gateway_rest_api.this.id

@@ -34,7 +34,7 @@ variable "api_type" {
 variable "endpoint_type" {
   description = "The API Gateway endpoint type"
   type        = string
-  default     = "REGIONAL"
+  default     = "EDGE"
   
   validation {
     condition     = contains(["REGIONAL", "EDGE", "PRIVATE"], var.endpoint_type)
@@ -46,6 +46,12 @@ variable "cognito_user_pool_arn" {
   description = "The ARN of the Cognito User Pool for authorization"
   type        = string
   default     = null
+}
+
+variable "enable_cognito_auth" {
+  description = "Enable Cognito authentication (determined at plan time)"
+  type        = bool
+  default     = false
 }
 
 variable "lambda_services" {
