@@ -36,6 +36,12 @@ variable "bucket_purpose" {
   default     = "General purpose S3 bucket"
 }
 
+variable "bucket_name_override" {
+  description = "Override the default bucket naming convention (for special requirements like WAF logs)"
+  type        = string
+  default     = null
+}
+
 
 variable "force_destroy" {
   description = "Allow the bucket to be destroyed even if it contains objects"

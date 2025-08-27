@@ -2,14 +2,6 @@
 locals {
   project_name = var.project_name
   environment  = var.environment
-  
-  # Common tags
-  common_tags = merge(var.common_tags, {
-    Environment = local.environment
-    Project     = local.project_name
-    ManagedBy   = "terraform"
-    Layer       = "frontend"
-  })
 }
 
 # S3 Static Bucket (moved from datastore state)
@@ -29,11 +21,11 @@ module "static_bucket" {
   ignore_public_acls      = true
   restrict_public_buckets = true
   
-  tags = merge(local.common_tags, {
+  tags = {
     BucketType = "static"
     Purpose    = "website-hosting"
     Integration = "cloudfront-oac"
-  })
+  }
 }
 
 # WAF for security
@@ -42,14 +34,16 @@ module "waf" {
   
   project_name                = local.project_name
   environment                 = local.environment
-  common_tags                 = local.common_tags
   rate_limit                  = var.rate_limit
   maintenance_mode            = var.maintenance_mode
   maintenance_allowed_ips     = var.maintenance_allowed_ips
   blocked_countries           = var.blocked_countries
-  allowed_ips                 = var.allowed_ips
+  blocked_ips                 = var.blocked_ips
   enable_geo_blocking         = var.enable_geo_blocking
   log_retention_days          = var.log_retention_days
+  
+  # WAF logs output to S3 (from datastore state)
+  waf_logs_bucket_arn         = data.terraform_remote_state.datastore.outputs.waf_logs_bucket_arn
 }
 
 # CloudFront distribution
@@ -58,7 +52,6 @@ module "cloudfront" {
   
   project_name                = local.project_name
   environment                 = local.environment
-  common_tags                 = local.common_tags
   
   # S3 bucket information from local static bucket
   static_bucket_name          = module.static_bucket.bucket_id

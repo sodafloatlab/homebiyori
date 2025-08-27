@@ -13,8 +13,8 @@ terraform {
 
 # Local values for computed configurations
 locals {
-  # Bucket naming
-  bucket_name = "${var.project_name}-${var.environment}-${var.bucket_type}"
+  # Bucket naming - use override if provided, otherwise use default naming
+  bucket_name = var.bucket_name_override != null ? var.bucket_name_override : "${var.project_name}-${var.environment}-${var.bucket_type}"
   
   # Module-specific tags (merged with provider default_tags)
   tags = merge({

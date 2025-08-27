@@ -192,6 +192,44 @@ module "logs_bucket" {
   }
 }
 
+# WAF Logs Bucket (aws-waf-logs-* naming required)
+module "waf_logs_bucket" {
+  source = "../../../modules/s3/app"
+  
+  project_name = local.project_name
+  environment  = local.environment
+  bucket_type  = "waf-logs"
+  bucket_purpose = "Store AWS WAF logs (requires aws-waf-logs- prefix)"
+  
+  # WAF logs require specific bucket naming with aws-waf-logs- prefix
+  bucket_name_override = "aws-waf-logs-${local.project_name}-${local.environment}"
+  
+  enable_versioning = false
+  
+  # Lifecycle configuration for WAF log retention
+  lifecycle_rules = [
+    {
+      id      = "waf_logs_lifecycle"
+      enabled = true
+      filter  = {}
+      transitions = [
+        {
+          days          = 30
+          storage_class = "GLACIER"
+        }
+      ]
+      expiration = {
+        days = 90  # 90 days retention for WAF logs
+      }
+    }
+  ]
+  
+  tags = {
+    BucketType = "waf-logs"
+    Purpose    = "waf-log-storage"
+  }
+}
+
 # ========================================
 # SSM Parameter Store - データ保存層での管理
 # ========================================

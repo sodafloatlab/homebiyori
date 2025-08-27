@@ -60,6 +60,16 @@ output "logs_bucket_arn" {
   value       = module.logs_bucket.bucket_arn
 }
 
+output "waf_logs_bucket_name" {
+  description = "Name of the WAF logs S3 bucket"
+  value       = module.waf_logs_bucket.bucket_id
+}
+
+output "waf_logs_bucket_arn" {
+  description = "ARN of the WAF logs S3 bucket"
+  value       = module.waf_logs_bucket.bucket_arn
+}
+
 # Combined outputs for convenience
 output "dynamodb_table_names" {
   description = "Map of all DynamoDB table names"
@@ -78,14 +88,16 @@ output "dynamodb_table_arns" {
 output "s3_bucket_names" {
   description = "Map of all S3 bucket names"
   value = {
-    logs = module.logs_bucket.bucket_id
+    logs     = module.logs_bucket.bucket_id
+    waf_logs = module.waf_logs_bucket.bucket_id
   }
 }
 
 output "s3_bucket_arns" {
   description = "Map of all S3 bucket ARNs"
   value = {
-    logs = module.logs_bucket.bucket_arn
+    logs     = module.logs_bucket.bucket_arn
+    waf_logs = module.waf_logs_bucket.bucket_arn
   }
 }
 

@@ -12,7 +12,7 @@ resource "aws_cloudfront_distribution" "main" {
   comment             = "${var.project_name} ${var.environment} distribution"
   default_root_object = "index.html"
   enabled             = true
-  is_ipv6_enabled     = true
+  is_ipv6_enabled     = false
   price_class         = var.price_class
 
   # Origin for static assets (S3)
@@ -50,12 +50,7 @@ resource "aws_cloudfront_distribution" "main" {
     cached_methods   = ["GET", "HEAD"]
     target_origin_id = "S3-${var.static_bucket_name}"
 
-    forwarded_values {
-      query_string = false
-      cookies {
-        forward = "none"
-      }
-    }
+    cache_policy_id = "658327ea-f89d-4fab-a63d-7e88639e58f6" # AWS管理ポリシー: Managed-CachingOptimized
 
     viewer_protocol_policy = "redirect-to-https"
     min_ttl                = 0
@@ -73,13 +68,8 @@ resource "aws_cloudfront_distribution" "main" {
     cached_methods   = ["GET", "HEAD"]
     target_origin_id = "API-Gateway"
 
-    forwarded_values {
-      query_string = true
-      headers      = ["Authorization", "Content-Type"]
-      cookies {
-        forward = "none"
-      }
-    }
+    cache_policy_id          = "4135ea2d-6df8-44a3-9df3-4b5a84be39ad" # AWS管理ポリシー: Managed-CachingDisabled
+    origin_request_policy_id = aws_cloudfront_origin_request_policy.api_gateway.id
 
     viewer_protocol_policy = "redirect-to-https"
     min_ttl                = 0
@@ -107,17 +97,29 @@ resource "aws_cloudfront_distribution" "main" {
   # Custom domain (if provided)
   aliases = var.custom_domain == "" ? [] : [var.custom_domain]
 
-  # Custom error responses
+  # Custom error responses - dedicated static error pages (no backend API calls)
   custom_error_response {
     error_code         = 404
-    response_code      = 200
-    response_page_path = "/index.html"
+    response_code      = 404
+    response_page_path = "/error/404.html"
   }
 
   custom_error_response {
     error_code         = 403
-    response_code      = 200
-    response_page_path = "/index.html"
+    response_code      = 403
+    response_page_path = "/error/403.html"
+  }
+
+  custom_error_response {
+    error_code         = 500
+    response_code      = 500
+    response_page_path = "/error/500.html"
+  }
+
+  custom_error_response {
+    error_code         = 503
+    response_code      = 503
+    response_page_path = "/error/503.html"
   }
 
   # WAF association
@@ -146,32 +148,6 @@ resource "aws_cloudfront_origin_request_policy" "api_gateway" {
 
   query_strings_config {
     query_string_behavior = "all"
-  }
-}
-
-# CloudFront Cache Policy for static assets
-resource "aws_cloudfront_cache_policy" "static_assets" {
-  name        = "${var.project_name}-${var.environment}-static-assets"
-  comment     = "Cache policy for static assets"
-  default_ttl = 86400
-  max_ttl     = 31536000
-  min_ttl     = 1
-
-  parameters_in_cache_key_and_forwarded_to_origin {
-    cookies_config {
-      cookie_behavior = "none"
-    }
-
-    headers_config {
-      header_behavior = "none"
-    }
-
-    query_strings_config {
-      query_string_behavior = "none"
-    }
-
-    enable_accept_encoding_brotli = true
-    enable_accept_encoding_gzip   = true
   }
 }
 

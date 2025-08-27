@@ -1,3 +1,14 @@
+terraform {
+  required_version = ">= 1.0"
+  
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = "~> 5.0"
+    }
+  }
+}
+
 # WAF Web ACL for CloudFront
 resource "aws_wafv2_web_acl" "main" {
   name  = "${var.project_name}-${var.environment}-web-acl"
@@ -102,26 +113,26 @@ resource "aws_wafv2_web_acl" "main" {
     }
   }
 
-  # IP whitelist rule (if enabled)
+  # IP blacklist rule (if enabled)
   dynamic "rule" {
-    for_each = length(var.allowed_ips) > 0 ? [1] : []
+    for_each = length(var.blocked_ips) > 0 ? [1] : []
     content {
-      name     = "IPWhitelistRule"
+      name     = "IPBlacklistRule"
       priority = 5
 
       action {
-        allow {}
+        block {}
       }
 
       statement {
         ip_set_reference_statement {
-          arn = aws_wafv2_ip_set.allowed_ips[0].arn
+          arn = aws_wafv2_ip_set.blocked_ips[0].arn
         }
       }
 
       visibility_config {
         cloudwatch_metrics_enabled = true
-        metric_name                = "${var.project_name}IPWhitelistMetric"
+        metric_name                = "${var.project_name}IPBlacklistMetric"
         sampled_requests_enabled   = true
       }
     }
@@ -172,14 +183,14 @@ resource "aws_wafv2_web_acl" "main" {
   }
 }
 
-# IP Set for allowed IPs (if IP whitelist is enabled)
-resource "aws_wafv2_ip_set" "allowed_ips" {
-  count              = length(var.allowed_ips) > 0 ? 1 : 0
-  name               = "${var.project_name}-${var.environment}-allowed-ips"
-  description        = "Allowed IP addresses"
+# IP Set for blocked IPs (IP blacklist)
+resource "aws_wafv2_ip_set" "blocked_ips" {
+  count              = length(var.blocked_ips) > 0 ? 1 : 0
+  name               = "${var.project_name}-${var.environment}-blocked-ips"
+  description        = "Blocked IP addresses"
   scope              = "CLOUDFRONT"
   ip_address_version = "IPV4"
-  addresses          = var.allowed_ips
+  addresses          = var.blocked_ips
 
 }
 
@@ -194,24 +205,21 @@ resource "aws_wafv2_ip_set" "maintenance_allowed_ips" {
 
 }
 
-# Custom response body for maintenance mode
+# WAF Web ACL Association with CloudFront
+# NOTE: このAssociationはメンテナンスモード時のみ実行される設定ですが、
+# 通常時のWAF適用はCloudFrontモジュール側でwaf_web_acl_idを指定することで行われます。
+# CloudFrontディストリビューション作成時にwaf_web_acl_idが設定されることで、
+# 常時WAFが適用される状態となります。
 resource "aws_wafv2_web_acl_association" "maintenance_response" {
-  count      = var.maintenance_mode ? 1 : 0
+  count        = var.maintenance_mode ? 1 : 0
   resource_arn = var.cloudfront_distribution_arn
   web_acl_arn  = aws_wafv2_web_acl.main.arn
 }
 
-# CloudWatch Log Group for WAF logs
-resource "aws_cloudwatch_log_group" "waf" {
-  name              = "/aws/wafv2/${var.project_name}-${var.environment}"
-  retention_in_days = var.log_retention_days
-
-}
-
-# WAF Logging Configuration
+# WAF Logging Configuration - S3 output
 resource "aws_wafv2_web_acl_logging_configuration" "main" {
   resource_arn            = aws_wafv2_web_acl.main.arn
-  log_destination_configs = [aws_cloudwatch_log_group.waf.arn]
+  log_destination_configs = [var.waf_logs_bucket_arn]
 
   redacted_fields {
     single_header {

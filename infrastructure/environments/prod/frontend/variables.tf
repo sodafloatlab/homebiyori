@@ -47,9 +47,9 @@ variable "ssl_certificate_arn" {
 }
 
 variable "price_class" {
-  description = "CloudFront price class"
+  description = "CloudFront price class (PriceClass_200 for Japan support)"
   type        = string
-  default     = "PriceClass_100"
+  default     = "PriceClass_200"
 }
 
 # WAF configuration
@@ -77,8 +77,8 @@ variable "blocked_countries" {
   default     = []
 }
 
-variable "allowed_ips" {
-  description = "List of IP addresses to allow (whitelist)"
+variable "blocked_ips" {
+  description = "List of IP addresses to block (blacklist)"
   type        = list(string)
   default     = []
 }

@@ -27,8 +27,8 @@ variable "blocked_countries" {
   default     = []
 }
 
-variable "allowed_ips" {
-  description = "List of IP addresses to allow (IP whitelist)"
+variable "blocked_ips" {
+  description = "List of IP addresses to block (IP blacklist)"
   type        = list(string)
   default     = []
 }
@@ -52,7 +52,12 @@ variable "cloudfront_distribution_arn" {
 }
 
 variable "log_retention_days" {
-  description = "CloudWatch log retention period in days"
+  description = "CloudWatch log retention period in days (deprecated - logs now go to S3)"
   type        = number
   default     = 90
+}
+
+variable "waf_logs_bucket_arn" {
+  description = "ARN of the S3 bucket for WAF logs (must start with aws-waf-logs-)"
+  type        = string
 }
