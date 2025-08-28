@@ -37,8 +37,8 @@ const InteractionModeToggle = ({
     setIsLoading(true);
 
     try {
-      // user_serviceを直接呼び出して対話モードを更新
-      await UserService.updateInteractionMode(newMode);
+      // AI設定更新（プロフィールに統合）
+      await UserService.updateAIPreferences({ interaction_mode: newMode });
       
       // 成功時のローカル状態更新
       onModeChange(newMode);

@@ -25,7 +25,7 @@ export class NotificationService {
       queryParams.set('unread_only', 'true');
     }
 
-    const url = `/notifications${queryParams.toString() ? '?' + queryParams.toString() : ''}`;
+    const url = `/api/notifications${queryParams.toString() ? '?' + queryParams.toString() : ''}`;
     return await apiClient.get(url);
   }
 
@@ -33,7 +33,7 @@ export class NotificationService {
    * 未読通知数を取得
    */
   static async getUnreadCount(): Promise<{ unread_count: number }> {
-    return await apiClient.get('/notifications/unread-count');
+    return await apiClient.get('/api/notifications/unread-count');
   }
 
   /**
@@ -44,14 +44,14 @@ export class NotificationService {
       notification_id: notificationId
     };
     
-    await apiClient.post('/notifications/mark-read', request);
+    await apiClient.post('/api/notifications/mark-read', request);
   }
 
   /**
    * 複数の通知を既読にマーク
    */
   static async markMultipleAsRead(notificationIds: string[]): Promise<void> {
-    await apiClient.post('/notifications/mark-read-batch', {
+    await apiClient.post('/api/notifications/mark-read-batch', {
       notification_ids: notificationIds
     });
   }
@@ -60,28 +60,28 @@ export class NotificationService {
    * 全ての通知を既読にマーク
    */
   static async markAllAsRead(): Promise<void> {
-    await apiClient.post('/notifications/mark-all-read');
+    await apiClient.post('/api/notifications/mark-all-read');
   }
 
   /**
    * 特定の通知を削除
    */
   static async deleteNotification(notificationId: string): Promise<void> {
-    await apiClient.delete(`/notifications/${notificationId}`);
+    await apiClient.delete(`/api/notifications/${notificationId}`);
   }
 
   /**
    * 既読通知を一括削除
    */
   static async deleteReadNotifications(): Promise<void> {
-    await apiClient.delete('/notifications/read');
+    await apiClient.delete('/api/notifications/read');
   }
 
   /**
    * 全ての通知を削除
    */
   static async deleteAllNotifications(): Promise<void> {
-    await apiClient.delete('/notifications');
+    await apiClient.delete('/api/notifications');
   }
 
   /**
@@ -95,7 +95,7 @@ export class NotificationService {
     maintenance_notifications: boolean;
     marketing_notifications: boolean;
   }> {
-    return await apiClient.get('/notifications/settings');
+    return await apiClient.get('/api/notifications/settings');
   }
 
   /**
@@ -116,14 +116,14 @@ export class NotificationService {
     maintenance_notifications: boolean;
     marketing_notifications: boolean;
   }> {
-    return await apiClient.patch('/notifications/settings', params);
+    return await apiClient.patch('/api/notifications/settings', params);
   }
 
   /**
    * テスト通知を送信
    */
   static async sendTestNotification(type: 'info' | 'achievement' | 'reminder'): Promise<void> {
-    await apiClient.post('/notifications/test', { type });
+    await apiClient.post('/api/notifications/test', { type });
   }
 
   /**
@@ -143,7 +143,7 @@ export class NotificationService {
    * 期限切れ通知をクリーンアップ
    */
   static async cleanupExpiredNotifications(): Promise<{ deleted_count: number }> {
-    return await apiClient.post('/notifications/cleanup');
+    return await apiClient.post('/api/notifications/cleanup');
   }
 
   /**
@@ -156,7 +156,7 @@ export class NotificationService {
     last_notification_date: string | null;
     average_read_time: number; // 秒
   }> {
-    return await apiClient.get('/notifications/stats');
+    return await apiClient.get('/api/notifications/stats');
   }
 }
 

@@ -11,7 +11,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { initializeAmplify } from '@/lib/amplify';
-import { useAuthStore } from '@/stores/auth';
+import useAuthStore from '@/stores/authStore';
 
 interface AmplifyProviderProps {
   children: React.ReactNode;

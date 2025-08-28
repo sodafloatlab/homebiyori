@@ -93,7 +93,8 @@ export default function AuthCallbackPage() {
         console.log('Authentication successful:', result.user?.username);
         
         // 認証ストアを更新
-        const { useAuthStore } = await import('@/stores/auth');
+        const module = await import('@/stores/authStore');
+        const useAuthStore = module.default;
         const store = useAuthStore.getState();
         await store.checkAuthStatus(); // 最新の認証状態を取得
         

@@ -25,23 +25,15 @@ export type {
   SendMessageRequest,
   SendMessageResponse,
   ChatHistoryResponse,
-  ChatStatsResponse,
   AISettingsRequest,
-  GroupChatRequest,
-  AIResponseSampleRequest,
-  AIResponseSampleResponse
+  GroupChatRequest
 } from './api/ChatAPIService';
 
 // Tree API 型定義
 export type {
   TreeStatus,
   FruitInfo,
-  TreeStatsResponse,
-  FruitsListResponse,
-  CreateFruitRequest,
-  UpdateTreeRequest,
-  TreeThemeRequest,
-  FruitFilterRequest
+  CreateFruitRequest
 } from './api/TreeAPIService';
 
 // ============================================
@@ -50,25 +42,12 @@ export type {
 
 export { default as UserService } from './userService';
 export { default as NotificationService } from './notificationService';
-export { accountSettingsService } from './AccountSettingsService';
+export { IntegratedAccountService } from './IntegratedAccountService'; // ✅ 統合済み
+export { SystemHealthService } from './SystemHealthService'; // ✅ 新規追加
 export { billingService } from './BillingService';
 
 // ============================================
-// 統一サービスエイリアス (最終形)
+// 統一サービスエイリアス (シンプル化)
 // ============================================
 
-// Chat Service統一エイリアス（遅延初期化）
-export const getChatService = () => {
-  const { apiServices } = require('./api/APIServiceManager');
-  return apiServices.chat;
-};
-
-// Tree Service統一エイリアス（遅延初期化）
-export const getTreeService = () => {
-  const { apiServices } = require('./api/APIServiceManager');
-  return apiServices.tree;
-};
-
-// 後方互換性のためのエイリアス（Getter形式）
-export const ChatService = getChatService;
-export const TreeService = getTreeService;
+// apiServicesは既にメインエクスポートブロック（L13）でエクスポート済み

@@ -66,7 +66,7 @@ export interface AIResponseSampleResponse {
 
 export class ChatAPIService extends BaseAPIService {
   constructor() {
-    super('/chat');
+    super('/api/chat');
   }
 
   /**
@@ -91,84 +91,22 @@ export class ChatAPIService extends BaseAPIService {
     return response.data.slice(-limit);
   }
 
-  /**
-   * 特定の会話を削除
-   */
-  async deleteConversation(conversationId: string): Promise<void> {
-    return this.delete(`/conversations/${conversationId}`);
-  }
-
-  /**
-   * チャット履歴を全削除
-   */
-  async clearChatHistory(): Promise<void> {
-    return this.delete('/history');
-  }
-
-  /**
-   * AI設定を更新
-   */
-  async updateAISettings(settings: AISettingsRequest): Promise<void> {
-    return this.put('/settings', settings);
-  }
-
-  /**
-   * グループチャット開始
-   */
-  async startGroupChat(): Promise<{ conversation_id: string }> {
-    return this.post<{ conversation_id: string }>('/group/start');
-  }
-
-  /**
-   * グループチャットにメッセージ送信
-   */
-  async sendGroupMessage(request: GroupChatRequest): Promise<SendMessageResponse> {
-    return this.post<SendMessageResponse>('/group/message', request);
-  }
-
-  /**
-   * AIキャラクターの応答例を取得
-   */
-  async getAIResponseSample(request: AIResponseSampleRequest): Promise<AIResponseSampleResponse> {
-    return this.get<AIResponseSampleResponse>('/sample', {
-      ai_character: request.ai_character,
-      praise_level: request.praise_level,
-      sample_type: request.sample_type || 'greeting'
+  // ✅ 既存API活用 - 感情スタンプ機能
+  async sendEmotionStamp(emotion: string, targetMessageId?: string): Promise<void> {
+    return this.post('/emotions', {
+      emotion_type: emotion,
+      target_message_id: targetMessageId,
+      timestamp: new Date().toISOString()
     });
   }
 
-  /**
-   * チャット統計情報を取得
-   */
-  async getChatStats(): Promise<ChatStatsResponse> {
-    return this.get<ChatStatsResponse>('/stats');
+  // ✅ 既存API活用 - グループチャットメッセージ生成機能（パス修正）
+  async sendGroupMessage(message: string, conversationId?: string): Promise<SendMessageResponse> {
+    // PUT: グループチャット時のチャットメッセージ生成リクエスト機能
+    return this.put('/group-messages', {
+      message,
+      conversation_id: conversationId
+    });
   }
 
-  /**
-   * 特定チャットメッセージを削除
-   */
-  async deleteMessage(messageId: string): Promise<void> {
-    return this.delete(`/messages/${messageId}`);
-  }
-
-  /**
-   * チャットメッセージを編集
-   */
-  async editMessage(messageId: string, newMessage: string): Promise<ChatMessage> {
-    return this.put<ChatMessage>(`/messages/${messageId}`, { message: newMessage });
-  }
-
-  /**
-   * 会話をお気に入りに追加
-   */
-  async favoriteConversation(conversationId: string): Promise<void> {
-    return this.post(`/conversations/${conversationId}/favorite`);
-  }
-
-  /**
-   * 会話のお気に入りを解除
-   */
-  async unfavoriteConversation(conversationId: string): Promise<void> {
-    return this.delete(`/conversations/${conversationId}/favorite`);
-  }
 }

@@ -52,11 +52,6 @@ export interface RefreshTokenResponse {
 // ユーザーAPI型定義
 // ========================================
 
-export interface CreateUserProfileRequest {
-  nickname?: string;
-  ai_character?: AICharacter;
-  praise_level?: PraiseLevel;
-}
 
 export interface UpdateUserProfileRequest {
   nickname?: string;
@@ -287,3 +282,94 @@ export interface RequestConfig {
   skipErrorHandling?: boolean;
   params?: Record<string, any>;
 }
+
+// ========================================
+// 新規サービス型定義 (Issue #36対応)
+// ========================================
+
+// 統合アカウントサービス型定義
+export interface AccountStatus {
+  account: {
+    userId: string;
+    nickname: string | null;
+    createdAt: string;
+    status: string;
+  };
+  subscription: {
+    status: 'active' | 'inactive' | 'cancelled';
+    currentPlan: string | null;
+    currentPeriodEnd: string | null;
+    cancelAtPeriodEnd: boolean;
+    monthlyAmount: number | null;
+  } | null;
+}
+
+export interface DeletionRequest {
+  deletion_type: 'account_delete' | 'subscription_cancel';
+  reason: string | null;
+  feedback: string | null;
+}
+
+// システムヘルスサービス型定義
+export interface ServiceHealthStatus {
+  status: 'healthy' | 'unhealthy' | 'unknown';
+  service: string;
+  timestamp?: string;
+  response_time_ms?: number;
+}
+
+export interface SystemHealthStatus {
+  overall_status: 'healthy' | 'degraded' | 'unhealthy';
+  services: {
+    user: ServiceHealthStatus;
+    chat: ServiceHealthStatus;
+    tree: ServiceHealthStatus;
+    billing: ServiceHealthStatus;
+  };
+  timestamp: string;
+}
+
+// 感情スタンプ機能型定義 (既存API活用)
+export interface EmotionStampRequest {
+  emotion_type: string;
+  target_message_id?: string;
+  timestamp: string;
+}
+
+// グループメッセージ機能型定義 (既存API活用)
+export interface GroupMessageRequest {
+  message: string;
+  conversation_id?: string;
+}
+
+// オンボーディング機能型定義 (既存API活用)
+export interface OnboardingStatus {
+  onboarding_completed: boolean;
+  current_step?: string;
+  completed_steps?: string[];
+}
+
+export interface CompleteOnboardingRequest {
+  completed_steps: string[];
+  user_preferences?: Record<string, any>;
+}
+
+// 果実位置管理型定義 (フロントエンド完結)
+export interface Position {
+  x: number;
+  y: number;
+}
+
+export interface FruitPositionInfo {
+  fruit_id: string;
+  position: Position;
+  last_updated: string;
+}
+
+export interface TreeDimensions {
+  width: number;
+  height: number;
+  centerX: number;
+  centerY: number;
+}
+

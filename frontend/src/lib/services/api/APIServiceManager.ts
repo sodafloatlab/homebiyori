@@ -89,8 +89,8 @@ export class APIServiceManager {
     };
 
     try {
-      // Chat service health check
-      await this.chat.getChatStats();
+      // Chat service health check (using basic chat history instead of removed getChatStats)
+      await this.chat.getChatHistory({ limit: 1 });
       results.chat = true;
     } catch (error) {
       console.warn('Chat service health check failed:', error);

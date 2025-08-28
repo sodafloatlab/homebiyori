@@ -20,7 +20,6 @@ import type {
 // API型定義からの再エクスポート
 export type { 
   UpdateUserProfileRequest,
-  CreateUserProfileRequest,
   UpdateAIPreferencesRequest 
 } from './api';
 

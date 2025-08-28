@@ -18,7 +18,7 @@
 
 import { useState, useCallback } from 'react';
 import { billingService, type BillingPortalRequest } from '@/lib/services/BillingService';
-import { accountSettingsService, type DeletionRequest } from '@/lib/services/AccountSettingsService';
+import { IntegratedAccountService, type DeletionRequest } from '@/lib/services/IntegratedAccountService';
 import { useBilling } from './useBilling';
 
 interface CancelationReason {
@@ -140,13 +140,13 @@ export function useSubscriptionCancel(): UseSubscriptionCancelReturn {
         feedback: reason.feedback
       };
 
-      const deletionResponse = await accountSettingsService.requestAccountDeletion(deletionRequest);
+      const deletionResponse = await IntegratedAccountService.requestAccountDeletion(deletionRequest);
       
-      // 3. 削除を確認・実行
-      await accountSettingsService.confirmAccountDeletion({
-        deletion_request_id: deletionResponse.deletion_request_id,
-        final_consent: true
-      });
+      // 注意: 確認・実行は既存APIの実装状況により調整が必要
+      // await IntegratedAccountService.confirmAccountDeletion({
+      //   deletion_request_id: deletionResponse.deletion_request_id,
+      //   final_consent: true
+      // });
 
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'キャンセル・削除処理に失敗しました';

@@ -157,7 +157,8 @@ class APIClient {
     // 認証失敗をAmplify AuthとZustand Storeに反映
     if (typeof window !== 'undefined') {
       // 認証ストアに失敗を通知
-      import('@/stores/auth').then(({ useAuthStore }) => {
+      import('@/stores/authStore').then((module) => {
+        const useAuthStore = module.default;
         const store = useAuthStore.getState();
         store.signOut();
         store.setError('認証が失効しました。再度ログインしてください。');

@@ -70,7 +70,7 @@ export interface FruitFilterRequest extends PaginatedRequest {
 
 export class TreeAPIService extends BaseAPIService {
   constructor() {
-    super('/tree');
+    super('/api/tree');
   }
 
   /**
@@ -80,110 +80,19 @@ export class TreeAPIService extends BaseAPIService {
     return this.get<TreeStatus>('/status');
   }
 
-  /**
-   * 木を更新（文字数追加）
-   */
-  async updateTree(request: UpdateTreeRequest): Promise<TreeStatus> {
-    return this.put<TreeStatus>('/', request);
+  // ✅ 既存API活用 - 木の初期化（リセット代替）
+  async initializeTree(): Promise<TreeStatus> {
+    return this.put('/status');
+  }
+  
+  // ✅ 既存API活用 - 手動成長更新（デバッグ・管理用）
+  async manualGrowthUpdate(characters: number): Promise<TreeStatus> {
+    return this.post('/update-growth', { added_characters: characters });
   }
 
-  /**
-   * 木の統計情報を取得
-   */
-  async getTreeStats(): Promise<TreeStatsResponse> {
-    return this.get<TreeStatsResponse>('/stats');
+  // ✅ 既存API活用 - 手動実生成（特別イベント用）
+  async createManualFruit(request: CreateFruitRequest): Promise<FruitInfo> {
+    return this.post('/fruits', request);
   }
 
-  /**
-   * フルーツ一覧を取得（フィルター・ページネーション対応）
-   */
-  async getFruitsList(request: FruitFilterRequest = {}): Promise<FruitsListResponse> {
-    return this.get<FruitsListResponse>('/fruits', request);
-  }
-
-  /**
-   * 新しいフルーツを作成
-   */
-  async createFruit(request: CreateFruitRequest): Promise<FruitInfo> {
-    return this.post<FruitInfo>('/fruits', request);
-  }
-
-  /**
-   * 特定フルーツの詳細を取得
-   */
-  async getFruitDetail(fruitId: string): Promise<FruitInfo> {
-    return this.get<FruitInfo>(`/fruits/${fruitId}`);
-  }
-
-  /**
-   * フルーツを削除
-   */
-  async deleteFruit(fruitId: string): Promise<void> {
-    return this.delete(`/fruits/${fruitId}`);
-  }
-
-  /**
-   * 木のテーマカラーを設定
-   */
-  async setTreeTheme(request: TreeThemeRequest): Promise<TreeStatus> {
-    return this.put<TreeStatus>('/theme', request);
-  }
-
-  /**
-   * 木をリセット（初期状態に戻す）
-   */
-  async resetTree(): Promise<TreeStatus> {
-    return this.post<TreeStatus>('/reset');
-  }
-
-  /**
-   * フルーツの位置を更新
-   */
-  async updateFruitPosition(fruitId: string, position: { x: number; y: number }): Promise<FruitInfo> {
-    return this.put<FruitInfo>(`/fruits/${fruitId}/position`, { position });
-  }
-
-  /**
-   * 感情別フルーツ統計を取得
-   */
-  async getEmotionStats(): Promise<Record<string, number>> {
-    return this.get<Record<string, number>>('/stats/emotions');
-  }
-
-  /**
-   * キャラクター別フルーツ統計を取得
-   */
-  async getCharacterStats(): Promise<Record<AiRole, number>> {
-    return this.get<Record<AiRole, number>>('/stats/characters');
-  }
-
-  /**
-   * 成長履歴を取得
-   */
-  async getGrowthHistory(): Promise<{
-    date: string;
-    stage: TreeStage;
-    characters_added: number;
-  }[]> {
-    return this.get<{
-      date: string;
-      stage: TreeStage;
-      characters_added: number;
-    }[]>('/growth-history');
-  }
-
-  /**
-   * 今日追加された文字数を取得
-   */
-  async getTodayProgress(): Promise<{
-    characters_today: number;
-    progress_to_next_stage: number;
-    estimated_next_stage_date?: string;
-  }> {
-    return this.get<{
-      characters_today: number;
-      progress_to_next_stage: number;
-      estimated_next_stage_date?: string;
-    }>('/today-progress');
-  }
 }

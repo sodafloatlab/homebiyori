@@ -33,6 +33,11 @@ interface AuthState {
   getAccessToken: () => string | null;
   isTokenValid: () => boolean;
   refreshAuthToken: () => Promise<boolean>;
+  
+  // Amplify Auth Integration
+  initialize: () => Promise<void>;
+  checkAuthStatus: () => Promise<void>;
+  signOut: () => Promise<void>;
 }
 
 const useAuthStore = create<AuthState>()(
@@ -138,6 +143,66 @@ const useAuthStore = create<AuthState>()(
             isLoggedIn: false 
           });
           return false;
+        }
+      },
+
+      // Amplify Auth Integration
+      initialize: async () => {
+        try {
+          set({ isLoading: true, error: null });
+          
+          // Amplify Auth初期化処理をここで実行
+          // 実際の実装は必要に応じて追加
+          console.log('Auth store initialized');
+          
+          set({ isLoading: false });
+        } catch (error) {
+          set({ 
+            isLoading: false, 
+            error: '認証初期化に失敗しました' 
+          });
+        }
+      },
+
+      checkAuthStatus: async () => {
+        try {
+          set({ isLoading: true, error: null });
+          
+          // AWS Amplify Authで現在の認証状態をチェック
+          // 実際の認証状態取得ロジックを実装
+          console.log('Checking auth status...');
+          
+          set({ isLoading: false });
+        } catch (error) {
+          set({ 
+            isLoading: false, 
+            error: '認証状態の確認に失敗しました' 
+          });
+        }
+      },
+
+      signOut: async () => {
+        try {
+          set({ isLoading: true, error: null });
+          
+          // AWS Amplify Authでサインアウト
+          // 実際のサインアウトロジックを実装
+          console.log('Signing out...');
+          
+          // ローカル状態をクリア
+          set({
+            user: null,
+            profile: null,
+            isLoggedIn: false,
+            isLoading: false,
+            error: null,
+            profileError: null
+          });
+        } catch (error) {
+          set({ 
+            isLoading: false, 
+            error: 'サインアウトに失敗しました' 
+          });
         }
       }
     }),
