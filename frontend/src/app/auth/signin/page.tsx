@@ -1,27 +1,109 @@
 'use client';
 
-import React, { useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { ArrowLeft, Home } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { ArrowLeft, Home, AlertCircle, X } from 'lucide-react';
 import Breadcrumb from '@/components/ui/Breadcrumb';
 import { motion } from 'framer-motion';
 
+interface AuthError {
+  type: string;
+  message: string;
+  description: string;
+}
+
 export default function SignInPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [isLoading, setIsLoading] = useState(false);
+  const [authError, setAuthError] = useState<AuthError | null>(null);
+
+  // URL パラメータからエラー情報を取得・表示
+  useEffect(() => {
+    const error = searchParams.get('error');
+    if (error) {
+      const getErrorInfo = (errorType: string): AuthError => {
+        switch (errorType) {
+          case 'access_denied':
+            return {
+              type: 'access_denied',
+              message: 'ログインがキャンセルされました',
+              description: 'Googleアカウントでのログインが取り消されました。再度お試しください。'
+            };
+          case 'no_code':
+            return {
+              type: 'no_code',
+              message: '認証コードが取得できませんでした',
+              description: '認証プロセスでエラーが発生しました。ページを再読み込みして再度お試しください。'
+            };
+          case 'callback_failed':
+            return {
+              type: 'callback_failed',
+              message: '認証処理でエラーが発生しました',
+              description: '一時的な問題が発生している可能性があります。しばらく時間をおいて再度お試しください。'
+            };
+          case 'invalid_request':
+            return {
+              type: 'invalid_request',
+              message: '無効なリクエストです',
+              description: 'ログイン要求が正しく処理されませんでした。再度ログインをお試しください。'
+            };
+          case 'oauth_failed':
+            return {
+              type: 'oauth_failed',
+              message: '認証サービスエラー',
+              description: 'Google認証サービスとの通信に失敗しました。ネットワーク接続を確認して再度お試しください。'
+            };
+          default:
+            return {
+              type: 'unknown',
+              message: '予期しないエラーが発生しました',
+              description: 'しばらく時間をおいて再度お試しいただくか、サポートにお問い合わせください。'
+            };
+        }
+      };
+
+      setAuthError(getErrorInfo(error));
+
+      // URLをクリーンアップ（エラーパラメータを削除）
+      const url = new URL(window.location.href);
+      url.searchParams.delete('error');
+      window.history.replaceState({}, '', url.toString());
+    }
+  }, [searchParams]);
+
+  const dismissError = () => {
+    setAuthError(null);
+  };
 
   const handleGoogleSignIn = async () => {
     setIsLoading(true);
+    setAuthError(null); // エラー状態をクリア
+    
     try {
-      // TODO: AWS Cognito Google OAuth実装
-      console.log('Google OAuth start');
+      const { signInWithGoogle } = await import('@/lib/amplify');
+      const result = await signInWithGoogle();
       
-      // 一時的にダッシュボードにリダイレクト（開発時）
-      setTimeout(() => {
-        router.push('/dashboard');
-      }, 2000);
+      if (!result.success) {
+        setAuthError({
+          type: 'oauth_failed',
+          message: 'ログインに失敗しました',
+          description: result.error || '予期しないエラーが発生しました'
+        });
+        setIsLoading(false);
+        return;
+      }
+      
+      // signInWithGoogle が成功した場合、自動的にリダイレクトされるため
+      // ここには通常到達しないが、エラーハンドリングのために残しておく
+      
     } catch (error) {
       console.error('Sign in error:', error);
+      setAuthError({
+        type: 'oauth_failed',
+        message: 'ログインエラー',
+        description: '認証サービスへの接続に失敗しました。しばらく時間をおいて再度お試しください。'
+      });
     } finally {
       setIsLoading(false);
     }
@@ -100,6 +182,78 @@ export default function SignInPage() {
 
       {/* メインコンテンツ */}
       <div className="max-w-md mx-auto p-6">
+        {/* エラー表示 */}
+        {authError && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            className="mb-6 bg-red-50 border border-red-200 rounded-lg p-4"
+          >
+            <div className="flex items-start">
+              <div className="flex-shrink-0">
+                <AlertCircle className="h-5 w-5 text-red-400" />
+              </div>
+              <div className="ml-3 flex-1">
+                <h3 className="text-sm font-medium text-red-800">
+                  {authError.message}
+                </h3>
+                <div className="mt-2 text-sm text-red-700">
+                  <p>{authError.description}</p>
+                </div>
+                
+                {/* エラー解決のための提案 */}
+                <div className="mt-3 text-xs text-red-600">
+                  <p className="font-medium mb-1">解決方法：</p>
+                  <ul className="list-disc list-inside space-y-1">
+                    {authError.type === 'access_denied' && (
+                      <>
+                        <li>Googleアカウントでのログインを許可してください</li>
+                        <li>別のGoogleアカウントをお試しください</li>
+                      </>
+                    )}
+                    {authError.type === 'no_code' && (
+                      <>
+                        <li>ページを再読み込みして再度ログインしてください</li>
+                        <li>ブラウザのキャッシュをクリアしてみてください</li>
+                      </>
+                    )}
+                    {authError.type === 'callback_failed' && (
+                      <>
+                        <li>しばらく時間をおいて再度お試しください</li>
+                        <li>別のブラウザでお試しください</li>
+                      </>
+                    )}
+                    {authError.type === 'oauth_failed' && (
+                      <>
+                        <li>インターネット接続を確認してください</li>
+                        <li>ブラウザのポップアップブロックを無効にしてください</li>
+                        <li>しばらく時間をおいて再度お試しください</li>
+                      </>
+                    )}
+                    {(authError.type === 'invalid_request' || authError.type === 'unknown') && (
+                      <>
+                        <li>ページを再読み込みして再度ログインしてください</li>
+                        <li>問題が続く場合はサポートにお問い合わせください</li>
+                      </>
+                    )}
+                  </ul>
+                </div>
+              </div>
+              <div className="flex-shrink-0">
+                <button
+                  type="button"
+                  className="rounded-md bg-red-50 text-red-400 hover:text-red-500 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 focus:ring-offset-red-50 p-1"
+                  onClick={dismissError}
+                >
+                  <span className="sr-only">エラーを閉じる</span>
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        )}
+
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}

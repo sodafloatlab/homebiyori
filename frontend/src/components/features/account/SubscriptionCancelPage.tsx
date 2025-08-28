@@ -14,6 +14,13 @@ import LoadingSpinner from '../../ui/LoadingSpinner';
 import TouchTarget from '../../ui/TouchTarget';
 import { useSubscriptionCancel } from '@/lib/hooks';
 
+interface CancelationReason {
+  category: 'price' | 'features' | 'usability' | 'competitors' | 'other';
+  specific_reason: string;
+  feedback: string | null;
+  rating: number | null;
+}
+
 interface SubscriptionStatus {
   status: 'active' | 'inactive' | 'cancelled';
   currentPlan: string | null;
@@ -44,27 +51,32 @@ export function SubscriptionCancelPage({
     {
       id: 'cost',
       title: '料金が高い',
-      description: '月額料金を見直したい'
+      description: '月額料金を見直したい',
+      category: 'price' as const
     },
     {
       id: 'features',
       title: '機能を使わない',
-      description: 'プレミアム機能をあまり利用していない'
+      description: 'プレミアム機能をあまり利用していない',
+      category: 'features' as const
     },
     {
       id: 'temporary',
-      title: '一時的に利用停止',
-      description: 'しばらく利用する予定がない'
+      title: '使いづらい',
+      description: 'インターフェイスや機能が使いにくい',
+      category: 'usability' as const
     },
     {
       id: 'dissatisfied',
-      title: '期待と違った',
-      description: 'サービス内容が期待と異なっていた'
+      title: '他のサービスに移行',
+      description: '他の競合サービスの方が良い',
+      category: 'competitors' as const
     },
     {
       id: 'other',
       title: 'その他',
-      description: '上記以外の理由'
+      description: '上記以外の理由',
+      category: 'other' as const
     }
   ];
 
@@ -86,10 +98,25 @@ export function SubscriptionCancelPage({
 
   const handleFinalCancel = async () => {
     try {
-      const reasonText = selectedReason ? cancelReasons.find(r => r.id === selectedReason)?.title : '';
-      const fullReason = feedback ? `${reasonText}: ${feedback}` : reasonText;
+      if (!selectedReason) {
+        console.error('No cancellation reason selected');
+        return;
+      }
       
-      await cancelSubscription(fullReason || undefined);
+      const reasonData = cancelReasons.find(r => r.id === selectedReason);
+      if (!reasonData) {
+        console.error('Invalid cancellation reason');
+        return;
+      }
+      
+      const cancelationReason: CancelationReason = {
+        category: reasonData.category,
+        specific_reason: reasonData.title,
+        feedback: feedback || null,
+        rating: null
+      };
+      
+      await cancelSubscription(cancelationReason);
       setCurrentStep('complete');
     } catch (error) {
       // エラーは useSubscriptionCancel フックで管理される

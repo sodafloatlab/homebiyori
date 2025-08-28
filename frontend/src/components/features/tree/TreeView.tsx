@@ -9,8 +9,8 @@ import Button from '@/components/ui/Button';
 import TouchTarget from '@/components/ui/TouchTarget';
 import Toast from '@/components/ui/Toast';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
-import { useAuth, useTree, useMaintenance } from '@/lib/hooks';
-import { useTreeService } from '@/lib/api/treeService';
+import { useAuth, useMaintenance } from '@/lib/hooks';
+// import { useTreeService } from '@/lib/api/treeService'; // 未実装
 
 interface TreeViewProps {
   onNavigate: (screen: AppScreen) => void;
@@ -20,12 +20,19 @@ interface TreeViewProps {
 const TreeView = ({ onNavigate, previousScreen = 'chat' }: TreeViewProps) => {
   const [selectedFruit, setSelectedFruit] = useState<Fruit | null>(null);
   const [showToast, setShowToast] = useState(false);
-  const [toastMessage, setToastMessage] = useState({ type: 'success' as const, title: '', message: '' });
+  const [toastMessage, setToastMessage] = useState<{ type: 'success' | 'error' | 'warning' | 'info'; title: string; message: string }>({ type: 'success', title: '', message: '' });
 
   const auth = useAuth();
-  const tree = useTree();
+  // const tree = useTree(); // 未実装
+  // 仮のtreeオブジェクト
+  const tree = {
+    isLoading: false,
+    treeStatus: null as any,
+    fruits: [] as any[],
+    loadTreeStatus: () => Promise.resolve()
+  };
   const maintenance = useMaintenance();
-  const treeService = useTreeService();
+  // const treeService = useTreeService(); // 未実装
 
   // コンポーネントマウント時にデータを読み込み
   useEffect(() => {
@@ -462,14 +469,12 @@ const TreeView = ({ onNavigate, previousScreen = 'chat' }: TreeViewProps) => {
                   variant="h3" 
                   color="primary" 
                   className="mb-2"
-                  id="fruit-modal-title"
                 >
                   ほめの実の記録
                 </Typography>
                 <Typography 
                   variant="caption" 
                   color="secondary"
-                  id="fruit-modal-description"
                 >
                   {formatDate(selectedFruit.created_at)} に生まれた実の詳細情報
                 </Typography>

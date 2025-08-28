@@ -64,7 +64,11 @@ const NavigationHeader = ({
     'commercial-transaction': { parent: 'landing', label: '特定商取引法表記' },
     'notifications': { parent: 'landing', label: '通知' },
     'contact': { parent: 'landing', label: 'お問い合わせ', icon: <Mail className="w-4 h-4" /> },
-    'faq': { parent: 'landing', label: 'よくある質問', icon: <HelpCircle className="w-4 h-4" /> }
+    'faq': { parent: 'landing', label: 'よくある質問', icon: <HelpCircle className="w-4 h-4" /> },
+    'user-onboarding': { parent: 'auth', label: 'ユーザー登録' },
+    'dashboard': { parent: 'landing', label: 'ダッシュボード' },
+    'billing': { parent: 'landing', label: '課金管理' },
+    'account-settings': { parent: 'landing', label: 'アカウント設定' }
   };
 
   // パンくずナビゲーションの生成

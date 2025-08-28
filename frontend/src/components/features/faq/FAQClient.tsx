@@ -108,7 +108,7 @@ export default function FAQClient({ faqData }: FAQClientProps) {
           <Breadcrumb
             items={[
               { label: 'トップ', href: '/', icon: <Home className="w-4 h-4" /> },
-              { label: 'よくある質問', href: '/faq', current: true }
+              { label: 'よくある質問', href: '/faq' }
             ]}
           />
         </div>

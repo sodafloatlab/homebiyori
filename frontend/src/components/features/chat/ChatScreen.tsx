@@ -35,7 +35,7 @@ const ChatScreen = ({
   const [inputText, setInputText] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const [showToast, setShowToast] = useState(false);
-  const [toastMessage, setToastMessage] = useState({ type: 'success' as const, title: '', message: '' });
+  const [toastMessage, setToastMessage] = useState<{ type: 'success' | 'error' | 'warning' | 'info'; title: string; message: string }>({ type: 'success', title: '', message: '' });
   const [currentPraiseLevel, setCurrentPraiseLevel] = useState<'normal' | 'deep'>('normal');
   const messagesEndRef = useRef<HTMLDivElement>(null);
 

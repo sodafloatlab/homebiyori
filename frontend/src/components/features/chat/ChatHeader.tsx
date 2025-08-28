@@ -4,7 +4,7 @@ import React from 'react';
 import { Zap } from 'lucide-react';
 import Image from 'next/image';
 import TouchTarget from '@/components/ui/TouchTarget';
-import { AI_CHARACTER_TYPES, INTERACTION_MODES, PRAISE_LEVELS } from '@/lib/constants';
+import { AI_CHARACTERS, INTERACTION_MODES, PRAISE_LEVELS } from '@/lib/constants';
 import type { AICharacterType, InteractionMode, PraiseLevel } from '@/lib/constants';
 
 interface ChatHeaderProps {
@@ -36,22 +36,22 @@ const ChatHeader = ({
   
   const getCharacterInfo = (character: AICharacterType) => {
     switch (character) {
-      case AICharacterType.TAMASAN:
-        return {
-          name: 'たまさん',
-          image: '/images/characters/tamasan.png',
-          themeColor: 'rose'
-        };
-      case AICharacterType.MADOKASAN:
-        return {
-          name: 'まどか姉さん',
-          image: '/images/characters/madokasan.png',
-          themeColor: 'sky'
-        };
-      case AICharacterType.MITTYAN:
+      case 'mittyan':
         return {
           name: 'みっちゃん',
           image: '/images/characters/mittyan.png',
+          themeColor: 'rose'
+        };
+      case 'madokasan':
+        return {
+          name: 'まどかさん',
+          image: '/images/characters/madokasan.png',
+          themeColor: 'sky'
+        };
+      case 'hideji':
+        return {
+          name: 'ヒデじい',
+          image: '/images/characters/hideji.png',
           themeColor: 'amber'
         };
       default:
@@ -85,20 +85,20 @@ const ChatHeader = ({
   const renderInteractionModeToggle = () => (
     <TouchTarget
       onClick={() => onInteractionModeChange(
-        currentInteractionMode === InteractionMode.PRAISE 
-          ? InteractionMode.LISTEN 
-          : InteractionMode.PRAISE
+        currentInteractionMode === INTERACTION_MODES.PRAISE 
+          ? INTERACTION_MODES.LISTEN 
+          : INTERACTION_MODES.PRAISE
       )}
       className={`px-3 py-2 rounded-lg transition-all ${
-        currentInteractionMode === InteractionMode.PRAISE 
+        currentInteractionMode === INTERACTION_MODES.PRAISE 
           ? 'bg-orange-500 hover:bg-orange-600 text-white shadow-md' 
           : 'bg-blue-500 hover:bg-blue-600 text-white shadow-md'
       }`}
     >
       <div className="flex items-center space-x-1">
-        <span>{currentInteractionMode === InteractionMode.PRAISE ? '👏' : '👂'}</span>
+        <span>{currentInteractionMode === INTERACTION_MODES.PRAISE ? '👏' : '👂'}</span>
         <span className="text-xs font-medium">
-          {currentInteractionMode === InteractionMode.PRAISE ? 'ほめほめ' : '聞いて'}
+          {currentInteractionMode === INTERACTION_MODES.PRAISE ? 'ほめほめ' : '聞いて'}
         </span>
       </div>
     </TouchTarget>
@@ -107,13 +107,13 @@ const ChatHeader = ({
   const renderPraiseLevelToggle = () => (
     <TouchTarget
       onClick={() => {
-        const levels = [PraiseLevel.LIGHT, PraiseLevel.NORMAL, PraiseLevel.DEEP];
+        const levels = [PRAISE_LEVELS.LIGHT, PRAISE_LEVELS.NORMAL, PRAISE_LEVELS.DEEP];
         const currentIndex = levels.indexOf(currentPraiseLevel);
         const nextIndex = (currentIndex + 1) % levels.length;
         onPraiseLevelChange(levels[nextIndex]);
       }}
       className={`px-3 py-2 rounded-lg transition-all ${
-        currentPraiseLevel === PraiseLevel.DEEP 
+        currentPraiseLevel === PRAISE_LEVELS.DEEP 
           ? 'bg-purple-500 hover:bg-purple-600 text-white shadow-md' 
           : 'bg-gray-600 hover:bg-gray-700 text-white shadow-md'
       }`}
@@ -121,8 +121,8 @@ const ChatHeader = ({
       <div className="flex items-center space-x-1">
         <Zap className="w-3 h-3" />
         <span className="text-xs font-medium">
-          {currentPraiseLevel === PraiseLevel.DEEP ? 'ディープ' : 
-           currentPraiseLevel === PraiseLevel.NORMAL ? 'ノーマル' : 'ライト'}
+          {currentPraiseLevel === PRAISE_LEVELS.DEEP ? 'ディープ' : 
+           currentPraiseLevel === PRAISE_LEVELS.NORMAL ? 'ノーマル' : 'ライト'}
         </span>
       </div>
     </TouchTarget>
@@ -153,8 +153,8 @@ const ChatHeader = ({
               グループチャット ({activeAIs.length}人参加中)
             </h3>
             <p className="text-sm text-white/75">
-              {currentInteractionMode === InteractionMode.PRAISE ? 'ほめほめモード' : '聞いてモード'}
-              {currentPraiseLevel === PraiseLevel.DEEP && 
+              {currentInteractionMode === INTERACTION_MODES.PRAISE ? 'ほめほめモード' : '聞いてモード'}
+              {currentPraiseLevel === PRAISE_LEVELS.DEEP && 
                 <span className="ml-2 text-xs bg-yellow-400 text-yellow-800 px-2 py-1 rounded-full">ディープ</span>}
             </p>
           </div>
@@ -188,8 +188,8 @@ const ChatHeader = ({
             {characterInfo.name}
           </h3>
           <p className={`text-sm opacity-75 ${getThemeColor(selectedAiCharacter)}`}>
-            {currentInteractionMode === InteractionMode.PRAISE ? 'ほめほめモード' : '聞いてモード'}
-            {currentPraiseLevel === PraiseLevel.DEEP && 
+            {currentInteractionMode === INTERACTION_MODES.PRAISE ? 'ほめほめモード' : '聞いてモード'}
+            {currentPraiseLevel === PRAISE_LEVELS.DEEP && 
               <span className="ml-2 text-xs bg-yellow-400 text-yellow-800 px-2 py-1 rounded-full">ディープ</span>}
           </p>
         </div>

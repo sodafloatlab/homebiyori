@@ -37,13 +37,13 @@ variable "force_destroy" {
 variable "custom_domain" {
   description = "Custom domain for CloudFront distribution"
   type        = string
-  default     = ""
+  default     = "homebiyori.com"
 }
 
 variable "ssl_certificate_arn" {
   description = "ARN of the SSL certificate for custom domain"
   type        = string
-  default     = ""
+  default     = "arn:aws:acm:us-east-1:859493432410:certificate/f08b2c5a-7d55-4196-9154-542ad2b3b46c"
 }
 
 variable "price_class" {

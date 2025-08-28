@@ -268,9 +268,9 @@ const NotificationsPage = ({
       notification.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
       notification.message.toLowerCase().includes(searchQuery.toLowerCase());
     
-    const matchesFilter = filter === 'all' || 
+    const matchesFilter = filter === 'all' ||
       (filter === 'unread' && notification.status === 'unread') ||
-      (filter !== 'all' && filter !== 'unread' && notification.priority === filter);
+      (['normal', 'low', 'high'].includes(filter) && notification.priority === filter);
     
     return matchesSearch && matchesFilter;
   });

@@ -119,17 +119,13 @@ const useAuthStore = create<AuthState>()(
 
       refreshAuthToken: async () => {
         const { user } = get();
-        if (!user?.refreshToken) return false;
+        if (!user?.accessToken) return false;
 
         try {
           set({ isLoading: true, error: null });
 
-          // TODO: API統合時にrefresh token endpoint を呼び出し
-          // const response = await apiClient.post('/auth/refresh', {
-          //   refresh_token: user.refreshToken
-          // });
-
-          // 現在はダミー実装
+          // AWS Amplify Auth では自動でトークンリフレッシュが処理される
+          // fetchAuthSession({ forceRefresh: true }) で最新トークンを取得
           console.log('Token refresh requested for user:', user.userId);
           
           set({ isLoading: false });

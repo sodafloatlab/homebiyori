@@ -78,8 +78,9 @@ const useChatStore = create<ChatState>()(
         const updatedMessages = [...currentMessages, message];
         
         // 最大表示メッセージ数を超える場合は古いものから削除
-        if (updatedMessages.length > UI_CONFIG.CHAT.MAX_VISIBLE_MESSAGES) {
-          updatedMessages.splice(0, updatedMessages.length - UI_CONFIG.CHAT.MAX_VISIBLE_MESSAGES);
+        const MAX_VISIBLE_MESSAGES = 100;
+        if (updatedMessages.length > MAX_VISIBLE_MESSAGES) {
+          updatedMessages.splice(0, updatedMessages.length - MAX_VISIBLE_MESSAGES);
         }
         
         set({ messages: updatedMessages });

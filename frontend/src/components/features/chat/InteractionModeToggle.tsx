@@ -25,8 +25,8 @@ const InteractionModeToggle = ({
 }: InteractionModeToggleProps) => {
   const [isLoading, setIsLoading] = useState(false);
   const [showToast, setShowToast] = useState(false);
-  const [toastMessage, setToastMessage] = useState({
-    type: 'success' as const,
+  const [toastMessage, setToastMessage] = useState<{ type: 'success' | 'error' | 'warning' | 'info'; title: string; message: string }>({
+    type: 'success',
     title: '',
     message: ''
   });

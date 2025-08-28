@@ -33,7 +33,29 @@ export function UpgradePrompt() {
     const fetchGuidance = async () => {
       try {
         setIsLoading(true);
-        const guidanceData = await billingService.getSubscriptionGuidance();
+        // getSubscriptionGuidanceは削除されたため、簡略化した誘導データを設定
+        const shouldUpgrade = await billingService.needsBillingUpgrade();
+        const guidanceData: SubscriptionGuidance = {
+          guidance_message: {
+            title: shouldUpgrade ? 'プレミアムにアップグレード' : 'すべての機能が利用可能です',
+            description: shouldUpgrade ? 'プレミアム機能を利用するにはアップグレードが必要です' : '',
+            benefits: ['無制限チャット', 'AIキャラクター全種類', '高度な分析機能']
+          },
+          trial_info: { 
+            is_trial_active: false, 
+            days_remaining: 0, 
+            needs_expiration: false,
+            trial_start_date: null,
+            trial_end_date: null
+          },
+          plan_options: [],
+          access_info: { access_allowed: !shouldUpgrade, access_level: shouldUpgrade ? 'billing_only' : 'full', restriction_reason: null, redirect_url: null },
+          next_steps: { 
+            primary_action: shouldUpgrade ? 'upgrade' : 'continue',
+            secondary_action: 'cancel',
+            billing_portal_available: true
+          }
+        };
         setGuidance(guidanceData);
       } catch (err) {
         setError(err instanceof Error ? err.message : '課金誘導情報の取得に失敗しました');
@@ -125,7 +147,7 @@ export function UpgradePrompt() {
         </div>
 
         {/* トライアル期間情報 */}
-        {guidance.trial_info.has_expired && (
+        {guidance.trial_info.days_remaining === 0 && (
           <div className="bg-amber-50 border border-amber-200 rounded-lg p-6 mb-8">
             <div className="flex items-center justify-center text-amber-800">
               <span className="text-2xl mr-3">⏰</span>
@@ -215,7 +237,7 @@ export function UpgradePrompt() {
                   }`}
                 >
                   {checkoutLoading ? (
-                    <LoadingSpinner size="sm" className="mr-2" />
+                    <LoadingSpinner size="sm" />
                   ) : null}
                   {plan.plan_id === 'monthly' ? '初回300円で始める' : 'お得な年額プランを選択'}
                 </Button>
@@ -271,14 +293,14 @@ export function UpgradePrompt() {
         {/* アカウント削除確認ダイアログ */}
         <ConfirmationDialog
           isOpen={showDeleteDialog}
-          onClose={() => setShowDeleteDialog(false)}
+          onCancel={() => setShowDeleteDialog(false)}
           onConfirm={handleAccountDeletion}
           title="アカウントを削除しますか？"
           message="この操作は元に戻せません。アカウントに関連するすべてのデータが完全に削除されます。"
           confirmText="削除する"
           cancelText="キャンセル"
           variant="danger"
-          isLoading={isDeleting}
+          loading={isDeleting}
         />
       </div>
     </div>

@@ -74,16 +74,64 @@ export function useUserProfile(): UseUserProfileReturn {
   }, [setProfile]);
 
   const updateAICharacter = useCallback(async (character: 'mittyan' | 'madokasan' | 'hideji') => {
-    await updateProfile({ ai_character: character });
-  }, [updateProfile]);
+    // UpdateAIPreferencesRequestを使用してAI設定を更新
+    try {
+      setIsLoading(true);
+      setError(null);
+
+      await UserService.updateAIPreferences({ ai_character: character });
+      // プロフィール全体を再フェッチ
+      const freshProfile = await UserService.getProfile();
+      setProfile(freshProfile);
+      
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'AI設定の更新に失敗しました';
+      setError(errorMessage);
+      throw err;
+    } finally {
+      setIsLoading(false);
+    }
+  }, [setProfile]);
 
   const updatePraiseLevel = useCallback(async (level: 'normal' | 'deep') => {
-    await updateProfile({ praise_level: level });
-  }, [updateProfile]);
+    // UpdateAIPreferencesRequestを使用して褒めレベルを更新
+    try {
+      setIsLoading(true);
+      setError(null);
+
+      await UserService.updateAIPreferences({ praise_level: level });
+      // プロフィール全体を再フェッチ
+      const freshProfile = await UserService.getProfile();
+      setProfile(freshProfile);
+      
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : '褒めレベルの更新に失敗しました';
+      setError(errorMessage);
+      throw err;
+    } finally {
+      setIsLoading(false);
+    }
+  }, [setProfile]);
 
   const updateInteractionMode = useCallback(async (mode: 'praise' | 'listen') => {
-    await updateProfile({ interaction_mode: mode });
-  }, [updateProfile]);
+    // UpdateAIPreferencesRequestを使用してインタラクションモードを更新
+    try {
+      setIsLoading(true);
+      setError(null);
+
+      await UserService.updateAIPreferences({ interaction_mode: mode });
+      // プロフィール全体を再フェッチ
+      const freshProfile = await UserService.getProfile();
+      setProfile(freshProfile);
+      
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'インタラクションモードの更新に失敗しました';
+      setError(errorMessage);
+      throw err;
+    } finally {
+      setIsLoading(false);
+    }
+  }, [setProfile]);
 
   const clearError = useCallback(() => {
     setError(null);

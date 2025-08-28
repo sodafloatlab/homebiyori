@@ -29,7 +29,7 @@ const CharacterSelection = ({
   const [selectedMood, setSelectedMood] = useState<MoodType | null>(null);
   const [selectedCharacter, setSelectedCharacter] = useState<AiRole | null>(null);
   const [showToast, setShowToast] = useState(false);
-  const [toastMessage, setToastMessage] = useState({ type: 'success' as const, title: '', message: '' });
+  const [toastMessage, setToastMessage] = useState<{ type: 'success' | 'error' | 'warning' | 'info'; title: string; message: string }>({ type: 'success', title: '', message: '' });
 
   const auth = useAuth();
   const userProfile = useUserProfile();
@@ -155,15 +155,13 @@ const CharacterSelection = ({
         'hideji': 'hideji'
       };
 
-      const praiseLevelMap: Record<MoodType, PraiseLevel> = {
+      const praiseLevelMap: Record<MoodType, 'normal' | 'deep'> = {
         'praise': 'normal',
         'listen': 'normal'
       };
 
-      await userProfile.updateAIPreferences({
-        ai_character: aiCharacterMap[selectedCharacter],
-        praise_level: praiseLevelMap[selectedMood]
-      });
+      await userProfile.updateAICharacter(aiCharacterMap[selectedCharacter]);
+      await userProfile.updatePraiseLevel(praiseLevelMap[selectedMood]);
 
       // オンボーディング完了をマーク
       if (auth.profile && !auth.profile.onboarding_completed) {

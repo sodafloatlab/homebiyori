@@ -14,13 +14,11 @@ environment_variables = {
 # Cognito configuration - homebiyori.com domain
 callback_urls = [
   "https://homebiyori.com/auth/callback",
-  "https://www.homebiyori.com/auth/callback",
   "http://localhost:3000/auth/callback"  # For development
 ]
 
 logout_urls = [
   "https://homebiyori.com",
-  "https://www.homebiyori.com",
   "http://localhost:3000"
 ]
 

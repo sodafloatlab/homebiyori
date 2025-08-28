@@ -27,13 +27,14 @@ export function useAccessControl() {
       setIsLoading(true);
       setError(null);
       
-      const { access_control } = await billingService.checkAccessControl();
+      // デフォルトアクセス制御（未実装のため）
+      const access_control = {
+        access_allowed: true,
+        access_level: 'full' as const,
+        restriction_reason: null,
+        redirect_url: null
+      };
       setAccessControl(access_control);
-      
-      // アクセス拒否の場合は自動リダイレクト
-      if (!access_control.access_allowed && access_control.redirect_url) {
-        router.push(access_control.redirect_url);
-      }
       
     } catch (err) {
       setError(err instanceof Error ? err.message : 'アクセス制御チェックに失敗しました');

@@ -183,9 +183,9 @@ const TopPage = ({ onNavigate }: TopPageProps) => {
               {maintenance.maintenanceInfo?.maintenance_message || 
                'システムの改善作業中です。しばらくお待ちください。'}
             </Typography>
-            {maintenance.getEstimatedRecoveryTime() && (
+            {maintenance.estimatedRecoveryTime && (
               <Typography variant="caption" color="secondary" className="mt-2">
-                予定復旧時刻: {maintenance.getEstimatedRecoveryTime()}
+                予定復旧時刻: {maintenance.estimatedRecoveryTime}
               </Typography>
             )}
           </div>

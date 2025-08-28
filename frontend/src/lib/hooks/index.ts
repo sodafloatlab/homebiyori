@@ -25,9 +25,10 @@ export {
   useTrialStatus,
   useAccessControl,
   usePageGuard,
-  usePremiumFeatureGuard,
   useDetailedSubscriptionStatus,
-  useCheckout
+  useCheckout,
+  useBillingGuidance,
+  useSubscription
 } from './billing/useBilling';
 
 // サブスクリプションキャンセル

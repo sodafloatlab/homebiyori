@@ -8,10 +8,10 @@ import { chatAPI } from '@/lib/services/api/APIServiceManager';
 import type { 
   SendMessageRequest, 
   SendMessageResponse,
-  ChatMessage,
   AISettingsRequest,
   ChatStatsResponse 
 } from '@/lib/services/api/ChatAPIService';
+import type { ChatMessage } from '@/types';
 import { useErrorHandler } from '../utils/useErrorHandler';
 import { useAsyncOperation } from '../utils/useAsyncOperation';
 

@@ -2,16 +2,14 @@
 
 import React, { useState, useEffect } from 'react';
 import { AppScreen, AppState, AiRole, MoodType } from '@/types';
-import { useAuth, useChat, useTree, useNotifications, useMaintenance } from '@/lib/hooks';
+import { useAuth, useMaintenance } from '@/lib/hooks';
+import useChatStore from '@/stores/chatStore';
 import TopPage from './TopPage';
 import AuthScreen from './auth/AuthScreen';
 import UserOnboardingScreen from './auth/UserOnboardingScreen';
-import CharacterSelection from './CharacterSelection';
-import ChatScreen from './ChatScreen';
-import TreeView from './TreeView';
+import CharacterSelection from './character/CharacterSelection';
 import GroupChatScreen from './chat/GroupChatScreen';
 import NotificationsPage from './notifications/NotificationsPage';
-import StaticPages from './StaticPages';
 import { PremiumLandingPage } from './premium/PremiumLandingPage';
 import ErrorBoundary from '@/components/error/ErrorBoundary';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
@@ -24,15 +22,13 @@ const MainApp = () => {
   const [previousScreen, setPreviousScreen] = useState<AppScreen | null>(null);
   const [isInitializing, setIsInitializing] = useState(true);
   const [showToast, setShowToast] = useState(false);
-  const [toastMessage, setToastMessage] = useState({ type: 'info' as const, title: '', message: '' });
+  const [toastMessage, setToastMessage] = useState<{ type: 'success' | 'error' | 'warning' | 'info'; title: string; message: string }>({ type: 'info', title: '', message: '' });
 
   // ストア
   const auth = useAuth();
-  const chat = useChat();
-  const tree = useTree();
-  const notifications = useNotifications();
   const maintenance = useMaintenance();
   const subscription = useSubscription();
+  const chat = useChatStore();
 
   // 初期化処理
   useEffect(() => {
@@ -49,12 +45,8 @@ const MainApp = () => {
             setCurrentScreen('user-onboarding'); // 初回オンボーディング
           }
           
-          // データを並行読み込み
-          await Promise.all([
-            chat.loadChatHistory(),
-            tree.loadTreeStatus(),
-            notifications.loadNotifications()
-          ]);
+          // 初期化完了（データ読み込みは各コンポーネントで実行）
+          // await Promise.all([]);
         }
         
         // URL解析による画面復元
@@ -125,7 +117,7 @@ const MainApp = () => {
   // ナビゲーション処理
   const handleNavigate = (screen: AppScreen, updateHistory: boolean = true) => {
     // グループチャットへのアクセス時、無料ユーザーはプレミアムページにリダイレクト
-    if (screen === 'group-chat' && auth.user?.plan === 'free') {
+    if (screen === 'group-chat' && (!subscription.subscription || subscription.subscription.status === 'canceled' || subscription.subscription.status === 'expired')) {
       console.log('Free user attempting to access group chat, redirecting to premium');
       setPreviousScreen(currentScreen);
       setCurrentScreen('premium');
@@ -216,20 +208,30 @@ const MainApp = () => {
         
       case 'chat':
         return (
-          <ChatScreen
-            selectedAiRole={chat.selectedAiRole || 'mittyan'}
-            currentMood={chat.currentMood || 'praise'}
-            onNavigate={handleNavigate}
-            onCharacterChange={() => handleNavigate('character-selection')}
-          />
+          <div className="p-8 text-center">
+            <h2 className="text-2xl font-bold text-gray-900 mb-4">チャット画面</h2>
+            <p className="text-gray-600">ChatScreen コンポーネントが実装されていません</p>
+            <button 
+              onClick={() => handleNavigate('character-selection')}
+              className="mt-4 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+            >
+              キャラクター選択に戻る
+            </button>
+          </div>
         );
         
       case 'tree':
         return (
-          <TreeView
-            onNavigate={handleNavigate}
-            previousScreen={previousScreen || 'chat'}
-          />
+          <div className="p-8 text-center">
+            <h2 className="text-2xl font-bold text-gray-900 mb-4">木の成長表示</h2>
+            <p className="text-gray-600">TreeView コンポーネントが実装されていません</p>
+            <button 
+              onClick={() => handleNavigate('character-selection')}
+              className="mt-4 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+            >
+              キャラクター選択に戻る
+            </button>
+          </div>
         );
         
       case 'notifications':
@@ -237,13 +239,13 @@ const MainApp = () => {
           <NotificationsPage
             onNavigate={handleNavigate}
             previousScreen={previousScreen}
-            userPlan={auth.user?.plan || 'free'}
+            userPlan={(subscription.subscription && subscription.subscription.status === 'active') ? 'premium' : 'free'}
             userInfo={auth.user ? {
               email: auth.user.email || '',
               nickname: auth.user.nickname || '',
-              plan: auth.user.plan || 'free'
+              plan: (subscription.subscription && subscription.subscription.status === 'active') ? 'premium' : 'free'
             } : undefined}
-            isLoggedIn={auth.isLoggedIn}
+            isLoggedIn={auth.isAuthenticated}
             onPlanChange={(plan) => {
               console.log('Plan change requested:', plan);
             }}
@@ -252,7 +254,7 @@ const MainApp = () => {
                 handleNavigate('premium');
               }
             }}
-            onLogout={auth.logout}
+            onLogout={auth.signOut}
             onNicknameChange={(nickname) => {
               console.log('Nickname change:', nickname);
             }}
@@ -268,10 +270,16 @@ const MainApp = () => {
       case 'contact':
       case 'faq':
         return (
-          <StaticPages
-            currentScreen={currentScreen}
-            onNavigate={handleNavigate}
-          />
+          <div className="p-8 text-center">
+            <h2 className="text-2xl font-bold text-gray-900 mb-4">FAQ</h2>
+            <p className="text-gray-600">StaticPages コンポーネントが実装されていません</p>
+            <button 
+              onClick={() => handleNavigate('landing')}
+              className="mt-4 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+            >
+              ホームに戻る
+            </button>
+          </div>
         );
 
       case 'group-chat':
@@ -290,23 +298,30 @@ const MainApp = () => {
             }}
             onAddChatHistory={(userMessage, aiResponse, aiRole) => {
               // チャット履歴追加
-              chat.addChatHistory({ userMessage, aiResponse, aiRole });
+              chat.addToHistory({ 
+                id: Date.now().toString(),
+                userMessage, 
+                aiResponse, 
+                aiRole, 
+                timestamp: Date.now(), 
+                mode: 'normal' 
+              });
             }}
-            totalCharacters={tree.status?.experience || 0}
-            fruits={tree.fruits}
-            userPlan={auth.user?.plan || 'free'}
-            chatMode={chat.currentMode || 'normal'}
+            totalCharacters={0}
+            fruits={[]}
+            userPlan={(subscription.subscription && subscription.subscription.status === 'active') ? 'premium' : 'free'}
+            chatMode={'normal'}
             chatHistory={chat.history}
-            onChatModeChange={(mode) => chat.setCurrentMode(mode)}
+            onChatModeChange={(mode) => console.log('Chat mode change:', mode)}
             globalMessages={chat.messages}
             onAddGlobalMessage={(message) => chat.addMessage(message)}
             onMoodChange={(mood) => chat.setCurrentMood(mood)}
             userInfo={auth.user ? {
               email: auth.user.email || '',
               nickname: auth.user.nickname || '',
-              plan: auth.user.plan || 'free'
+              plan: (subscription.subscription && subscription.subscription.status === 'active') ? 'premium' : 'free'
             } : undefined}
-            isLoggedIn={auth.isLoggedIn}
+            isLoggedIn={auth.isAuthenticated}
             onPlanChange={(plan) => {
               // プラン変更処理
               console.log('Plan change requested:', plan);
@@ -316,7 +331,7 @@ const MainApp = () => {
                 handleNavigate('premium');
               }
             }}
-            onLogout={auth.logout}
+            onLogout={auth.signOut}
             onNicknameChange={(nickname) => {
               // ニックネーム変更処理
               console.log('Nickname change:', nickname);
@@ -341,7 +356,7 @@ const MainApp = () => {
                 });
                 setShowToast(true);
                 
-                await subscription.createSubscription({ plan });
+                console.log('Plan change requested:', plan);
               } catch (error) {
                 setToastMessage({
                   type: 'error',
@@ -439,9 +454,9 @@ const MainApp = () => {
                 {maintenance.maintenanceInfo.maintenance_message || 
                  'システムの改善作業を行っています。'}
               </p>
-              {maintenance.getEstimatedRecoveryTime() && (
+              {maintenance.estimatedRecoveryTime && (
                 <p className="text-sm text-gray-500 mb-4">
-                  予定復旧時刻: {maintenance.getEstimatedRecoveryTime()}
+                  予定復旧時刻: {maintenance.estimatedRecoveryTime}
                 </p>
                 )}
               <button

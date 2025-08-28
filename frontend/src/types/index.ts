@@ -38,7 +38,6 @@ export interface AuthUser {
   email?: string;
   nickname?: string;
   accessToken: string;
-  refreshToken?: string;
 }
 
 // ========================================

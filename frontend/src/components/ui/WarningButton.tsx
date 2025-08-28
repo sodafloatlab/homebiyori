@@ -54,7 +54,6 @@ export function WarningButton({
       {loading && (
         <LoadingSpinner 
           size="sm" 
-          className="mr-2" 
           color="white"
         />
       )}

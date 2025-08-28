@@ -1,5 +1,5 @@
 import { Amplify } from 'aws-amplify';
-import { signIn, signOut, getCurrentUser, fetchAuthSession } from '@aws-amplify/auth';
+import { signIn, signOut, signInWithRedirect, getCurrentUser, fetchAuthSession } from '@aws-amplify/auth';
 import { AuthUser, UserProfile } from '@/types';
 import apiClient from './api';
 
@@ -39,7 +39,7 @@ export class AuthService {
   static async signInWithGoogle(): Promise<{ user: AuthUser; profile: UserProfile }> {
     try {
       // Google OAuth経由でサインイン
-      await signIn({
+      await signInWithRedirect({
         provider: 'Google'
       });
 
@@ -62,7 +62,6 @@ export class AuthService {
   static async signOut(): Promise<void> {
     try {
       await signOut();
-      apiClient.clearAuthToken();
     } catch (error) {
       console.error('Sign-out error:', error);
       throw new Error('ログアウトに失敗しました。');
@@ -78,14 +77,12 @@ export class AuthService {
       const session = await fetchAuthSession();
       
       const accessToken = session.tokens?.accessToken?.toString() || '';
-      const refreshToken = session.tokens?.refreshToken?.toString() || '';
 
       return {
         userId: user.userId,
         email: user.signInDetails?.loginId,
         nickname: undefined, // プロフィールから取得
-        accessToken,
-        refreshToken
+        accessToken
       };
     } catch (error) {
       console.error('Get current user error:', error);
@@ -131,8 +128,7 @@ export class AuthService {
       const user = await this.getCurrentAuthenticatedUser();
       const profile = await apiClient.get('/user/profile');
       
-      // APIクライアントにトークンを設定
-      apiClient.setAuthToken(user.accessToken);
+      // APIクライアントはCognito ID tokenを自動取得
       
       return { user, profile };
     } catch (error) {
@@ -162,7 +158,6 @@ export class AuthService {
       const accessToken = session.tokens?.accessToken?.toString();
       
       if (accessToken) {
-        apiClient.setAuthToken(accessToken);
         return true;
       }
       
@@ -182,8 +177,7 @@ export class AuthService {
       const user = await this.getCurrentAuthenticatedUser();
       const profile = await this.getOrCreateUserProfile(user);
       
-      // APIクライアントにトークンを設定
-      apiClient.setAuthToken(user.accessToken);
+      // APIクライアントはCognito ID tokenを自動取得
       
       return { user, profile };
     } catch (error) {
@@ -196,8 +190,8 @@ export class AuthService {
 // グローバルイベントリスナー設定
 if (typeof window !== 'undefined') {
   // メンテナンスモード検出時の処理
-  window.addEventListener('maintenance-detected', (event: CustomEvent) => {
-    const maintenanceInfo = event.detail;
+  window.addEventListener('maintenance-detected', (event: Event) => {
+    const maintenanceInfo = (event as CustomEvent).detail;
     console.log('Maintenance mode detected:', maintenanceInfo);
     
     // メンテナンスストアに通知

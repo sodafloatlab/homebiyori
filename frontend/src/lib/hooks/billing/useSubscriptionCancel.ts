@@ -18,11 +18,11 @@
 
 import { useState, useCallback } from 'react';
 import { billingService, type BillingPortalRequest } from '@/lib/services/BillingService';
-import { accountSettingsService, type AccountDeletionRequest } from '@/lib/services/AccountSettingsService';
+import { accountSettingsService, type DeletionRequest } from '@/lib/services/AccountSettingsService';
 import { useBilling } from './useBilling';
 
 interface CancelationReason {
-  category: 'price' | 'features' | 'usage' | 'technical' | 'other';
+  category: 'price' | 'features' | 'usability' | 'competitors' | 'other';
   specific_reason: string;
   feedback: string | null;
   rating: number | null;
@@ -54,7 +54,7 @@ export function useSubscriptionCancel(): UseSubscriptionCancelReturn {
   const [error, setError] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   
-  const { refreshStatus } = useBilling();
+  const { refresh } = useBilling();
 
   const cancelSubscription = useCallback(async (
     reason: CancelationReason,
@@ -70,12 +70,12 @@ export function useSubscriptionCancel(): UseSubscriptionCancelReturn {
         cancel_at_period_end,
         reason_category: reason.category,
         reason_text: reason.specific_reason,
-        satisfaction_score: reason.rating,
-        improvement_suggestions: reason.feedback
+        satisfaction_score: reason.rating ?? undefined,
+        improvement_suggestions: reason.feedback ?? undefined
       });
 
       // 成功時はサブスクリプション状態を更新
-      await refreshStatus();
+      await refresh();
       
       return response;
       
@@ -87,7 +87,7 @@ export function useSubscriptionCancel(): UseSubscriptionCancelReturn {
       setIsLoading(false);
       setIsProcessing(false);
     }
-  }, [refreshStatus]);
+  }, [refresh]);
 
   const redirectToBillingPortal = useCallback(async (
     reason: CancelationReason
@@ -134,7 +134,7 @@ export function useSubscriptionCancel(): UseSubscriptionCancelReturn {
       await cancelImmediately(reason);
 
       // 2. アカウント削除をリクエスト
-      const deletionRequest: AccountDeletionRequest = {
+      const deletionRequest: DeletionRequest = {
         deletion_type: 'account_delete',
         reason: deletionReason,
         feedback: reason.feedback

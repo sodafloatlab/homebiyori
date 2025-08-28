@@ -94,7 +94,7 @@ export function ConfirmationDialog({
             >
               {loading ? (
                 <>
-                  <LoadingSpinner size="sm" className="mr-2" color="white" />
+                  <LoadingSpinner size="sm" color="white" />
                   処理中...
                 </>
               ) : (

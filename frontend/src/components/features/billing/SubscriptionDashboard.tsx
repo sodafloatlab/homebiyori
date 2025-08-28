@@ -47,7 +47,8 @@ export function SubscriptionDashboard() {
     try {
       await billingService.cancelSubscription({
         cancel_at_period_end: true,
-        cancellation_reason: 'User initiated cancellation'
+        reason_category: 'other',
+        reason_text: 'User initiated cancellation'
       });
       await refreshStatus();
       setShowCancelDialog(false);
@@ -294,6 +295,7 @@ export function SubscriptionDashboard() {
               onClick={handleManageBilling}
               className="w-full md:w-auto"
               size="lg"
+              variant="secondary"
             >
               Stripe Customer Portalを開く
             </Button>

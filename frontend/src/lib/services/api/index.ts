@@ -24,7 +24,8 @@ export abstract class BaseAPIService {
   protected async get<T>(path: string = '', params?: Record<string, any>): Promise<T> {
     try {
       const url = this.buildUrl(path);
-      const response = await apiClient.get(url, { params });
+      const config = params ? { params, requiresAuth: true } : { requiresAuth: true };
+      const response = await apiClient.get(url, config);
       return response.data;
     } catch (error) {
       throw this.handleError(error, 'GET');

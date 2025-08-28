@@ -95,12 +95,14 @@ const useTreeStore = create<TreeState>()(
 
           // 現在はローカル処理
           const newFruit: Fruit = {
-            id: Date.now().toString(),
-            userMessage,
-            aiResponse,
-            aiRole,
-            createdAt: new Date().toLocaleDateString('ja-JP'),
-            emotion
+            fruit_id: Date.now().toString(),
+            user_id: 'current-user', // TODO: 実際のuser_idを使用
+            user_message: userMessage,
+            ai_response: aiResponse,
+            ai_character: aiRole,
+            created_at: new Date().toISOString(),
+            emotion_detected: emotion,
+            tree_id: 'current-tree-id' // TODO: 実際のtree_idを使用
           };
 
           // アニメーション開始
@@ -164,13 +166,13 @@ const useTreeStore = create<TreeState>()(
       getFruitsByCharacter: (aiRole?: AiRole) => {
         const { fruits } = get();
         if (!aiRole) return fruits;
-        return fruits.filter(fruit => fruit.aiRole === aiRole);
+        return fruits.filter(fruit => fruit.ai_character === aiRole);
       },
 
       getRecentFruits: (limit = 10) => {
         const { fruits } = get();
         return fruits
-          .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+          .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
           .slice(0, limit);
       },
 

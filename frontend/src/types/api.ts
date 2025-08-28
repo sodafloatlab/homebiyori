@@ -281,8 +281,9 @@ export interface APIClientConfig {
 }
 
 export interface RequestConfig {
-  requiresAuth: boolean;
+  requiresAuth?: boolean;
   timeout?: number;
   retries?: number;
   skipErrorHandling?: boolean;
+  params?: Record<string, any>;
 }

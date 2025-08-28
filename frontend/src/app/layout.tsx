@@ -5,6 +5,7 @@
 import type { Metadata } from "next";
 import { Inter, Noto_Sans_JP } from "next/font/google";
 import "./globals.css";
+import AmplifyProvider, { AmplifyDebugInfo } from "@/components/providers/AmplifyProvider";
 
 const inter = Inter({ 
   subsets: ["latin"],
@@ -47,7 +48,10 @@ export default function RootLayout({
   return (
     <html lang="ja">
       <body className={`${inter.variable} ${notoSansJP.variable} font-sans antialiased`}>
-        {children}
+        <AmplifyProvider>
+          {children}
+        </AmplifyProvider>
+        <AmplifyDebugInfo />
       </body>
     </html>
   );

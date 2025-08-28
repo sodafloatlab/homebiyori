@@ -1,15 +1,11 @@
 import axios, { AxiosInstance, AxiosRequestConfig, AxiosResponse } from 'axios';
+import { fetchAuthSession } from 'aws-amplify/auth';
 import { APIResponse, APIError, RequestConfig } from '@/types/api';
 import { API_CONFIG } from '@/lib/constants';
 import { getErrorMessage, extractApiErrorMessage } from '@/lib/utils';
 
 class APIClient {
   public client: AxiosInstance; // MaintenanceStoreからアクセス可能にする
-  private isRefreshing = false;
-  private failedQueue: Array<{
-    resolve: (value?: any) => void;
-    reject: (reason?: any) => void;
-  }> = [];
 
   constructor() {
     this.client = axios.create({
@@ -24,14 +20,19 @@ class APIClient {
   }
 
   private setupInterceptors() {
-    // Request interceptor - 認証トークンの自動付与
+    // Request interceptor - Cognito IDトークンの自動付与
     this.client.interceptors.request.use(
-      (config) => {
-        // 認証が必要なリクエストの場合、トークンを付与
-        if (typeof window !== 'undefined') {
-          const token = this.getStoredToken();
-          if (token) {
-            config.headers.Authorization = `Bearer ${token}`;
+      async (config) => {
+        // 認証が必要なリクエストの場合、Cognito IDトークンを付与
+        if (typeof window !== 'undefined' && !config.headers['No-Auth']) {
+          try {
+            const token = await this.getCognitoIdToken();
+            if (token) {
+              config.headers.Authorization = `Bearer ${token}`;
+            }
+          } catch (error) {
+            console.warn('Failed to get Cognito token:', error);
+            // 認証エラーは個別のリクエストで処理
           }
         }
 
@@ -40,6 +41,7 @@ class APIClient {
           console.log(`🚀 API Request: ${config.method?.toUpperCase()} ${config.url}`, {
             params: config.params,
             data: config.data,
+            hasAuth: !!config.headers.Authorization,
           });
         }
 
@@ -51,7 +53,7 @@ class APIClient {
       }
     );
 
-    // Response interceptor - エラーハンドリング、トークン更新
+    // Response interceptor - エラーハンドリング
     this.client.interceptors.response.use(
       (response) => {
         // すべてのレスポンスでメンテナンス状態をチェック（Primary Detection）
@@ -76,33 +78,11 @@ class APIClient {
           return Promise.reject(error);
         }
 
-        // 401エラー（認証失敗）の場合、トークン更新を試行
-        if (error.response?.status === 401 && !originalRequest._retry) {
-          if (this.isRefreshing) {
-            // 既にリフレッシュ中の場合はキューに追加
-            return new Promise((resolve, reject) => {
-              this.failedQueue.push({ resolve, reject });
-            }).then(() => {
-              return this.client(originalRequest);
-            }).catch(err => {
-              return Promise.reject(err);
-            });
-          }
-
-          originalRequest._retry = true;
-          this.isRefreshing = true;
-
-          try {
-            await this.refreshToken();
-            this.processQueue(null);
-            return this.client(originalRequest);
-          } catch (refreshError) {
-            this.processQueue(refreshError);
-            this.handleAuthFailure();
-            return Promise.reject(refreshError);
-          } finally {
-            this.isRefreshing = false;
-          }
+        // 401エラー（認証失敗）の場合、認証失敗を通知
+        if (error.response?.status === 401) {
+          console.warn('🔐 Authentication failed - redirecting to sign in');
+          this.handleAuthFailure();
+          return Promise.reject(this.formatError(error));
         }
 
         // その他のエラー処理
@@ -117,58 +97,32 @@ class APIClient {
     );
   }
 
-  private processQueue(error: any) {
-    this.failedQueue.forEach(({ resolve, reject }) => {
-      if (error) {
-        reject(error);
-      } else {
-        resolve();
-      }
-    });
-
-    this.failedQueue = [];
-  }
-
-  private getStoredToken(): string | null {
+  // Cognito IDトークンを取得
+  private async getCognitoIdToken(): Promise<string | null> {
     try {
-      const stored = localStorage.getItem('homebiyori_auth_token');
-      return stored ? JSON.parse(stored) : null;
-    } catch {
-      return null;
-    }
-  }
-
-  private async refreshToken(): Promise<void> {
-    try {
-      const refreshToken = this.getStoredRefreshToken();
-      if (!refreshToken) {
-        throw new Error('No refresh token available');
-      }
-
-      const response = await axios.post(`${API_CONFIG.BASE_URL}/auth/refresh`, {
-        refresh_token: refreshToken
-      });
-
-      const { access_token, refresh_token: newRefreshToken } = response.data;
+      const session = await fetchAuthSession();
+      const idToken = session.tokens?.idToken?.toString();
       
-      // 新しいトークンを保存
-      localStorage.setItem('homebiyori_auth_token', JSON.stringify(access_token));
-      if (newRefreshToken) {
-        localStorage.setItem('homebiyori_refresh_token', JSON.stringify(newRefreshToken));
+      if (process.env.NODE_ENV === 'development' && idToken) {
+        console.log('🔐 Cognito ID Token obtained for API request');
       }
+      
+      return idToken || null;
     } catch (error) {
-      localStorage.removeItem('homebiyori_auth_token');
-      localStorage.removeItem('homebiyori_refresh_token');
-      throw error;
+      if (process.env.NODE_ENV === 'development') {
+        console.warn('🔐 Failed to get Cognito ID Token:', error);
+      }
+      return null;
     }
   }
 
-  private getStoredRefreshToken(): string | null {
+  // 認証状態を確認
+  private async isAuthenticatedWithCognito(): Promise<boolean> {
     try {
-      const stored = localStorage.getItem('homebiyori_refresh_token');
-      return stored ? JSON.parse(stored) : null;
+      const token = await this.getCognitoIdToken();
+      return !!token;
     } catch {
-      return null;
+      return false;
     }
   }
 
@@ -200,10 +154,22 @@ class APIClient {
   }
 
   private handleAuthFailure() {
-    // 認証失敗をグローバル状態に反映
+    // 認証失敗をAmplify AuthとZustand Storeに反映
     if (typeof window !== 'undefined') {
+      // 認証ストアに失敗を通知
+      import('@/stores/auth').then(({ useAuthStore }) => {
+        const store = useAuthStore.getState();
+        store.signOut();
+        store.setError('認証が失効しました。再度ログインしてください。');
+      });
+
+      // カスタムイベントも発行（互換性のため）
       const event = new CustomEvent('auth-failure');
       window.dispatchEvent(event);
+
+      if (process.env.NODE_ENV === 'development') {
+        console.log('🔐 Auth failure handled - user signed out from store');
+      }
     }
   }
 
@@ -264,6 +230,10 @@ class APIClient {
       axiosConfig.headers = { ...axiosConfig.headers, 'No-Auth': 'true' };
     }
 
+    if (config?.params) {
+      axiosConfig.params = config.params;
+    }
+
     return axiosConfig;
   }
 
@@ -277,22 +247,30 @@ class APIClient {
     return data.data as T;
   }
 
-  // 認証関連ヘルパー
-  setAuthToken(token: string) {
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('homebiyori_auth_token', JSON.stringify(token));
-    }
+  // Amplify Auth統合ヘルパー
+  async isAuthenticated(): Promise<boolean> {
+    return await this.isAuthenticatedWithCognito();
   }
 
-  clearAuthToken() {
-    if (typeof window !== 'undefined') {
-      localStorage.removeItem('homebiyori_auth_token');
-      localStorage.removeItem('homebiyori_refresh_token');
-    }
+  // 現在のCognito IDトークンを取得（外部使用可能）
+  async getCurrentToken(): Promise<string | null> {
+    return await this.getCognitoIdToken();
   }
 
-  isAuthenticated(): boolean {
-    return !!this.getStoredToken();
+  // Amplify Authと連携したサインアウト
+  async signOut(): Promise<void> {
+    try {
+      // Amplify Authでサインアウト
+      const { signOutUser } = await import('@/lib/amplify');
+      await signOutUser();
+      
+      if (process.env.NODE_ENV === 'development') {
+        console.log('🔐 User signed out via API client');
+      }
+    } catch (error) {
+      console.error('Sign out error:', error);
+      throw error;
+    }
   }
 }
 

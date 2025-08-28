@@ -5,9 +5,10 @@ import { useRouter } from 'next/navigation';
 import { FileText, Shield, Building2, Heart, Mail, HelpCircle } from 'lucide-react';
 import Typography from '@/components/ui/Typography';
 import TouchTarget from '@/components/ui/TouchTarget';
+import type { AppScreen } from '@/types';
 
 interface FooterProps {
-  onNavigate?: (screen: string) => void;
+  onNavigate?: (screen: AppScreen) => void;
 }
 
 const Footer = ({ onNavigate }: FooterProps) => {

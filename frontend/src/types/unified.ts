@@ -145,7 +145,6 @@ export interface AuthUserUnified {
   email?: string;
   nickname?: string;
   accessToken: string;
-  refreshToken?: string;
 }
 
 /**

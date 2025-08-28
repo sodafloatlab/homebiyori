@@ -170,6 +170,7 @@ app.middleware("http")(error_handling_middleware)
 
 
 
+@app.post("/api/chat/message", response_model=ChatResponse)
 @require_basic_access()
 async def send_message(
     request: Request,

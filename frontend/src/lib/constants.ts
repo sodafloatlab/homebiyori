@@ -28,7 +28,7 @@ export const AI_CHARACTER_NAMES = {
 } as const;
 
 // 型エイリアス（互換性のため）
-export type AICharacterType = keyof typeof AI_CHARACTERS;
+export type AICharacterType = typeof AI_CHARACTERS[keyof typeof AI_CHARACTERS];
 export const AI_CHARACTER_TYPES = AI_CHARACTERS;
 
 // インタラクションモード

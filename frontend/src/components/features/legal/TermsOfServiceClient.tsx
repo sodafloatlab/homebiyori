@@ -64,7 +64,7 @@ export default function TermsOfServiceClient() {
       </div>
 
       {/* メインコンテンツ */}
-      <ResponsiveContainer maxWidth="4xl" padding="lg" className="py-12">
+      <ResponsiveContainer maxWidth="2xl" padding="lg" className="py-12">
         <div className="bg-white rounded-2xl shadow-lg p-8 lg:p-12">
           <div className="max-w-4xl mx-auto">
             
