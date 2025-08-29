@@ -121,14 +121,15 @@ class AccountService:
         deletion_request: AccountDeletionRequest
     ) -> Dict[str, str]:
         """
-        アカウント削除処理
+        アカウント削除処理（超シンプル版 - 論理削除）
         
         ■削除プロセス■
-        1. 当サービス内のUserProfile削除（物理削除）
-        2. SQSキューを送信し、他サービスでの関連データ削除を非同期実行
-           - チャット履歴削除（chat_service）
-           - 木・実データ削除（tree_service）
-           - Cognitoユーザー削除（最後に実行）
+        1. UserProfileに論理削除フラグ設定（account_deleted=true）
+        2. 個人情報（nickname）を削除
+        3. SQSキューを送信し、他サービスでの関連データ削除を非同期実行
+           - チャット履歴削除（chats）
+           - 木・実データ削除（fruits, notifications）
+           - ※Cognitoユーザー削除は実行しない（sub維持のため）
         
         Args:
             user_id: ユーザーID
@@ -143,13 +144,22 @@ class AccountService:
         logger.info(f"Starting account deletion process for user_id: {user_id}")
         
         try:
-            # 1. 当サービス内のUserProfile物理削除
-            deletion_success = await self.db.delete_user_profile(user_id)
-            if not deletion_success:
-                logger.warning(f"Failed to delete user profile for user_id: {user_id}")
-                raise ValueError("Failed to delete user profile")
+            # 1. UserProfileを論理削除に変更（account_deleted=true設定）
+            from ..models import UserProfileUpdate
+            from ..services.profile_service import ProfileService
             
-            logger.info(f"UserProfile deleted successfully for user_id: {user_id}")
+            profile_service = ProfileService(self.db)
+            
+            # 論理削除フラグ設定 + 個人情報削除
+            await profile_service.update_user_profile(
+                user_id=user_id,
+                profile_update=UserProfileUpdate(
+                    account_deleted=True,
+                    nickname=None  # 個人情報削除
+                )
+            )
+            
+            logger.info(f"UserProfile logically deleted for user_id: {user_id}")
             
             # 2. SQSキューを送信して他サービスでの非同期削除を実行
             from ..utils.send_sqs import send_deletion_task_to_sqs
@@ -158,21 +168,21 @@ class AccountService:
             if not sqs_success:
                 logger.warning(
                     f"Failed to queue deletion task to SQS for user_id: {user_id}. "
-                    "UserProfile was deleted, but related data cleanup may be incomplete."
+                    "Profile was logically deleted, but related data cleanup may be incomplete."
                 )
-                # SQS送信失敗でも、UserProfile削除は成功したので処理は継続
+                # SQS送信失敗でも、論理削除は成功したので処理は継続
             
             logger.info(
                 f"Account deletion process completed for user_id: {user_id}",
                 extra={
-                    "profile_deleted": True,
+                    "profile_logically_deleted": True,
                     "sqs_queued": sqs_success
                 }
             )
             
             return {
                 "message": "Account deletion initiated successfully",
-                "status": "profile_deleted",
+                "status": "deletion_initiated",
                 "cleanup_queued": sqs_success
             }
             

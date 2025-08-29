@@ -1,0 +1,40 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "DynamoDBTableAccess",
+      "Effect": "Allow",
+      "Action": [
+        "dynamodb:Query",
+        "dynamodb:BatchWriteItem",
+        "dynamodb:DeleteItem"
+      ],
+      "Resource": [
+        "${CORE_TABLE_ARN}",
+        "${CHATS_TABLE_ARN}",
+        "${FRUITS_TABLE_ARN}",
+        "${FEEDBACK_TABLE_ARN}"
+      ]
+    },
+    {
+      "Sid": "SQSQueueAccess",
+      "Effect": "Allow",
+      "Action": [
+        "sqs:ReceiveMessage",
+        "sqs:DeleteMessage",
+        "sqs:GetQueueAttributes"
+      ],
+      "Resource": "${ACCOUNT_DELETION_QUEUE_ARN}"
+    },
+    {
+      "Sid": "CloudWatchLogsAccess",
+      "Effect": "Allow",
+      "Action": [
+        "logs:CreateLogGroup",
+        "logs:CreateLogStream",
+        "logs:PutLogEvents"
+      ],
+      "Resource": "arn:aws:logs:${AWS_REGION}:${AWS_ACCOUNT_ID}:log-group:/aws/lambda/${FUNCTION_NAME}:*"
+    }
+  ]
+}

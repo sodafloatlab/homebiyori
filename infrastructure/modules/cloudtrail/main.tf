@@ -25,28 +25,30 @@ resource "aws_cloudtrail" "this" {
   # ログファイル検証
   enable_log_file_validation = true
 
-  # データイベント設定（DynamoDB, Lambda, S3アクセス）
+  # データイベント設定（全リソース監査）
   event_selector {
     read_write_type           = "All"
     include_management_events = true
 
-    # DynamoDBテーブル監査
+    # 全DynamoDBテーブル監査
     data_resource {
       type   = "AWS::DynamoDB::Table"
-      values = var.dynamodb_tables_to_audit
+      values = ["arn:aws:dynamodb"]
     }
 
-    # Lambda関数監査
-    data_resource {
-      type   = "AWS::Lambda::Function"
-      values = var.lambda_functions_to_audit
-    }
+    # 全Lambda関数監査
+    # DynamoDBのデータ監査のみ対象とする
+    # data_resource {
+    #   type   = "AWS::Lambda::Function"
+    #   values = ["arn:aws:lambda"]
+    # }
 
-    # S3バケット監査
-    data_resource {
-      type   = "AWS::S3::Object"
-      values = var.s3_objects_to_audit
-    }
+    # 全S3オブジェクト監査
+    # DynamoDBのデータ監査のみ対象とする
+    # data_resource {
+    #   type   = "AWS::S3::Object"
+    #   values = ["*"]
+    # }
   }
 
   # Insightイベント（異常なアクティビティ検出）

@@ -20,9 +20,12 @@ import TouchTarget from '../../ui/TouchTarget';
 interface PremiumLandingPageProps {
   onClose: () => void;
   onSubscribe: (plan: 'monthly' | 'yearly') => void;
+  userProfile?: any; // ユーザープロフィール情報
 }
 
-export function PremiumLandingPage({ onClose, onSubscribe }: PremiumLandingPageProps) {
+export function PremiumLandingPage({ onClose, onSubscribe, userProfile }: PremiumLandingPageProps) {
+  // 削除済みアカウント判定
+  const isDeletedAccount = userProfile?.account_deleted === true;
   const premiumFeatures = [
     {
       icon: <Users className="w-8 h-8" />,
@@ -298,6 +301,37 @@ export function PremiumLandingPage({ onClose, onSubscribe }: PremiumLandingPageP
           </div>
         </motion.div>
 
+        {/* 削除済みアカウント向けメッセージ */}
+        {isDeletedAccount && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.4 }}
+            className="mb-12"
+          >
+            <div className="bg-amber-50 border border-amber-200 rounded-2xl p-6 max-w-2xl mx-auto">
+              <div className="flex items-start space-x-3">
+                <div className="flex-shrink-0 w-6 h-6 bg-amber-100 rounded-full flex items-center justify-center mt-0.5">
+                  <span className="text-amber-600 text-sm">⚠️</span>
+                </div>
+                <div>
+                  <h3 className="text-amber-800 font-semibold mb-2">
+                    過去の利用履歴について
+                  </h3>
+                  <p className="text-amber-700 text-sm leading-relaxed mb-3">
+                    過去にアカウントを削除されているため、<strong>無料トライアルはご利用いただけません</strong>。
+                  </p>
+                  <div className="bg-white rounded-lg p-3">
+                    <p className="text-amber-800 text-xs">
+                      💡 プレミアムプランにご登録いただければ、全ての機能を新たにご利用いただけます。
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        )}
+
         {/* 料金プラン */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -310,7 +344,10 @@ export function PremiumLandingPage({ onClose, onSubscribe }: PremiumLandingPageP
               料金プラン
             </h2>
             <p className="text-gray-600">
-              あなたに最適なプランをお選びください
+              {isDeletedAccount 
+                ? "プレミアムプランで再開しませんか？" 
+                : "あなたに最適なプランをお選びください"
+              }
             </p>
           </div>
 

@@ -192,8 +192,45 @@ LAMBDA_SERVICES=(
     "contact_service"
 )
 
+# Build operation services (special handling for subdirectories)
+OPERATION_SERVICES=(
+    "operation_service/deletion_processor"
+)
+
 for service in "${LAMBDA_SERVICES[@]}"; do
     build_function "$service"
+done
+
+# Build operation services with subdirectory support
+for operation_service in "${OPERATION_SERVICES[@]}"; do
+    # Extract service path components
+    service_path_array=(${operation_service//\// })
+    service_dir_name="${service_path_array[0]}"
+    sub_service_name="${service_path_array[1]}"
+    
+    # Full path to the operation service
+    operation_source_dir="$BACKEND_SOURCE_DIR/services/$operation_service"
+    
+    if [[ -d "$operation_source_dir" ]]; then
+        # Create a temporary service structure 
+        temp_service_dir="$BUILD_DIR/temp_${sub_service_name}"
+        mkdir -p "$temp_service_dir"
+        cp -r "$operation_source_dir"/* "$temp_service_dir/"
+        
+        # Update the service source dir for build_function
+        BACKEND_SOURCE_DIR_BACKUP="$BACKEND_SOURCE_DIR"
+        BACKEND_SOURCE_DIR="$BUILD_DIR"
+        mkdir -p "$BUILD_DIR/services"
+        mv "$temp_service_dir" "$BUILD_DIR/services/${sub_service_name}"
+        
+        build_function "${sub_service_name}"
+        
+        # Restore original backend source dir
+        BACKEND_SOURCE_DIR="$BACKEND_SOURCE_DIR_BACKUP"
+        rm -rf "$BUILD_DIR/services"
+    else
+        log_warning "Operation service directory not found: $operation_source_dir"
+    fi
 done
 
 # Build Stripe webhook services

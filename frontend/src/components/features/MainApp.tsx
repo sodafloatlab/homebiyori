@@ -30,6 +30,34 @@ const MainApp = () => {
   const subscription = useSubscription();
   const chat = useChatStore();
 
+  // 初期画面決定ロジック（超シンプル版）
+  const determineInitialScreen = (profile: any, subscription: any): AppScreen => {
+    if (!profile?.onboarding_completed) {
+      return 'user-onboarding';
+    }
+    
+    // アクティブサブスクリプションがある場合
+    if (subscription?.status === 'active') {
+      return 'character-selection';
+    }
+    
+    // 削除済みアカウント または トライアル期間終了
+    // → 両方とも同じプレミアム画面に遷移
+    if (profile?.account_deleted || isTrialExpired(profile)) {
+      return 'premium';
+    }
+    
+    // 無料期間中
+    return 'character-selection';
+  };
+
+  // トライアル期間判定（簡易版）
+  const isTrialExpired = (profile: any): boolean => {
+    // 実装は要件に応じて調整
+    // 例：created_atから7日経過しているかどうか
+    return false; // 現在は常にfalse
+  };
+
   // 初期化処理
   useEffect(() => {
     const initializeApp = async () => {
@@ -38,12 +66,9 @@ const MainApp = () => {
         const isAuthenticated = await auth.checkAuthStatus();
         
         if (isAuthenticated) {
-          // 認証済みの場合、オンボーディング状況に応じて適切な画面に
-          if (auth.profile?.onboarding_completed) {
-            setCurrentScreen('character-selection'); // または最後に使用した画面
-          } else {
-            setCurrentScreen('user-onboarding'); // 初回オンボーディング
-          }
+          // 初期画面を決定
+          const initialScreen = determineInitialScreen(auth.profile, subscription.subscription);
+          setCurrentScreen(initialScreen);
           
           // 初期化完了（データ読み込みは各コンポーネントで実行）
           // await Promise.all([]);
@@ -347,6 +372,7 @@ const MainApp = () => {
         return (
           <PremiumLandingPage
             onClose={() => handleNavigate(previousScreen || 'character-selection')}
+            userProfile={auth.profile}
             onSubscribe={async (plan) => {
               try {
                 setToastMessage({

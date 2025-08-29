@@ -74,6 +74,8 @@ class UserProfile(BaseModel):
 
     onboarding_completed: bool = Field(False, description="オンボーディング完了フラグ")
 
+    account_deleted: bool = Field(False, description="削除済みフラグ")
+
     created_at: datetime = Field(
         default_factory=get_current_jst, description="作成日時（JST）"
     )
@@ -124,6 +126,10 @@ class UserProfileUpdate(BaseModel):
 
     onboarding_completed: Optional[bool] = Field(
         None, description="オンボーディング完了フラグ"
+    )
+
+    account_deleted: Optional[bool] = Field(
+        None, description="削除済みフラグ"
     )
 
     @field_validator("nickname")

@@ -21,25 +21,6 @@ variable "environment" {
   type        = string
 }
 
-# データイベント監査対象
-variable "dynamodb_tables_to_audit" {
-  description = "監査対象のDynamoDBテーブルARNリスト"
-  type        = list(string)
-  default     = ["arn:aws:dynamodb:*:*:table/*"]
-}
-
-variable "lambda_functions_to_audit" {
-  description = "監査対象のLambda関数ARNリスト"
-  type        = list(string)
-  default     = ["arn:aws:lambda:*:*:function/*"]
-}
-
-variable "s3_objects_to_audit" {
-  description = "監査対象のS3オブジェクトARNリスト"
-  type        = list(string)
-  default     = ["arn:aws:s3:::*/*"]
-}
-
 # 追加機能設定
 variable "enable_insights" {
   description = "CloudTrail Insightsを有効にするか"

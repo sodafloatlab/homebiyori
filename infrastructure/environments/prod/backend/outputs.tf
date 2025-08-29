@@ -258,6 +258,40 @@ output "stripe_eventbridge_dlq_url" {
   value       = module.stripe_eventbridge_dlq.queue_url
 }
 
+# ========================================
+# Account Deletion SQS Outputs
+# ========================================
+
+output "account_deletion_queue_name" {
+  description = "Name of the account deletion queue"
+  value       = module.account_deletion_queue.queue_name
+}
+
+output "account_deletion_queue_arn" {
+  description = "ARN of the account deletion queue"
+  value       = module.account_deletion_queue.queue_arn
+}
+
+output "account_deletion_queue_url" {
+  description = "URL of the account deletion queue"
+  value       = module.account_deletion_queue.queue_url
+}
+
+output "account_deletion_dlq_name" {
+  description = "Name of the account deletion dead letter queue"
+  value       = module.account_deletion_queue.dlq_name
+}
+
+output "account_deletion_dlq_arn" {
+  description = "ARN of the account deletion dead letter queue"
+  value       = module.account_deletion_queue.dlq_arn
+}
+
+output "account_deletion_dlq_url" {
+  description = "URL of the account deletion dead letter queue"
+  value       = module.account_deletion_queue.dlq_url
+}
+
 # Stripe Webhook Lambda Function Outputs
 output "stripe_webhook_function_names" {
   description = "Map of Stripe webhook Lambda function names"

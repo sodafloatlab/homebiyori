@@ -140,6 +140,30 @@ locals {
       # JSONファイルから読み込み、プレースホルダー置換
       iam_policy_template = "policies/contact_service_policy.json"
     }
+
+    # Deletion Processor Service - Account deletion async data cleanup
+    deletion-processor = {
+      memory_size = 512
+      timeout     = 900  # 15 minutes for large data cleanup
+      layers      = ["common"]
+      environment_variables = {
+        CORE_TABLE_NAME     = data.terraform_remote_state.datastore.outputs.core_table_name
+        CHATS_TABLE_NAME    = data.terraform_remote_state.datastore.outputs.chats_table_name
+        FRUITS_TABLE_NAME   = data.terraform_remote_state.datastore.outputs.fruits_table_name
+        FEEDBACK_TABLE_NAME = data.terraform_remote_state.datastore.outputs.feedback_table_name
+        ENVIRONMENT         = var.environment
+      }
+      # JSONファイルから読み込み、プレースホルダー置換
+      iam_policy_template = "policies/deletion_processor_policy.json"
+      # SQS event source mapping for account deletion queue
+      event_source_mappings = {
+        account_deletion_queue = {
+          event_source_arn                   = module.account_deletion_queue.queue_arn
+          batch_size                         = 10
+          maximum_batching_window_in_seconds = 5
+        }
+      }
+    }
   }
 
   # ----------------------------------------
@@ -530,6 +554,27 @@ module "stripe_eventbridge_dlq" {
   tags = {
     Component = "stripe-eventbridge"
     Purpose   = "dead-letter-queue"
+  }
+}
+
+# ========================================
+# Account Deletion SQS System
+# ========================================
+
+# SQS Queue for Account Deletion Tasks
+module "account_deletion_queue" {
+  source = "../../../modules/sqs"
+
+  queue_name                 = "${local.project_name}-${local.environment}-account-deletion-queue"
+  message_retention_seconds  = 1209600  # 14 days
+  receive_wait_time_seconds  = 20       # Long Polling
+  visibility_timeout_seconds = 900      # 15 minutes (Lambda max timeout)
+  enable_dlq                = true
+  max_receive_count         = 3
+
+  tags = {
+    Component = "account-deletion"
+    Purpose   = "async-data-cleanup"
   }
 }
 

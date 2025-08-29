@@ -6,8 +6,8 @@ locals {
   environment  = var.environment
   
   # 監査ログ用の命名規則
-  audit_bucket_name = "${local.project_name}-${local.environment}-audit-logs"
-  cloudtrail_name   = "${local.project_name}-${local.environment}-audit-trail"
+  audit_bucket_name = "${local.environment}-${local.project_name}-audit-logs"
+  cloudtrail_name   = "${local.environment}-${local.project_name}-audit-trail"
 }
 
 # 監査ログ専用S3バケット
@@ -24,9 +24,11 @@ module "audit_s3_bucket" {
   
   # バケットポリシー（JSON外だし）
   bucket_policy = templatefile("${path.module}/policies/cloudtrail_bucket_policy.json", {
-    bucket_arn = "arn:aws:s3:::${local.audit_bucket_name}"
-    region     = data.aws_region.current.name
-    account_id = data.aws_caller_identity.current.account_id
+    bucket_arn      = "arn:aws:s3:::${local.audit_bucket_name}"
+    trail_name      = "${local.cloudtrail_name}"
+    s3_key_prefix   = "cloudtrail-logs"
+    region          = data.aws_region.current.name
+    account_id      = data.aws_caller_identity.current.account_id
   })
 }
 
@@ -39,19 +41,6 @@ module "cloudtrail" {
   s3_bucket_name  = module.audit_s3_bucket.bucket_name
   s3_key_prefix   = "cloudtrail-logs"
   environment     = local.environment
-
-  # 監査対象設定（HomebiyoriプロジェクトリソースのみFocus）
-  dynamodb_tables_to_audit = [
-    "arn:aws:dynamodb:${var.aws_region}:*:table/${local.project_name}-${local.environment}-*"
-  ]
-  
-  lambda_functions_to_audit = [
-    "arn:aws:lambda:${var.aws_region}:*:function:${local.project_name}-*"
-  ]
-
-  s3_objects_to_audit = [
-    "arn:aws:s3:::${local.project_name}-*/*"
-  ]
 
   # 基本機能のみ有効化
   enable_cloudwatch_logs   = false
