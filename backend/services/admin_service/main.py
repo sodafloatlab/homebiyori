@@ -563,9 +563,9 @@ async def set_maintenance_parameters(enabled: bool, message: str, start_time: Op
         # 各パラメータを個別に更新
         parameters = {
             f'/{environment}/homebiyori/maintenance/enabled': str(enabled).lower(),
-            f'/{environment}/homebiyori/maintenance/message': message or '',
-            f'/{environment}/homebiyori/maintenance/start_time': start_time or '',
-            f'/{environment}/homebiyori/maintenance/end_time': end_time or ''
+            f'/{environment}/homebiyori/maintenance/message': message or 'システムメンテナンス中です',
+            f'/{environment}/homebiyori/maintenance/start_time': start_time or 'not_set',
+            f'/{environment}/homebiyori/maintenance/end_time': end_time or 'not_set'
         }
         
         for param_key, param_value in parameters.items():

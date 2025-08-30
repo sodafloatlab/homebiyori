@@ -14,7 +14,7 @@ terraform {
 # Local values for computed configurations
 locals {
   # API Gateway naming
-  api_name = "${var.project_name}-${var.environment}-${var.api_type}-api"
+  api_name = "${var.environment}-${var.project_name}-${var.api_type}-api"
   
   # CloudWatch log group naming
   log_group_name = "API-Gateway-Execution-Logs_${aws_api_gateway_rest_api.this.id}/${var.environment}"
@@ -254,7 +254,9 @@ resource "aws_iam_role_policy_attachment" "api_gateway_cloudwatch" {
 }
 
 # API Gateway Account (for CloudWatch logging)
+# Only create for the first API type to avoid conflicts
 resource "aws_api_gateway_account" "this" {
+  count               = var.api_type == "user" ? 1 : 0
   cloudwatch_role_arn = aws_iam_role.api_gateway_cloudwatch.arn
 }
 

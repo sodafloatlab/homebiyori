@@ -383,11 +383,19 @@ class ParameterStoreClient:
             
             params = self.get_multiple_parameters(maintenance_params)
             
+            # 時刻パラメータの取得と正規化
+            start_time_raw = params.get(f"{self._base_path}/maintenance/start_time", "")
+            end_time_raw = params.get(f"{self._base_path}/maintenance/end_time", "")
+            
+            # "not_set"の場合は空文字として扱う
+            start_time = "" if start_time_raw == "not_set" else start_time_raw
+            end_time = "" if end_time_raw == "not_set" else end_time_raw
+            
             config = {
                 "enabled": params.get(f"{self._base_path}/maintenance/enabled", "false").lower() == "true",
                 "message": params.get(f"{self._base_path}/maintenance/message", "システムメンテナンス中です"),
-                "start_time": params.get(f"{self._base_path}/maintenance/start_time", ""),
-                "end_time": params.get(f"{self._base_path}/maintenance/end_time", "")
+                "start_time": start_time,
+                "end_time": end_time
             }
             
             logger.info("Retrieved maintenance config", extra={

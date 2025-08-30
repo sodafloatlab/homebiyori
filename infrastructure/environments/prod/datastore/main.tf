@@ -179,9 +179,9 @@ module "logs_bucket" {
     }
   ]
   
-  # Bucket policy to allow Bedrock service to write invocation logs (AWS公式ドキュメント準拠)
-  bucket_policy = templatefile("${path.module}/policies/bedrock_s3_bucket_policy.json", {
-    bucket_name = "${local.project_name}-${local.environment}-logs"
+  # Bucket policy to allow Bedrock and CloudFront services to write logs
+  bucket_policy = templatefile("${path.module}/policies/logs_s3_bucket_policy.json", {
+    bucket_name = "${local.environment}-${local.project_name}-logs"
     account_id  = data.aws_caller_identity.current.account_id
     aws_region  = data.aws_region.current.name
   })
@@ -202,7 +202,7 @@ module "waf_logs_bucket" {
   bucket_purpose = "Store AWS WAF logs (requires aws-waf-logs- prefix)"
   
   # WAF logs require specific bucket naming with aws-waf-logs- prefix
-  bucket_name_override = "aws-waf-logs-${local.project_name}-${local.environment}"
+  bucket_name_override = "aws-waf-logs-${local.environment}-${local.project_name}"
   
   enable_versioning = false
   

@@ -10,10 +10,10 @@
         "dynamodb:DeleteItem"
       ],
       "Resource": [
-        "${CORE_TABLE_ARN}",
-        "${CHATS_TABLE_ARN}",
-        "${FRUITS_TABLE_ARN}",
-        "${FEEDBACK_TABLE_ARN}"
+        "${core_table_arn}",
+        "${chats_table_arn}",
+        "${fruits_table_arn}",
+        "${feedback_table_arn}"
       ]
     },
     {
@@ -24,7 +24,7 @@
         "sqs:DeleteMessage",
         "sqs:GetQueueAttributes"
       ],
-      "Resource": "${ACCOUNT_DELETION_QUEUE_ARN}"
+      "Resource": "${account_deletion_queue_arn}"
     },
     {
       "Sid": "CloudWatchLogsAccess",
@@ -34,7 +34,7 @@
         "logs:CreateLogStream",
         "logs:PutLogEvents"
       ],
-      "Resource": "arn:aws:logs:${AWS_REGION}:${AWS_ACCOUNT_ID}:log-group:/aws/lambda/${FUNCTION_NAME}:*"
+      "Resource": "arn:aws:logs:${region}:${account_id}:log-group:/aws/lambda/${project_name}-${environment}-deletion-processor:*"
     }
   ]
 }

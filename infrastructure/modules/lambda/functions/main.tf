@@ -14,13 +14,13 @@ terraform {
 # Local values for computed configurations
 locals {
   # Function naming
-  function_name = "${var.project_name}-${var.environment}-${var.service_name}"
+  function_name = "${var.environment}-${var.project_name}-${var.service_name}"
   
   # IAM role naming
-  role_name = "${var.project_name}-${var.environment}-${var.service_name}-role"
+  role_name = "${var.environment}-${var.project_name}-${var.service_name}-role"
   
   # Policy naming
-  policy_name = "${var.project_name}-${var.environment}-${var.service_name}-policy"
+  policy_name = "${var.environment}-${var.project_name}-${var.service_name}-policy"
   
   # Log group naming
   log_group_name = "/aws/lambda/${local.function_name}"

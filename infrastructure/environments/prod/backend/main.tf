@@ -423,7 +423,7 @@ module "bedrock" {
 module "contact_notifications" {
   source = "../../../modules/sns"
 
-  topic_name    = "${local.project_name}-${local.environment}-contact-notifications"
+  topic_name    = "${local.environment}-${local.project_name}-contact-notifications"
   display_name  = "Homebiyori Contact Notifications"
   aws_region    = local.region
   aws_account_id = local.account_id
@@ -482,18 +482,19 @@ locals {
 
   # IAMポリシーのプレースホルダー置換用変数（全サービス対応）
   policy_template_vars = {
-    core_table_arn       = data.terraform_remote_state.datastore.outputs.core_table_arn
-    chats_table_arn      = data.terraform_remote_state.datastore.outputs.chats_table_arn
-    fruits_table_arn     = data.terraform_remote_state.datastore.outputs.fruits_table_arn
-    feedback_table_arn   = data.terraform_remote_state.datastore.outputs.feedback_table_arn
-    payments_table_arn   = data.terraform_remote_state.datastore.outputs.payments_table_arn
-    sns_topic_arn        = module.contact_notifications.topic_arn
-    contact_dlq_arn      = module.contact_notifications.dlq_arn
-    ai_unified_model_id  = data.aws_ssm_parameter.ai_unified_model_id.value
-    region               = local.region
-    account_id           = local.account_id
-    project_name         = local.project_name
-    environment          = local.environment
+    core_table_arn             = data.terraform_remote_state.datastore.outputs.core_table_arn
+    chats_table_arn            = data.terraform_remote_state.datastore.outputs.chats_table_arn
+    fruits_table_arn           = data.terraform_remote_state.datastore.outputs.fruits_table_arn
+    feedback_table_arn         = data.terraform_remote_state.datastore.outputs.feedback_table_arn
+    payments_table_arn         = data.terraform_remote_state.datastore.outputs.payments_table_arn
+    sns_topic_arn              = module.contact_notifications.topic_arn
+    contact_dlq_arn            = module.contact_notifications.dlq_arn
+    ai_unified_model_id        = data.aws_ssm_parameter.ai_unified_model_id.value
+    region                     = local.region
+    account_id                 = local.account_id
+    project_name               = local.project_name
+    environment                = local.environment
+    account_deletion_queue_arn = module.account_deletion_queue.queue_arn
   }
 }
 
@@ -578,17 +579,10 @@ module "account_deletion_queue" {
   }
 }
 
-# EventBridge Bus（再利用可能モジュール使用）
-module "stripe_eventbridge_bus" {
-  source = "../../../modules/eventbridge/bus"
-
-  bus_name           = "${local.environment}-${local.project_name}-stripe-webhook-bus"
-  log_retention_days = var.log_retention_days
-
-  tags = {
-    Component = "stripe-eventbridge"
-    Purpose   = "webhook-processing"
-  }
+# Partner Event Source名とEventBus名を構築
+locals {
+  stripe_partner_event_source_name = "aws.partner/stripe.com/${var.stripe_partner_event_source_id}"
+  stripe_event_bus_name            = "aws.partner/stripe.com/${var.stripe_partner_event_source_id}"
 }
 
 # EventBridge Rules & Targets（再利用可能モジュールで各イベント処理）
@@ -599,7 +593,7 @@ module "stripe_eventbridge_rules" {
     payment-succeeded = {
       description = "Route Stripe invoice.payment_succeeded events to Lambda"
       event_pattern = jsonencode({
-        source      = ["aws.partner/stripe.com/${var.stripe_partner_source_id}"]
+        source      = [local.stripe_partner_event_source_name]
         detail-type = ["Invoice Payment Succeeded"]
         detail = {
           type = ["invoice.payment_succeeded"]
@@ -611,7 +605,7 @@ module "stripe_eventbridge_rules" {
     payment-failed = {
       description = "Route Stripe invoice.payment_failed events to Lambda"
       event_pattern = jsonencode({
-        source      = ["aws.partner/stripe.com/${var.stripe_partner_source_id}"]
+        source      = [local.stripe_partner_event_source_name]
         detail-type = ["Invoice Payment Failed"]
         detail = {
           type = ["invoice.payment_failed"]
@@ -623,7 +617,7 @@ module "stripe_eventbridge_rules" {
     subscription-updated = {
       description = "Route Stripe customer.subscription.updated events to Lambda"
       event_pattern = jsonencode({
-        source      = ["aws.partner/stripe.com/${var.stripe_partner_source_id}"]
+        source      = [local.stripe_partner_event_source_name]
         detail-type = ["Customer Subscription Updated"]
         detail = {
           type = ["customer.subscription.updated"]
@@ -636,7 +630,7 @@ module "stripe_eventbridge_rules" {
 
   rule_name        = "${local.environment}-${local.project_name}-${each.key}-rule"
   rule_description = each.value.description
-  event_bus_name   = module.stripe_eventbridge_bus.eventbridge_bus_name
+  event_bus_name   = local.stripe_event_bus_name
   event_pattern    = each.value.event_pattern
 
   target_id            = "${title(replace(each.key, "-", ""))}LambdaTarget"

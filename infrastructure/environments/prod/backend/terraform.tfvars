@@ -54,3 +54,5 @@ stripe_webhook_zip_paths = {
 # Note: Set this as environment variable for security:
 # export TF_VAR_stripe_partner_source_id="acct_XXXXXXXXXXXXXXXXXX"
 # stripe_partner_source_id will be set via environment variable
+
+stripe_partner_event_source_id = "ed_test_61TAjulNQf5rP5RB416T2ty2UTHNDQCMy7NuwCSO8O7U"

@@ -43,7 +43,7 @@ resource "aws_ssm_parameter" "maintenance_end_time" {
   name        = "/${var.environment}/homebiyori/maintenance/end_time"
   description = "Expected maintenance end time (ISO 8601 format)"
   type        = "String"
-  value       = ""
+  value       = "not_set"
   
   # Ignore changes to value since this is managed dynamically by operations
   lifecycle {
@@ -57,7 +57,7 @@ resource "aws_ssm_parameter" "maintenance_start_time" {
   name        = "/${var.environment}/homebiyori/maintenance/start_time"
   description = "Maintenance start time (ISO 8601 format)"
   type        = "String"
-  value       = ""
+  value       = "not_set"
   
   # Ignore changes to value since this is managed dynamically by operations
   lifecycle {

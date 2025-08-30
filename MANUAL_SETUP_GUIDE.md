@@ -154,25 +154,108 @@ aws bedrock list-foundation-models \
 - Parameter Store: `/homebiyori/prod/google/client_secret`
 - `backend/variables.tf`: `enable_google_oauth = true`
 
-### 3.2 Stripe設定
+### 3.2 Stripe設定（EventBridge統合 - Issue #28対応）
 
-**Stripeダッシュボード設定：**
-1. Stripeアカウント作成・本人確認
-2. API Keys取得（公開可能キー・シークレットキー）
-3. Webhook エンドポイント設定：
+**⚡ 重要：EventBridge統合により従来のWebhook設定方式が変更されました**
+
+#### 3.2.1 基本アカウント設定
+1. **Stripeアカウント作成・本人確認**
+2. **API Keys取得（公開可能キー・シークレットキー）**
+
+#### 3.2.2 EventBridge連携設定（新方式）
+
+**Stripe Partner Event Sources設定：**
+1. Stripe Dashboard → 開発者 → Webhook
+2. 「Add endpoint」→「Connect to...」→「Amazon EventBridge」を選択
+3. EventBridge統合設定：
    ```
-   エンドポイントURL: https://<api-gateway-id>.execute-api.ap-northeast-1.amazonaws.com/prod/webhook
-   イベント: customer.subscription.created, customer.subscription.updated, customer.subscription.deleted
+   AWS Account ID: 123456789012（本番AWS Account ID）
+   AWS Region: ap-northeast-1
+   
+   注意: カスタムイベントバス名は指定不可（Stripeが自動生成）
+   実際に作成される名前: aws.partner/stripe.com/ed_test_XXXXXXXXXX
    ```
+
+4. **監視対象イベント選択：**
+   ```
+   ✅ invoice.payment_succeeded    （決済成功時）
+   ✅ invoice.payment_failed       （決済失敗時）
+   ✅ customer.subscription.updated（サブスクリプション更新時）
+   ```
+
+5. **Partner Event Source名取得：**
+   ```
+   自動生成される形式: aws.partner/stripe.com/ed_test_XXXXXXXXXX
+   実際の例: aws.partner/stripe.com/ed_test_61TAjulNQf5rP5RB416T2ty2UTHNDQCMy7NuwCSO8O7U
+   ```
+   
+   **重要：** この完全なPartner Event Source名をメモしてください。TerraformのEventBridge Rule設定で使用します。
+
+#### 3.2.3 EventBridge統合設定（推奨アプローチ）
+
+**アプローチ1: Stripeが自動生成したイベントバスを使用（推奨）**
+
+**AWS EventBridge Console確認：**
+1. EventBridge → Partner event sources
+2. Stripe Partner Source（例：`aws.partner/stripe.com/ed_test_61TAjulNQf5rP5RB416T2ty2UTHNDQCMy7NuwCSO8O7U`）が表示されることを確認
+3. **手動設定不要** - Partner Event Sourceは自動的にdefaultイベントバスにイベントを送信
+
+**Terraformでの実装方法：**
+```hcl
+# Partner Event Sourceを直接参照してEventBridge Ruleを作成
+resource "aws_cloudwatch_event_rule" "stripe_payment_succeeded" {
+  name = "stripe-payment-succeeded"
+  
+  event_pattern = jsonencode({
+    source      = ["aws.partner/stripe.com/ed_test_61TAjulNQf5rP5RB416T2ty2UTHNDQCMy7NuwCSO8O7U"]
+    detail-type = ["Invoice Payment Succeeded"]
+    detail = {
+      type = ["invoice.payment_succeeded"]
+    }
+  })
+}
+```
+
+**メリット:**
+- 設定が簡単（手動関連付け作業不要）
+- 運用負荷が低い
+- Stripeが自動管理
+
+#### 3.2.4 従来のWebhook設定（廃止）
+
+**⚠️ 非推奨：従来の直接Webhook方式**
+```
+❌ 旧方式: API Gateway直接 + webhook_service Lambda
+✅ 新方式: EventBridge + 分割Lambda（高可用性・独立スケーリング）
+```
 
 **取得する情報：**
 - Stripe API Key (Secret)
-- Stripe Webhook Secret
+- Stripe Partner Event Source名（EventBridge用）: `aws.partner/stripe.com/ed_test_XXXXXXXXXX`
 
 **Terraformとの関連：**
 - Parameter Store経由でLambda環境変数に設定
-- `backend/data.tf`: SSM Parameter参照
+- `backend/variables.tf`: `stripe_partner_event_source`（EventBridge Rule設定用）
+- `backend/main.tf`: EventBridge rule + Lambda 統合（カスタムバス不要）
 - stripe_webhook_endpoint_secret削除済み（Issue #33対応）
+
+**⚠️ 重要な仕様変更点：**
+- 従来の`stripe_partner_source_id`（acct_XXX形式）は使用しない
+- Stripeが自動生成する完全なPartner Event Source名を直接使用
+- **カスタムイベントバス作成不要**（Partner Event Sourceが自動的にdefaultバスに送信）
+- 手動関連付け作業不要
+
+#### 3.2.5 EventBridge統合の利点
+
+**従来方式との比較：**
+| 項目 | 従来方式 | EventBridge方式 |
+|------|----------|----------------|
+| エンドポイント | API Gateway | AWS EventBridge |
+| 可用性 | 単一Lambda依存 | 分散Lambda + リトライ機能 |
+| スケーラビリティ | 手動設定 | 自動スケーリング |
+| エラーハンドリング | 手動実装 | ネイティブDLQ・リトライ |
+| 運用負荷 | 高（手動監視） | 低（CloudWatch統合） |
+| デプロイ単位 | モノリス | マイクロサービス |
 
 ---
 
@@ -182,18 +265,20 @@ aws bedrock list-foundation-models \
 
 **作成するパラメーター（Issue #33対応済み）：**
 ```bash
-# Stripe関連（必須）
+# Stripe関連（必須 - EventBridge統合対応）
 aws ssm put-parameter \
   --name "/prod/homebiyori/stripe/api_key" \
   --value "sk_live_xxxxxxxxxxxxxxxx" \
   --type "SecureString" \
   --description "Stripe API Secret Key for prod environment"
 
-aws ssm put-parameter \
-  --name "/prod/homebiyori/stripe/webhook_secret" \
-  --value "whsec_xxxxxxxxxxxxxxxx" \
-  --type "SecureString" \
-  --description "Stripe Webhook Secret for prod environment"
+# 注意: webhook_secret は EventBridge統合により廃止
+# EventBridge経由では署名検証が不要（AWSが代行）
+# aws ssm put-parameter \
+#   --name "/prod/homebiyori/stripe/webhook_secret" \
+#   --value "whsec_xxxxxxxxxxxxxxxx" \
+#   --type "SecureString" \
+#   --description "[DEPRECATED] Stripe Webhook Secret - Not used in EventBridge integration"
 
 # 価格設定（本番環境確定後に更新）
 aws ssm put-parameter \
@@ -749,7 +834,7 @@ jobs:
 - [ ] Route53ドメイン・ホストゾーン設定完了
 - [ ] ACM SSL証明書発行完了（us-east-1）
 
-### 7.2 Terraformデプロイ順序
+### 7.2 Terraformデプロイ順序（EventBridge統合対応）
 
 ```bash
 # 1. Datastore層（基盤）
@@ -758,13 +843,26 @@ terraform init
 terraform plan
 terraform apply
 
-# 2. Backend層（アプリケーション）  
+# 2. Backend層（アプリケーション + EventBridge）  
 cd ../backend
 terraform init
+
+# EventBridge統合のためのStripe Partner Event Source設定
+# terraform.tfvarsファイルを作成して設定
+
+# 1. terraform.tfvarsファイル作成
+cp terraform.tfvars.example terraform.tfvars
+
+# 2. terraform.tfvarsを編集
+# - "🔽 INPUT REQUIRED" 箇所を見つけて空の引用符内にIDを入力
+# - stripe_partner_event_source_id = "" ← この空の引用符内にIDを入力
+# - 例: stripe_partner_event_source_id = "ed_test_61TAjulNQf5rP5RB416T2ty2UTHNDQCMy7NuwCSO8O7U"
+
+# 3. Terraform実行
 terraform plan
 terraform apply
 
-# 3. Operation層（ログ管理）
+# 3. Operation層（ログ管理 + EventBridge監視）
 cd ../operation
 terraform init  
 terraform plan
@@ -780,6 +878,42 @@ terraform apply
 cd ../../../..
 chmod +x scripts/deploy-frontend.sh
 ./scripts/deploy-frontend.sh
+```
+
+### 7.2.1 EventBridge統合確認手順
+
+**Backend層デプロイ後の確認：**
+```bash
+# EventBridge Custom Bus作成確認
+aws events list-event-buses \
+  --query 'EventBuses[?Name==`homebiyori-prod-stripe-eventbridge`]'
+
+# EventBridge Rules作成確認  
+aws events list-rules \
+  --event-bus-name homebiyori-prod-stripe-eventbridge
+
+# Lambda関数作成確認
+aws lambda list-functions \
+  --query 'Functions[?contains(FunctionName, `stripe-webhook`)].FunctionName'
+
+# DLQ作成確認
+aws sqs list-queues \
+  --query 'QueueUrls[?contains(@, `stripe-eventbridge-dlq`)]'
+```
+
+**Stripe側EventBridge連携確認：**
+```bash
+# AWS EventBridge Console → Partner event sources
+# 以下の形式で Partner Source が表示されることを確認
+# aws.partner/stripe.com/ed_test_XXXXXXXXXX
+
+# Partner Event Source確認コマンド
+aws events list-partner-event-sources \
+  --name-prefix "aws.partner/stripe.com/"
+
+# EventBridge Rules確認（defaultバスに作成される）
+aws events list-rules \
+  --name-prefix "stripe-"
 ```
 
 ### 7.3 デプロイ後設定
@@ -807,6 +941,8 @@ terraform apply -var="callback_urls=[\"https://${FRONTEND_DOMAIN}\"]"
 | **ACM証明書** | `module.cloudfront` | `frontend/variables.tf` | `ssl_certificate_arn = "arn:aws:acm:..."` |
 | **Google OAuth** | `module.cognito` | `backend/variables.tf` | `enable_google_oauth = true` |
 | **Stripe API** | `data.aws_ssm_parameter` | `backend/data.tf` | Parameter Store参照 |
+| **Stripe EventBridge** | `module.stripe_eventbridge_*` | `backend/main.tf` | EventBridge bus + rules + Lambda統合 |
+| **Stripe Partner Source** | `module.stripe_eventbridge_rules` | `backend/variables.tf` | `stripe_partner_source_id = "acct_XXX"` |
 | **Lambda ZIPファイル** | `module.lambda_functions` | `backend/variables.tf` | `*_zip_path` variables |
 | **フロントエンドビルド** | `module.s3` + `module.cloudfront` | `datastore/s3` + `frontend/cloudfront` | Next.js静的エクスポート → S3 → CloudFront |
 
@@ -817,7 +953,8 @@ terraform apply -var="callback_urls=[\"https://${FRONTEND_DOMAIN}\"]"
         ↓                    ↓                      ↓                       ↓                    ↓                    ↓
    S3・DynamoDB        DynamoDB・S3         Lambda・Cognito        Logging・Firehose   CloudFront・WAF       Next.js→S3→CDN
    Parameter Store       SQS               API Gateway             Subscription           SSL証明書           環境変数統合
-   Bedrockモデル                          外部連携                                                        キャッシュ無効化
+   Bedrockモデル                       EventBridge・外部連携      EventBridge監視                         キャッシュ無効化
+   Stripe Partner ID                   Stripe Webhook統合          DLQ・CloudWatch                        認証テスト
 ```
 
 ---

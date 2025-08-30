@@ -62,3 +62,22 @@ variable "price_class" {
     error_message = "Price class must be PriceClass_All, PriceClass_200, or PriceClass_100."
   }
 }
+
+variable "enable_logging" {
+  description = "Enable CloudFront access logging via CloudWatch Log Delivery"
+  type        = bool
+  default     = false
+}
+
+variable "logging_bucket_name" {
+  description = "S3 bucket name for CloudFront access logs delivery"
+  type        = string
+  default     = ""
+}
+
+variable "logging_prefix" {
+  description = "S3 prefix for CloudFront access log files"
+  type        = string
+  default     = "cloudfront-logs/"
+}
+

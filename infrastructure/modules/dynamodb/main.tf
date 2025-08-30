@@ -14,7 +14,7 @@ terraform {
 # Local values for computed configurations
 locals {
   # Table naming
-  table_name = "${var.project_name}-${var.environment}-${var.table_name}"
+  table_name = "${var.environment}-${var.project_name}-${var.table_name}"
   
   # Tags with table-specific additions
   tags = merge(var.tags, {

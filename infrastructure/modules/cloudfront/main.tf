@@ -1,6 +1,12 @@
+# CloudFront and related log delivery resources must be in us-east-1
+provider "aws" {
+  alias  = "us_east_1"
+  region = "us-east-1"
+}
+
 # CloudFront Origin Access Control
 resource "aws_cloudfront_origin_access_control" "main" {
-  name                              = "${var.project_name}-${var.environment}-oac"
+  name                              = "${var.environment}-${var.project_name}-oac"
   description                       = "Origin Access Control for ${var.project_name}"
   origin_access_control_origin_type = "s3"
   signing_behavior                  = "always"
@@ -21,18 +27,18 @@ resource "aws_cloudfront_distribution" "main" {
     origin_id                = "S3-${var.static_bucket_name}"
     origin_access_control_id = aws_cloudfront_origin_access_control.main.id
 
-    custom_origin_config {
-      http_port              = 80
-      https_port             = 443
-      origin_protocol_policy = "https-only"
-      origin_ssl_protocols   = ["TLSv1.2"]
+    s3_origin_config {
+      origin_access_identity = ""
     }
   }
 
 
   # Origin for API Gateway
   origin {
-    domain_name = replace(var.api_gateway_url, "/^https:\\/\\//", "")
+    # Extract domain name from API Gateway URL
+    # Example: "https://abc123.execute-api.ap-northeast-1.amazonaws.com/prod" 
+    # -> "abc123.execute-api.ap-northeast-1.amazonaws.com"
+    domain_name = split("/", replace(var.api_gateway_url, "https://", ""))[0]
     origin_id   = "API-Gateway"
     origin_path = "/${var.api_gateway_stage_name}"
 
@@ -69,7 +75,7 @@ resource "aws_cloudfront_distribution" "main" {
     target_origin_id = "API-Gateway"
 
     cache_policy_id          = "4135ea2d-6df8-44a3-9df3-4b5a84be39ad" # AWS管理ポリシー: Managed-CachingDisabled
-    origin_request_policy_id = aws_cloudfront_origin_request_policy.api_gateway.id
+    origin_request_policy_id = "b689b0a8-53d0-40ab-baf2-68738e2966ac" # AWS Managed: AllViewerExceptHostHeader
 
     viewer_protocol_policy = "redirect-to-https"
     min_ttl                = 0
@@ -122,32 +128,59 @@ resource "aws_cloudfront_distribution" "main" {
     response_page_path = "/error/503.html"
   }
 
+
   # WAF association
   web_acl_id = var.waf_web_acl_id
 
   tags = {
-    Name = "${var.project_name}-${var.environment}-cloudfront"
+    Name = "${var.environment}-${var.project_name}-cloudfront"
   }
 }
 
-# CloudFront Origin Request Policy for API Gateway
-resource "aws_cloudfront_origin_request_policy" "api_gateway" {
-  name    = "${var.project_name}-${var.environment}-api-gateway-policy"
-  comment = "Origin request policy for API Gateway"
+# CloudWatch Log Delivery Source for CloudFront Access Logs
+resource "aws_cloudwatch_log_delivery_source" "cloudfront_access_logs" {
+  provider = aws.us_east_1
+  for_each = var.enable_logging ? { enabled = true } : {}
+  
+  name         = "${var.environment}-${var.project_name}-cloudfront-access-logs"
+  resource_arn = aws_cloudfront_distribution.main.arn
+  log_type     = "ACCESS_LOGS"
+  tags = {
+    Name = "${var.environment}-${var.project_name}-cloudfront-log-source"
+  }
+}
 
-  cookies_config {
-    cookie_behavior = "none"
+# CloudWatch Log Delivery Destination (S3)
+resource "aws_cloudwatch_log_delivery_destination" "s3_destination" {
+  provider = aws.us_east_1
+  for_each = var.enable_logging ? { enabled = true } : {}
+  
+  name                     = "${var.environment}-${var.project_name}-cloudfront-s3-destination"
+  output_format           = "json"
+  
+  delivery_destination_configuration {
+    destination_resource_arn = "arn:aws:s3:::${var.logging_bucket_name}/${var.logging_prefix}"
+  }
+  
+  tags = {
+    Name = "${var.environment}-${var.project_name}-cloudfront-s3-destination"
+  }
+}
+
+# CloudWatch Log Delivery
+resource "aws_cloudwatch_log_delivery" "cloudfront_to_s3" {
+  provider = aws.us_east_1
+  for_each = var.enable_logging ? { enabled = true } : {}
+  
+  delivery_source_name      = aws_cloudwatch_log_delivery_source.cloudfront_access_logs["enabled"].name
+  delivery_destination_arn  = aws_cloudwatch_log_delivery_destination.s3_destination["enabled"].arn
+  
+  s3_delivery_configuration {
+    suffix_path = "/{DistributionId}/{yyyy}/{MM}/{dd}/{HH}"
   }
 
-  headers_config {
-    header_behavior = "whitelist"
-    headers {
-      items = ["Authorization", "Content-Type", "Accept"]
-    }
-  }
-
-  query_strings_config {
-    query_string_behavior = "all"
+  tags = {
+    Name = "${var.environment}-${var.project_name}-cloudfront-log-delivery"
   }
 }
 

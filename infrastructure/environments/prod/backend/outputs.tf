@@ -235,12 +235,14 @@ output "api_gateway_log_group_arns" {
 
 output "stripe_eventbridge_bus_name" {
   description = "Name of the Stripe EventBridge custom bus"
-  value       = module.stripe_eventbridge_bus.eventbridge_bus_name
+  value       = local.stripe_event_bus_name
+  sensitive   = true
 }
 
 output "stripe_eventbridge_bus_arn" {
   description = "ARN of the Stripe EventBridge custom bus"
-  value       = module.stripe_eventbridge_bus.eventbridge_bus_arn
+  value       = "arn:aws:events:${local.region}:${local.account_id}:event-bus/${local.stripe_event_bus_name}"
+  sensitive   = true
 }
 
 output "stripe_eventbridge_dlq_name" {

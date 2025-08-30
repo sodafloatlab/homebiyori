@@ -24,7 +24,7 @@
       "Effect": "Allow",
       "Action": ["ssm:GetParameter"],
       "Resource": [
-        "arn:aws:ssm:${region}:${account_id}:parameter/${project_name}/${environment}/*"
+        "arn:aws:ssm:${region}:${account_id}:parameter/${environment}/${project_name}/*"
       ]
     }
   ]

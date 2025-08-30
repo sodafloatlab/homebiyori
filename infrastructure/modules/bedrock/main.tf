@@ -14,12 +14,6 @@
 # S3への直接ログ出力（CloudWatchLogsは不使用）
 resource "aws_bedrock_model_invocation_logging_configuration" "main" {
   logging_config {
-    # CloudWatch Logsは使用しない
-    cloudwatch_config {
-      log_group_name = null
-      role_arn      = null
-    }
-
     # S3バケットへのログ出力設定（AWS公式ドキュメント準拠パス）
     s3_config {
       bucket_name = var.logs_bucket_name

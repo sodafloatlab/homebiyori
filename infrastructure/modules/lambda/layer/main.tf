@@ -14,7 +14,7 @@ terraform {
 # Local values for computed configurations
 locals {
   # Layer naming
-  layer_name = "${var.project_name}-${var.environment}-${var.layer_name}"
+  layer_name = "${var.environment}-${var.project_name}-${var.layer_name}"
   
   # Module-specific tags (merged with provider default_tags)
   tags = merge({

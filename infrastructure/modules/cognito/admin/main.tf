@@ -14,13 +14,13 @@ terraform {
 # Local values for computed configurations
 locals {
   # Pool naming
-  pool_name = "${var.project_name}-${var.environment}-admins"
+  pool_name = "${var.environment}-${var.project_name}-admins"
   
   # Domain naming  
-  domain_name = "${var.project_name}-${var.environment}-admin-auth"
+  domain_name = "${var.environment}-${var.project_name}-admin-auth"
   
   # Client naming
-  client_name = "${var.project_name}-${var.environment}-admins-web-client"
+  client_name = "${var.environment}-${var.project_name}-admins-web-client"
   
   # Module-specific tags (merged with provider default_tags)
   tags = merge({
@@ -81,6 +81,14 @@ resource "aws_cognito_user_pool" "admins" {
   # MFA configuration - configurable for enhanced security
   mfa_configuration = var.enable_mfa ? "OPTIONAL" : "OFF"
 
+  # MFA methods configuration - only when MFA is enabled
+  dynamic "software_token_mfa_configuration" {
+    for_each = var.enable_mfa ? [1] : []
+    content {
+      enabled = true
+    }
+  }
+
   # Schema configuration for admins
   schema {
     name                = "email"
@@ -101,6 +109,11 @@ resource "aws_cognito_user_pool" "admins" {
     attribute_data_type = "String"
     required            = false
     mutable            = true
+    
+    string_attribute_constraints {
+      min_length = 1
+      max_length = 2048
+    }
   }
 
   tags = local.tags

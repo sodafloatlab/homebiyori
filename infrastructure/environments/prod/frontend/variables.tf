@@ -94,3 +94,11 @@ variable "log_retention_days" {
   type        = number
   default     = 14
 }
+
+# CloudFront Logging configuration
+variable "enable_cloudfront_logging" {
+  description = "Enable CloudFront access logging via CloudWatch Log Delivery"
+  type        = bool
+  default     = true
+}
+

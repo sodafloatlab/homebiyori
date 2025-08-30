@@ -9,11 +9,19 @@ terraform {
   }
 }
 
+# WAF for CloudFront must be created in us-east-1 region
+provider "aws" {
+  alias  = "us_east_1"
+  region = "us-east-1"
+}
+
 # WAF Web ACL for CloudFront
 resource "aws_wafv2_web_acl" "main" {
-  name  = "${var.project_name}-${var.environment}-web-acl"
+  provider = aws.us_east_1
+  
+  name        = "${var.environment}-${var.project_name}-web-acl"
   description = "WAF Web ACL for ${var.project_name}"
-  scope = "CLOUDFRONT"
+  scope       = "CLOUDFRONT"
 
   default_action {
     allow {}
@@ -173,7 +181,7 @@ resource "aws_wafv2_web_acl" "main" {
   }
 
   tags = {
-    Name = "${var.project_name}-${var.environment}-web-acl"
+    Name = "${var.environment}-${var.project_name}-web-acl"
   }
 
   visibility_config {
@@ -186,7 +194,7 @@ resource "aws_wafv2_web_acl" "main" {
 # IP Set for blocked IPs (IP blacklist)
 resource "aws_wafv2_ip_set" "blocked_ips" {
   count              = length(var.blocked_ips) > 0 ? 1 : 0
-  name               = "${var.project_name}-${var.environment}-blocked-ips"
+  name               = "${var.environment}-${var.project_name}-blocked-ips"
   description        = "Blocked IP addresses"
   scope              = "CLOUDFRONT"
   ip_address_version = "IPV4"
@@ -197,7 +205,7 @@ resource "aws_wafv2_ip_set" "blocked_ips" {
 # IP Set for maintenance mode allowed IPs
 resource "aws_wafv2_ip_set" "maintenance_allowed_ips" {
   count              = var.maintenance_mode ? 1 : 0
-  name               = "${var.project_name}-${var.environment}-maintenance-allowed-ips"
+  name               = "${var.environment}-${var.project_name}-maintenance-allowed-ips"
   description        = "IP addresses allowed during maintenance"
   scope              = "CLOUDFRONT"
   ip_address_version = "IPV4"
@@ -218,6 +226,8 @@ resource "aws_wafv2_web_acl_association" "maintenance_response" {
 
 # WAF Logging Configuration - S3 output
 resource "aws_wafv2_web_acl_logging_configuration" "main" {
+  provider = aws.us_east_1
+  
   resource_arn            = aws_wafv2_web_acl.main.arn
   log_destination_configs = [var.waf_logs_bucket_arn]
 

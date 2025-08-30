@@ -14,13 +14,13 @@ terraform {
 # Local values for computed configurations
 locals {
   # Pool naming
-  pool_name = "${var.project_name}-${var.environment}-users"
+  pool_name = "${var.environment}-${var.project_name}-users"
   
   # Domain naming  
-  domain_name = "${var.project_name}-${var.environment}-auth"
+  domain_name = "${var.environment}-${var.project_name}-auth"
   
   # Client naming
-  client_name = "${var.project_name}-${var.environment}-users-web-client"
+  client_name = "${var.environment}-${var.project_name}-users-web-client"
   
   # Module-specific tags (merged with provider default_tags)
   tags = merge({
@@ -104,6 +104,9 @@ resource "aws_cognito_user_pool_client" "users_web" {
 
   # Identity providers - Google only (no COGNITO direct login)
   supported_identity_providers = var.enable_google_oauth ? ["Google"] : []
+  
+  # Ensure Google identity provider exists before creating client
+  depends_on = [aws_cognito_identity_provider.google]
 
   # Token validity - standard for web applications
   access_token_validity  = 60   # 1 hour
@@ -141,9 +144,15 @@ resource "aws_cognito_identity_provider" "google" {
   provider_type = "Google"
 
   provider_details = {
-    client_id     = var.google_client_id
-    client_secret = var.google_client_secret
-    authorize_scopes = "openid"  # Minimal scope - only OpenID for authentication
+    client_id                     = var.google_client_id
+    client_secret                 = var.google_client_secret
+    authorize_scopes              = "openid"
+    attributes_url                = "https://people.googleapis.com/v1/people/me?personFields="
+    attributes_url_add_attributes = "true"
+    authorize_url                 = "https://accounts.google.com/o/oauth2/v2/auth"
+    oidc_issuer                   = "https://accounts.google.com"
+    token_request_method          = "POST"
+    token_url                     = "https://www.googleapis.com/oauth2/v4/token"
   }
 
   # No attribute mapping - absolute privacy

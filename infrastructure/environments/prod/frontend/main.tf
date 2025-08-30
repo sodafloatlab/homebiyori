@@ -62,10 +62,14 @@ module "cloudfront" {
   api_gateway_stage_name      = local.environment
   
   # WAF integration
-  waf_web_acl_id             = module.waf.web_acl_id
+  waf_web_acl_id             = module.waf.web_acl_arn
   
   # Custom domain configuration
   custom_domain              = var.custom_domain
   ssl_certificate_arn        = var.ssl_certificate_arn
   price_class                = var.price_class
+  
+  # CloudFront Access Logging via CloudWatch Log Delivery
+  enable_logging             = var.enable_cloudfront_logging
+  logging_bucket_name        = data.terraform_remote_state.datastore.outputs.logs_bucket_name
 }
