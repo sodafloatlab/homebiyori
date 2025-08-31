@@ -3,7 +3,7 @@
 # =====================================
 
 # AWS SDK
-boto3==1.34.162
+boto3==1.40.21
 
 # Lambda runtime dependencies
 # (homebiyori_common provided via Lambda Layer)

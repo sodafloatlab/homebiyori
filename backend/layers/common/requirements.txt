@@ -2,8 +2,8 @@
 # 全Lambda関数で共通利用される依存関係
 
 # AWS SDK - 全サービスで必須 (2025年8月最新)
-boto3==1.40.3             # AWS サービス連携（DynamoDB、Parameter Store、SQS等）
-botocore==1.40.3          # boto3の低レベル実装
+boto3==1.40.21            # AWS サービス連携（DynamoDB、Parameter Store、SQS等）
+botocore==1.40.21         # boto3の低レベル実装
 
 # Web Framework - API Lambda用 (2025年8月最新)
 fastapi==0.116.1          # メインWebフレームワーク
