@@ -24,11 +24,11 @@ const AuthScreen = ({ onNavigate, onAuthSuccess }: AuthScreenProps) => {
 
   // 認証状態が変更された時の処理
   useEffect(() => {
-    if (auth.isAuthenticated && auth.profile) {
+    if (auth.isAuthenticated) {
       setToastMessage({
         type: 'success',
         title: 'ログイン成功！',
-        message: 'キャラクター選択画面に移動します'
+        message: auth.profile ? 'キャラクター選択画面に移動します' : 'プロフィール設定画面に移動します'
       });
       setShowToast(true);
 

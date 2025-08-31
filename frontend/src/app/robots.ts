@@ -9,6 +9,9 @@
 
 import { MetadataRoute } from 'next';
 
+// 静的エクスポート対応
+export const dynamic = 'force-static';
+
 export default function robots(): MetadataRoute.Robots {
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://homebiyori.com';
   

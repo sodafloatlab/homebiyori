@@ -13,10 +13,20 @@ resource "aws_cloudfront_origin_access_control" "main" {
   signing_protocol                  = "sigv4"
 }
 
+# CloudFront Function for URI rewriting (index.html auto-append)
+resource "aws_cloudfront_function" "uri_rewrite" {
+  provider = aws.us_east_1
+  name    = "${var.environment}-${var.project_name}-uri-rewrite"
+  runtime = "cloudfront-js-2.0"
+  comment = "Add index.html for subdirectory requests (except /api/*)"
+  publish = true
+  code    = file("${path.module}/src/uri-rewrite.js")
+}
+
 # CloudFront Distribution
 resource "aws_cloudfront_distribution" "main" {
-  comment             = "${var.project_name} ${var.environment} distribution"
-  default_root_object = "index.html"
+  comment = "${var.project_name} ${var.environment} distribution"
+  # default_root_object removed - handled by CloudFront Function
   enabled             = true
   is_ipv6_enabled     = false
   price_class         = var.price_class
@@ -64,6 +74,12 @@ resource "aws_cloudfront_distribution" "main" {
     max_ttl                = 86400  # 24 hours
 
     compress = true
+
+    # CloudFront Function for URI rewriting
+    function_association {
+      event_type   = "viewer-request"
+      function_arn = aws_cloudfront_function.uri_rewrite.arn
+    }
   }
 
 

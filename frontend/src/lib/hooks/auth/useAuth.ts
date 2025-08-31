@@ -11,7 +11,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { AuthService } from '@/lib/auth';
+import { AuthService } from '@/lib/amplify';
 import useAuthStore from '@/stores/authStore';
 import { UserService } from '@/lib/services';
 import type { AuthUser, UserProfile, UpdateUserProfileRequest } from '@/types';
@@ -58,7 +58,15 @@ export function useAuth(): UseAuthReturn {
       
       if (authStatus) {
         setUser(authStatus.user);
-        setProfile(authStatus.profile);
+        
+        // 認証確認後、プロフィールを別途取得
+        try {
+          const userProfile = await UserService.getProfile();
+          setProfile(userProfile);
+        } catch (profileError) {
+          console.error('Failed to fetch user profile:', profileError);
+          // プロフィール取得失敗は初期認証確認を妨げない
+        }
       } else {
         logout();
       }
@@ -75,10 +83,17 @@ export function useAuth(): UseAuthReturn {
       setIsLoading(true);
       setError(null);
       
-      const { user: authUser, profile: userProfile } = await AuthService.signInWithGoogle();
-      
+      const { user: authUser } = await AuthService.signInWithGoogle();
       setUser(authUser);
-      setProfile(userProfile);
+      
+      // 認証後、プロフィールを別途取得
+      try {
+        const userProfile = await UserService.getProfile();
+        setProfile(userProfile);
+      } catch (profileError) {
+        console.error('Failed to fetch user profile:', profileError);
+        // プロフィール取得失敗は認証成功を妨げない
+      }
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'ログインに失敗しました';
       setError(errorMessage);
@@ -130,10 +145,17 @@ export function useAuth(): UseAuthReturn {
       setIsLoading(true);
       setError(null);
       
-      const { user: authUser, profile: userProfile } = await AuthService.handleAuthCallback();
-      
+      const { user: authUser } = await AuthService.handleAuthCallback();
       setUser(authUser);
-      setProfile(userProfile);
+      
+      // 認証後、プロフィールを別途取得
+      try {
+        const userProfile = await UserService.getProfile();
+        setProfile(userProfile);
+      } catch (profileError) {
+        console.error('Failed to fetch user profile:', profileError);
+        // プロフィール取得失敗は認証成功を妨げない
+      }
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : '認証コールバックの処理に失敗しました';
       setError(errorMessage);
@@ -163,7 +185,16 @@ export function useAuth(): UseAuthReturn {
       
       if (authStatus) {
         setUser(authStatus.user);
-        setProfile(authStatus.profile);
+        
+        // 認証確認後、プロフィールを別途取得
+        try {
+          const userProfile = await UserService.getProfile();
+          setProfile(userProfile);
+        } catch (profileError) {
+          console.error('Failed to fetch user profile:', profileError);
+          // プロフィール取得失敗は認証確認を妨げない
+        }
+        
         return true;
       } else {
         logout();
