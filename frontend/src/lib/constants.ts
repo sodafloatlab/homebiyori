@@ -99,7 +99,7 @@ export const NOTIFICATION_TYPES = {
 
 // API設定（既存のapi.tsから移行）
 export const API_CONFIG = {
-  BASE_URL: process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3000',
+  BASE_URL: process.env.NEXT_PUBLIC_API_URL || process.env.NEXT_PUBLIC_API_BASE_URL || 'https://api.homebiyori.com',
   TIMEOUT: 30000,
 } as const;
 

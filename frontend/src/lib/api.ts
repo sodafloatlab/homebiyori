@@ -100,7 +100,8 @@ class APIClient {
   // Cognito IDトークンを取得
   private async getCognitoIdToken(): Promise<string | null> {
     try {
-      const session = await fetchAuthSession();
+      // Identity Pool使わずにUser Pool認証のみでセッション取得
+      const session = await fetchAuthSession({ forceRefresh: false });
       const idToken = session.tokens?.idToken?.toString();
       
       if (process.env.NODE_ENV === 'development' && idToken) {

@@ -34,6 +34,7 @@ Homebiyori（ほめびより）のチャット機能マイクロサービス。
 """
 
 from fastapi import FastAPI, HTTPException, Request, Depends
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from typing import List, Optional, Dict, Any
 import os
@@ -158,6 +159,16 @@ app = FastAPI(
 # =====================================
 # ミドルウェア・共通処理
 # =====================================
+
+# CORS設定（最初に追加）
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["https://homebiyori.com"],
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=["Content-Type", "Authorization", "X-Requested-With"],
+    expose_headers=["Content-Length", "Content-Type"]
+)
 
 # 共通ミドルウェアをLambda Layerから適用
 app.middleware("http")(maintenance_check_middleware)

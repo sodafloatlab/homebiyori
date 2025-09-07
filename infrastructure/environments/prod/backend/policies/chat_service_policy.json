@@ -6,7 +6,8 @@
       "Action": [
         "dynamodb:GetItem",
         "dynamodb:PutItem",
-        "dynamodb:Query"
+        "dynamodb:Query",
+        "dynamodb:DescribeTable"
       ],
       "Resource": [
         "${core_table_arn}",
@@ -29,7 +30,10 @@
     },
     {
       "Effect": "Allow", 
-      "Action": ["ssm:GetParameter"],
+      "Action": [
+        "ssm:GetParameter",
+        "ssm:GetParameters"
+      ],
       "Resource": [
         "arn:aws:ssm:${region}:${account_id}:parameter/${environment}/${project_name}/*"
       ]

@@ -124,7 +124,7 @@ build_webhook_handler() {
     local service_name="$2"           # e.g., handle-payment-succeeded (for ZIP filename)
     local handler_file="$WEBHOOK_SOURCE_DIR/handlers/$handler_name.py"
     local function_build_dir="$BUILD_DIR/function_$service_name"
-    local function_output_zip="$FUNCTIONS_DIR/$service_name.zip"
+    local function_output_zip="$FUNCTIONS_DIR/${service_name//_/-}.zip"
     
     if [[ ! -f "$handler_file" ]]; then
         log_warning "Webhook handler file not found: $handler_file"
@@ -180,24 +180,15 @@ build_webhook_handler() {
     if [[ -f "$WEBHOOK_SOURCE_DIR/requirements.txt" ]]; then
         log_info "  Installing dependencies for $service_name..."
         
-        # Try standard pip install first
-        if pip install -r "$WEBHOOK_SOURCE_DIR/requirements.txt" -t "$function_build_dir" --quiet 2>/dev/null; then
-            log_info "  Dependencies installed successfully with pip"
+        # Install with Linux platform target for Lambda compatibility
+        if pip install -r "$WEBHOOK_SOURCE_DIR/requirements.txt" -t "$function_build_dir" \
+            --platform linux_x86_64 --implementation cp --python-version 3.13 \
+            --only-binary=:all: --upgrade --quiet 2>/dev/null; then
+            log_info "  Dependencies installed successfully with Linux platform target"
         else
-            log_warning "  Standard pip failed, trying alternative method..."
-            
-            # For problematic services, use full Python path with no-deps
-            if command -v "C:/Users/hplat/AppData/Local/Programs/Python/Python313/python.exe" >/dev/null 2>&1; then
-                if "C:/Users/hplat/AppData/Local/Programs/Python/Python313/python.exe" -m pip install -r "$WEBHOOK_SOURCE_DIR/requirements.txt" -t "$function_build_dir" --no-deps --quiet 2>/dev/null; then
-                    log_info "  Dependencies installed with alternative method (no-deps)"
-                else
-                    log_error "Failed to install dependencies for $service_name with both methods"
-                    return 1
-                fi
-            else
-                log_error "Alternative Python path not found, dependencies installation failed for $service_name"
-                return 1
-            fi
+            log_warning "  Linux platform install failed, trying no-deps fallback..."
+            pip install -r "$WEBHOOK_SOURCE_DIR/requirements.txt" -t "$function_build_dir" --no-deps --quiet
+            log_info "  Dependencies installed with no-deps fallback"
         fi
     fi
     

@@ -229,7 +229,7 @@ resource "aws_wafv2_web_acl_logging_configuration" "main" {
   provider = aws.us_east_1
   
   resource_arn            = aws_wafv2_web_acl.main.arn
-  log_destination_configs = [var.waf_logs_bucket_arn]
+  log_destination_configs = ["${var.waf_logs_bucket_arn}/${var.waf_logs_prefix}"]
 
   redacted_fields {
     single_header {

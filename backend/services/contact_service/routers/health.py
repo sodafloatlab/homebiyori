@@ -20,7 +20,7 @@ logger = get_logger(__name__)
 router = APIRouter()
 
 
-@router.get("/")
+@router.get("")
 async def health_check():
     """
     基本ヘルスチェック

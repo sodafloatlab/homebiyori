@@ -509,3 +509,41 @@ def clear_parameter_cache():
     """Parameter Storeキャッシュをクリア（便利関数）"""
     client = get_parameter_store_client()
     return client.clear_cache()
+
+def get_parameter(parameter_name: str, default_value: Optional[str] = None) -> str:
+    """
+    Parameter Store から値を取得（便利関数）
+    
+    billing_serviceなどで使用されるグローバル関数版。
+    ParameterStoreClientクラスメソッドのラッパー。
+    
+    Args:
+        parameter_name: パラメータ名（フルパス）
+        default_value: パラメータが取得できない場合のデフォルト値（任意）
+        
+    Returns:
+        str: パラメータ値（取得失敗時はdefault_value）
+        
+    Raises:
+        Exception: パラメータが見つからず、default_valueも指定されていない場合
+        
+    Example:
+        >>> api_key = get_parameter('/prod/homebiyori/stripe/api_key')
+        >>> timeout = get_parameter('/prod/homebiyori/timeout', default_value="30")
+    """
+    client = get_parameter_store_client()
+    try:
+        return client.get_parameter(parameter_name)
+    except Exception as e:
+        if default_value is not None:
+            logger.warning(
+                f"Parameter {parameter_name} not found, using default value",
+                extra={"parameter_name": parameter_name, "error": str(e)}
+            )
+            return default_value
+        else:
+            logger.error(
+                f"Parameter {parameter_name} not found and no default value provided",
+                extra={"parameter_name": parameter_name, "error": str(e)}
+            )
+            raise

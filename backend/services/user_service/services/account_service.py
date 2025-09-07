@@ -42,15 +42,15 @@ class AccountService:
         
         try:
             # ユーザープロフィール取得でオンボーディング状態確認
-            profile_item = await self.db.get_user_profile(user_id)
+            profile = await self.db.get_user_profile(user_id)
             
             # オンボーディング状態判定
-            is_completed = bool(profile_item and profile_item.get("onboarding_completed"))
+            is_completed = bool(profile and profile.onboarding_completed)
             
             onboarding_status = OnboardingStatus(
                 user_id=user_id,
                 is_completed=is_completed,
-                completed_at=profile_item.get("onboarding_completed_at") if is_completed else None
+                completed_at=getattr(profile, 'onboarding_completed_at', None) if is_completed else None
             )
             
             logger.info(f"Onboarding status retrieved for user_id: {user_id}, completed: {is_completed}")
@@ -86,20 +86,22 @@ class AccountService:
             if existing_profile:
                 # 既存プロフィール更新
                 existing_profile.onboarding_completed = True
-                existing_profile.nickname = onboarding_request.display_name  # display_name -> nickname
+                existing_profile.nickname = onboarding_request.display_name
                 existing_profile.ai_character = onboarding_request.selected_character
                 existing_profile.interaction_mode = onboarding_request.interaction_mode
                 existing_profile.praise_level = onboarding_request.praise_level or existing_profile.praise_level
+                
                 updated_profile = existing_profile
             else:
                 # 新規プロフィール作成
                 from ..models import UserProfile
+                
                 updated_profile = UserProfile(
                     user_id=user_id,
-                    nickname=onboarding_request.display_name,  # display_name -> nickname
+                    nickname=onboarding_request.display_name,
                     onboarding_completed=True,
                     ai_character=onboarding_request.selected_character,
-                    interaction_mode=onboarding_request.interaction_mode, 
+                    interaction_mode=onboarding_request.interaction_mode,
                     praise_level=onboarding_request.praise_level or PraiseLevel.NORMAL
                 )
             

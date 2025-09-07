@@ -55,6 +55,12 @@ async def error_handling_middleware(request: Request, call_next: Callable[[Reque
             content={
                 "error": "validation_error",
                 "message": str(e)
+            },
+            headers={
+                "Access-Control-Allow-Origin": "https://homebiyori.com",
+                "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+                "Access-Control-Allow-Headers": "Content-Type, Authorization",
+                "Access-Control-Allow-Credentials": "true"
             }
         )
     except AuthenticationError as e:
@@ -71,6 +77,12 @@ async def error_handling_middleware(request: Request, call_next: Callable[[Reque
             content={
                 "error": "authentication_error",
                 "message": "認証に失敗しました"
+            },
+            headers={
+                "Access-Control-Allow-Origin": "https://homebiyori.com",
+                "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+                "Access-Control-Allow-Headers": "Content-Type, Authorization",
+                "Access-Control-Allow-Credentials": "true"
             }
         )
     except DatabaseError as e:
@@ -87,6 +99,12 @@ async def error_handling_middleware(request: Request, call_next: Callable[[Reque
             content={
                 "error": "database_error",
                 "message": "データベース処理でエラーが発生しました"
+            },
+            headers={
+                "Access-Control-Allow-Origin": "https://homebiyori.com",
+                "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+                "Access-Control-Allow-Headers": "Content-Type, Authorization",
+                "Access-Control-Allow-Credentials": "true"
             }
         )
     except Exception as e:
@@ -103,5 +121,11 @@ async def error_handling_middleware(request: Request, call_next: Callable[[Reque
             content={
                 "error": "internal_server_error",
                 "message": "内部サーバーエラーが発生しました"
+            },
+            headers={
+                "Access-Control-Allow-Origin": "https://homebiyori.com",
+                "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+                "Access-Control-Allow-Headers": "Content-Type, Authorization",
+                "Access-Control-Allow-Credentials": "true"
             }
         )

@@ -25,7 +25,31 @@ from mangum import Mangum
 from homebiyori_common.logger import get_logger
 
 # FastAPIアプリケーションをインポート
-from .main import app
+# Lambda環境での完全な初期化
+import sys
+import os
+
+# Lambda環境でのパッケージ認識強化
+current_dir = os.path.dirname(os.path.abspath(__file__))
+if current_dir not in sys.path:
+    sys.path.insert(0, current_dir)
+
+# パッケージ名を設定してモジュールを初期化
+import importlib.util
+import types
+
+# health_check_serviceパッケージを強制的に作成
+health_check_service_package = types.ModuleType('health_check_service')
+health_check_service_package.__path__ = [current_dir]
+sys.modules['health_check_service'] = health_check_service_package
+
+# 相対インポートが動作するようにmainモジュールを読み込み
+spec = importlib.util.spec_from_file_location("health_check_service.main", os.path.join(current_dir, "main.py"))
+main_module = importlib.util.module_from_spec(spec)
+sys.modules['health_check_service.main'] = main_module
+spec.loader.exec_module(main_module)
+
+app = main_module.app
 
 # 構造化ログ設定
 logger = get_logger(__name__)

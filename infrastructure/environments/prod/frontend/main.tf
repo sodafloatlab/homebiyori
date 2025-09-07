@@ -44,6 +44,7 @@ module "waf" {
   
   # WAF logs output to S3 (from datastore state)
   waf_logs_bucket_arn         = data.terraform_remote_state.datastore.outputs.waf_logs_bucket_arn
+  waf_logs_prefix             = "cloudfront-waf-logs/"
 }
 
 # CloudFront distribution
@@ -57,9 +58,6 @@ module "cloudfront" {
   static_bucket_name          = module.static_bucket.bucket_id
   static_bucket_domain_name   = module.static_bucket.bucket_regional_domain_name
   
-  # API Gateway information from backend layer  
-  api_gateway_url             = data.terraform_remote_state.backend.outputs.user_api_gateway_url
-  api_gateway_stage_name      = local.environment
   
   # WAF integration
   waf_web_acl_id             = module.waf.web_acl_arn

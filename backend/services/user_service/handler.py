@@ -25,7 +25,31 @@ from mangum import Mangum
 from homebiyori_common.logger import get_logger
 
 # FastAPIアプリケーションをインポート
-from .main import app
+# Lambda環境での完全な初期化
+import sys
+import os
+
+# Lambda環境でのパッケージ認識強化
+current_dir = os.path.dirname(os.path.abspath(__file__))
+if current_dir not in sys.path:
+    sys.path.insert(0, current_dir)
+
+# パッケージ名を設定してモジュールを初期化
+import importlib.util
+import types
+
+# user_serviceパッケージを強制的に作成
+user_service_package = types.ModuleType('user_service')
+user_service_package.__path__ = [current_dir]
+sys.modules['user_service'] = user_service_package
+
+# 相対インポートが動作するようにmainモジュールを読み込み
+spec = importlib.util.spec_from_file_location("user_service.main", os.path.join(current_dir, "main.py"))
+main_module = importlib.util.module_from_spec(spec)
+sys.modules['user_service.main'] = main_module
+spec.loader.exec_module(main_module)
+
+app = main_module.app
 
 # 構造化ログ設定
 logger = get_logger(__name__)
@@ -58,7 +82,20 @@ def lambda_handler(event, context):
         )
         
         # Mangumでリクエスト処理
+        logger.info(f"=== HANDLER PROCESSING === path: {event.get('path', 'unknown')}, method: {event.get('httpMethod', 'unknown')}")
         response = handler(event, context)
+        logger.info(f"=== HANDLER RESPONSE === status: {response.get('statusCode')}")
+        
+        # CORSヘッダーを追加（Lambda Proxy統合対応）- APIGatewayで処理するため無効化
+        # if "headers" not in response:
+        #     response["headers"] = {}
+        # 
+        # response["headers"].update({
+        #     "Access-Control-Allow-Origin": "https://homebiyori.com",
+        #     "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+        #     "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Requested-With",
+        #     "Access-Control-Allow-Credentials": "true"
+        # })
         
         # レスポンス情報をログに記録
         logger.info(
@@ -81,14 +118,12 @@ def lambda_handler(event, context):
             }
         )
         
-        # エラーレスポンス返却
+        # エラーレスポンス返却 - CORSヘッダーはAPIGatewayで処理
         return {
             "statusCode": 500,
             "headers": {
-                "Content-Type": "application/json",
-                "Access-Control-Allow-Origin": "*",
-                "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
-                "Access-Control-Allow-Headers": "Content-Type, Authorization"
+                "Content-Type": "application/json"
+                # CORSヘッダーはAPIGatewayで追加されるため削除
             },
             "body": json.dumps({
                 "error": "internal_server_error",

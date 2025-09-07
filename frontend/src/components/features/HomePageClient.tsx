@@ -20,6 +20,7 @@ import Button from '@/components/ui/Button';
 import TouchTarget from '@/components/ui/TouchTarget';
 import ResponsiveContainer from '@/components/layout/ResponsiveContainer';
 import Footer from '@/components/layout/Footer';
+import useAuthStore from '@/stores/authStore';
 
 interface HomePageClientProps {
   characters: Array<{
@@ -58,6 +59,9 @@ export default function HomePageClient({ characters, features, journeySteps }: H
   const [activeFeature, setActiveFeature] = useState(0);
   const [currentTreeStage, setCurrentTreeStage] = useState(0);
   const [expandedCharacter, setExpandedCharacter] = useState<string | null>(null);
+  
+  // 認証状態取得
+  const { isLoggedIn, isLoading } = useAuthStore();
 
   // アイコンマッピング関数
   const getIcon = (iconType: string, className: string = "w-8 h-8") => {
@@ -128,11 +132,28 @@ export default function HomePageClient({ characters, features, journeySteps }: H
     };
   }, []);
 
-  // 認証状態確認（実装時に追加）
+  // 認証状態確認 - 認証済みユーザーはオンボーディング状態をチェック
   useEffect(() => {
-    // TODO: 認証状態チェック
-    // if (isAuthenticated) router.push('/dashboard');
-  }, [router]);
+    if (!isLoading && isLoggedIn) {
+      console.log('User is authenticated, checking onboarding status...');
+      // オンボーディング状態をチェックしてリダイレクト
+      const checkAndRedirect = async () => {
+        const { checkOnboardingStatus } = useAuthStore.getState();
+        const isOnboardingCompleted = await checkOnboardingStatus();
+        
+        if (isOnboardingCompleted) {
+          // オンボーディング完了済み → そのままホーム画面に留まる（リダイレクトしない）
+          console.log('Onboarding completed, staying on home page');
+        } else {
+          // オンボーディング未完了 → ニックネーム登録画面へ
+          console.log('Onboarding not completed, redirecting to nickname registration');
+          router.push('/onboarding/nickname');
+        }
+      };
+      
+      checkAndRedirect();
+    }
+  }, [isLoggedIn, isLoading, router]);
 
   const handleNavigateToAuth = () => {
     router.push('/auth/signin');
@@ -142,7 +163,6 @@ export default function HomePageClient({ characters, features, journeySteps }: H
     // 各ページへのルーティング（実装済みのページのみ）
     const pageRoutes: { [key: string]: string } = {
       'auth': '/auth/signin',
-      'dashboard': '/dashboard',
       'terms-of-service': '/legal/terms',
       'privacy-policy': '/legal/privacy',
       'commercial-transaction': '/legal/commercial',

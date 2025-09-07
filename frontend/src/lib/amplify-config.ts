@@ -18,8 +18,8 @@ export const amplifyConfig = {
       userPoolId: process.env.NEXT_PUBLIC_COGNITO_USER_POOL_ID || '',
       userPoolClientId: process.env.NEXT_PUBLIC_COGNITO_USER_POOL_CLIENT_ID || process.env.NEXT_PUBLIC_COGNITO_USER_POOL_WEB_CLIENT_ID || '',
       
-      // Identity Pool (optional - for AWS resource access)
-      identityPoolId: process.env.NEXT_PUBLIC_COGNITO_IDENTITY_POOL_ID || '',
+      // Identity Pool不要 - User Pool認証のみ使用
+      // identityPoolId: process.env.NEXT_PUBLIC_COGNITO_IDENTITY_POOL_ID || '',
       
       // Login With Configuration for Google Sign-In (Amplify v6 format)
       loginWith: {
@@ -90,7 +90,7 @@ export const getAmplifyConfigDebugInfo = () => {
     userPoolId: amplifyConfig.Auth.Cognito.userPoolId ? '✓ Set' : '✗ Missing',
     userPoolClientId: amplifyConfig.Auth.Cognito.userPoolClientId ? '✓ Set' : '✗ Missing',
     actualUserPoolClientId: amplifyConfig.Auth.Cognito.userPoolClientId,
-    identityPoolId: amplifyConfig.Auth.Cognito.identityPoolId ? '✓ Set' : '✗ Missing',
+    // identityPoolId: amplifyConfig.Auth.Cognito.identityPoolId ? '✓ Set' : '✗ Missing', // 使用しない
     oauthDomain: amplifyConfig.Auth.Cognito.loginWith.oauth.domain,
     redirectSignIn: amplifyConfig.Auth.Cognito.loginWith.oauth.redirectSignIn,
     redirectSignOut: amplifyConfig.Auth.Cognito.loginWith.oauth.redirectSignOut,

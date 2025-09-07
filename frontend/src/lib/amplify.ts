@@ -133,7 +133,8 @@ export const getCurrentUserInfo = async (): Promise<{
 
   try {
     const user = await getCurrentUser();
-    const session = await fetchAuthSession();
+    // Identity Pool使わずにUser Pool認証のみでセッション取得
+    const session = await fetchAuthSession({ forceRefresh: false });
     
     return {
       user,

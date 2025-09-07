@@ -145,3 +145,19 @@ def get_jst_date_range(days_back: int = 7) -> tuple[datetime, datetime]:
     return start_dt, end_dt
 
 
+def get_jst_timezone():
+    """
+    JST（日本標準時）タイムゾーンオブジェクトを取得
+    
+    billing_serviceなどで使用される共通タイムゾーン取得関数。
+    
+    Returns:
+        pytz.timezone: Asia/Tokyoタイムゾーンオブジェクト
+    
+    Example:
+        >>> jst_tz = get_jst_timezone()
+        >>> now_jst = datetime.now(jst_tz)
+    """
+    return JST
+
+

@@ -54,6 +54,7 @@ Homebiyori（ほめびより）のユーザー管理マイクロサービス。
 """
 
 from fastapi import FastAPI, HTTPException, Request
+from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 import os
 
@@ -89,10 +90,7 @@ async def lifespan(app: FastAPI):
         "environment": settings.environment,
         "service": "user-service",
         "version": "1.0.0",
-        "core_table": settings.core_table_name,
-        "chats_table": settings.chats_table_name,
-        "fruits_table": settings.fruits_table_name,
-        "feedback_table": settings.feedback_table_name
+        "core_table": settings.core_table_name
     })
     
     # データベース接続確認
@@ -110,18 +108,51 @@ async def lifespan(app: FastAPI):
 
 # FastAPIアプリケーション初期化
 # プロダクション環境でのパフォーマンス最適化設定
-app = FastAPI(
-    title="Homebiyori User Service",
-    description="ユーザー管理マイクロサービス - プロフィール、AI設定",
-    version="1.0.0",
-    docs_url=None if os.getenv("ENVIRONMENT") == "prod" else "/docs",  # 本番では無効化
-    redoc_url=None if os.getenv("ENVIRONMENT") == "prod" else "/redoc",
-    lifespan=lifespan  # ライフサイクル管理追加
-)
+# Lambda環境では lifespan を無効化（Mangum との競合回避）
+is_lambda = bool(os.getenv("AWS_LAMBDA_FUNCTION_NAME"))
+
+if is_lambda:
+    # Lambda環境ではLifespanを無効化
+    app = FastAPI(
+        title="Homebiyori User Service",
+        description="ユーザー管理マイクロサービス - プロフィール、AI設定",
+        version="1.0.0",
+        docs_url=None if os.getenv("ENVIRONMENT") == "prod" else "/docs",
+        redoc_url=None if os.getenv("ENVIRONMENT") == "prod" else "/redoc"
+    )
+    
+    # Lambda環境では初期化を直接実行
+    settings = get_settings()
+    logger.info("User service initializing in Lambda", extra={
+        "environment": settings.environment,
+        "service": "user-service",
+        "version": "1.0.0",
+        "core_table": settings.core_table_name
+    })
+else:
+    # ローカル開発環境ではLifespanを使用
+    app = FastAPI(
+        title="Homebiyori User Service",
+        description="ユーザー管理マイクロサービス - プロフィール、AI設定",
+        version="1.0.0",
+        docs_url=None if os.getenv("ENVIRONMENT") == "prod" else "/docs",
+        redoc_url=None if os.getenv("ENVIRONMENT") == "prod" else "/redoc",
+        lifespan=lifespan
+    )
 
 # =====================================
 # ミドルウェア・共通処理
 # =====================================
+
+# CORS設定 - Lambda レスポンスヘッダー設定
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["https://homebiyori.com"],
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=["Content-Type", "Authorization", "X-Requested-With"],
+    expose_headers=["Content-Length", "Content-Type"]
+)
 
 # 共通ミドルウェアをLambda Layerから適用
 app.middleware("http")(maintenance_check_middleware)

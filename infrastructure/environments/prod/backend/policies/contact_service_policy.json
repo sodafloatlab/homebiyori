@@ -27,7 +27,10 @@
     },
     {
       "Effect": "Allow",
-      "Action": ["ssm:GetParameter"],
+      "Action": [
+        "ssm:GetParameter",
+        "ssm:GetParameters"
+      ],
       "Resource": [
         "arn:aws:ssm:${region}:${account_id}:parameter/${environment}/${project_name}/*"
       ]

@@ -1,24 +1,24 @@
 # admin_service Lambda 依存関係 (Updated: 2025年8月基準)
 
-# FastAPI + Lambda統合 (2025年8月最新)
-fastapi==0.116.1
+# FastAPI + Lambda統合 (provided by homebiyori-common-layer)
+# fastapi==0.116.1 provided via Lambda Layer
 mangum==0.19.0
 
-# AWS SDK (2025年8月最新)
-boto3==1.40.21
-botocore==1.40.21
+# AWS SDK (provided by homebiyori-common-layer)
+# boto3==1.40.21 provided via Lambda Layer
+# botocore==1.40.21 provided via Lambda Layer
 
-# データバリデーション (2025年8月最新)
-pydantic==2.11.7
+# データバリデーション (provided by homebiyori-common-layer)
+# pydantic==2.11.7 provided via Lambda Layer
 
 # 非同期処理 (2025年8月最新)
 aiofiles==24.1.0
 
-# HTTP クライアント (2025年8月最新)
-httpx==0.28.1
+# HTTP クライアント (provided by homebiyori-common-layer)
+# httpx==0.28.1 provided via Lambda Layer
 
-# ログ・監視 (2025年8月最新)
-structlog==25.4.0
+# ログ・監視 (provided by homebiyori-common-layer)
+# structlog==25.4.0 provided via Lambda Layer
 
 # 日時処理 (安定版維持)
 python-dateutil==2.8.2

@@ -1,9 +1,9 @@
 # Health Check Lambda Requirements（シンプル構成版）
 # 依存関係の理由を明記 (Updated: 2025年8月基準)
 
-# Web Framework (2025年8月最新)
-fastapi==0.116.1           # 軽量Webフレームワーク、基本的なヘルスチェックAPI用
-pydantic==2.11.7           # データバリデーション、FastAPIと統合
+# Web Framework (provided by homebiyori-common-layer)
+# fastapi==0.116.1 provided via Lambda Layer
+# pydantic==2.11.7 provided via Lambda Layer
 
 # AWS Lambda Integration (2025年8月最新)
 mangum==0.19.0            # ASGI-Lambda間のアダプター、FastAPIをLambdaで実行するため

@@ -120,7 +120,7 @@ build_function() {
     local service_name="$1"
     local service_source_dir="$BACKEND_SOURCE_DIR/services/$service_name"
     local function_build_dir="$BUILD_DIR/function_$service_name"
-    local function_output_zip="$FUNCTIONS_DIR/$service_name.zip"
+    local function_output_zip="$FUNCTIONS_DIR/${service_name//_/-}.zip"
     
     if [[ ! -d "$service_source_dir" ]]; then
         log_warning "Service source directory not found: $service_source_dir"
@@ -136,6 +136,18 @@ build_function() {
     log_info "  Copying source code for $service_name..."
     cp -r "$service_source_dir"/* "$function_build_dir/"
     
+    # Create __init__.py files for Lambda package recognition
+    log_info "  Creating __init__.py files for package structure..."
+    find "$function_build_dir" -type d -exec touch {}/__init__.py \;
+    
+    # Create a top-level __init__.py with package initialization
+    echo "# Lambda package initialization" > "$function_build_dir/__init__.py"
+    
+    # Ensure service-specific __init__.py exists
+    if [[ "$service_name" == "user_service" ]]; then
+        echo "# User service package" > "$function_build_dir/__init__.py"
+    fi
+    
     # Remove __pycache__ directories to avoid conflicts
     find "$function_build_dir" -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
     
@@ -143,23 +155,21 @@ build_function() {
     if [[ -f "$function_build_dir/requirements.txt" ]]; then
         log_info "  Installing dependencies for $service_name..."
         
-        # Try standard pip install first
-        if pip install -r "$function_build_dir/requirements.txt" -t "$function_build_dir" --quiet 2>/dev/null; then
-            log_info "  Dependencies installed successfully with pip"
+        # For chat_service, use --no-deps due to complex LangChain dependencies
+        if [[ "$service_name" == "chat_service" ]]; then
+            log_info "  Using --no-deps for chat_service (LangChain compatibility)..."
+            pip install -r "$function_build_dir/requirements.txt" -t "$function_build_dir" \
+                --platform linux_x86_64 --implementation cp --python-version 3.13 \
+                --only-binary=:all: --no-deps --quiet
         else
-            log_warning "  Standard pip failed, trying alternative method..."
-            
-            # For problematic services like chat_service, use full Python path with no-deps
-            if command -v "C:/Users/hplat/AppData/Local/Programs/Python/Python313/python.exe" >/dev/null 2>&1; then
-                if "C:/Users/hplat/AppData/Local/Programs/Python/Python313/python.exe" -m pip install -r "$function_build_dir/requirements.txt" -t "$function_build_dir" --no-deps --quiet 2>/dev/null; then
-                    log_info "  Dependencies installed with alternative method (no-deps)"
-                else
-                    log_error "Failed to install dependencies for $service_name with both methods"
-                    return 1
-                fi
+            # For other services, try Linux platform target first
+            if pip install -r "$function_build_dir/requirements.txt" -t "$function_build_dir" \
+                --platform linux_x86_64 --implementation cp --python-version 3.13 \
+                --only-binary=:all: --upgrade --quiet 2>/dev/null; then
+                log_info "  Dependencies installed successfully with Linux platform target"
             else
-                log_error "Alternative Python path not found, dependencies installation failed for $service_name"
-                return 1
+                log_warning "  Linux platform install failed, trying no-deps fallback..."
+                pip install -r "$function_build_dir/requirements.txt" -t "$function_build_dir" --no-deps --quiet
             fi
         fi
         
@@ -252,9 +262,9 @@ if [[ -d "$FUNCTIONS_DIR" ]]; then
     for function in "$FUNCTIONS_DIR"/*.zip; do
         if [[ -f "$function" ]]; then
             function_name=$(basename "$function" .zip)
-            # Only show main services
+            # Only show main services (convert underscores to hyphens for comparison)
             for main_service in "${MAIN_SERVICES[@]}"; do
-                if [[ "$function_name" == "$main_service" ]]; then
+                if [[ "$function_name" == "${main_service//_/-}" ]]; then
                     function_size=$(du -h "$function" | cut -f1)
                     log_info "  - $function_name ($function_size)"
                     break

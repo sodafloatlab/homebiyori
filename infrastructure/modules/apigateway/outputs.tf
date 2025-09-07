@@ -65,3 +65,4 @@ output "api_gateway_account_role_arn" {
   description = "The ARN of the IAM role for API Gateway CloudWatch logs"
   value       = aws_iam_role.api_gateway_cloudwatch.arn
 }
+

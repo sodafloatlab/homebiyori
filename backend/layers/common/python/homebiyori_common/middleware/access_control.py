@@ -277,8 +277,10 @@ def require_access(allow_during_trial: bool = True, require_premium: bool = Fals
             
             # アクセス制御チェック
             try:
+                logger.info(f"Starting access control check for user_id: {user_id[:8]}****")
                 access_client = get_access_control_client()
                 access_info = await access_client.check_user_access(user_id)
+                logger.info(f"Access control result: access_allowed={access_info.get('access_allowed')}, reason={access_info.get('restriction_reason')}")
                 
                 access_allowed = access_info.get("access_allowed", False)
                 restriction_reason = access_info.get("restriction_reason")

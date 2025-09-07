@@ -12,6 +12,7 @@
 import React, { useEffect, useState } from 'react';
 import { initializeAmplify } from '@/lib/amplify';
 import useAuthStore from '@/stores/authStore';
+import BackendConnectionStatus from '@/components/ui/BackendConnectionStatus';
 
 interface AmplifyProviderProps {
   children: React.ReactNode;
@@ -50,6 +51,10 @@ export default function AmplifyProvider({ children }: AmplifyProviderProps) {
 
         // 認証状態初期化
         await initializeAuth();
+        
+        // 既存の認証状態をチェック（ページリロード時など）
+        const checkAuth = useAuthStore.getState().checkAuthStatus;
+        await checkAuth();
 
         setInitState({
           isInitialized: true,
@@ -112,7 +117,12 @@ export default function AmplifyProvider({ children }: AmplifyProviderProps) {
   }
 
   // 初期化完了 - 子コンポーネントをレンダリング
-  return <>{children}</>;
+  return (
+    <>
+      {children}
+      <BackendConnectionStatus />
+    </>
+  );
 }
 
 // 開発環境用: Amplify状態確認コンポーネント

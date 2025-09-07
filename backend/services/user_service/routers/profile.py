@@ -22,8 +22,8 @@ logger = get_logger(__name__)
 # Account management router creation
 router = APIRouter(tags=["profile"])
 
-@router.get("/")
-@require_basic_access()
+@router.get("")
+# @require_basic_access()  # 一時的にコメントアウトして403原因を特定
 async def get_user_profile(
     user_id: str = Depends(get_current_user_id),
     db: UserServiceDatabase = Depends(get_db)
@@ -38,6 +38,7 @@ async def get_user_profile(
     Returns:
         UserProfile: ユーザープロフィール情報
     """
+    logger.info(f"=== PROFILE ENDPOINT REACHED === user_id: {user_id}")
     logger.info(f"Getting user profile for user_id: {user_id}")
     
     try:
@@ -57,7 +58,7 @@ async def get_user_profile(
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
-@router.put("/") 
+@router.put("")
 @require_basic_access()
 async def update_user_profile(
     profile_update: UserProfileUpdate,

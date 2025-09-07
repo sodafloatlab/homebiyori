@@ -61,3 +61,9 @@ variable "waf_logs_bucket_arn" {
   description = "ARN of the S3 bucket for WAF logs (must start with aws-waf-logs-)"
   type        = string
 }
+
+variable "waf_logs_prefix" {
+  description = "S3 prefix for CloudFront WAF access logs"
+  type        = string
+  default     = "cloudfront-waf-logs/"
+}

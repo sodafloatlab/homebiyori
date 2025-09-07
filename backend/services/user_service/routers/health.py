@@ -19,7 +19,7 @@ logger = get_logger(__name__)
 router = APIRouter(tags=["health"])
 
 
-@router.get("/")
+@router.get("")
 async def health_check():
     """
     基本的なヘルスチェック（DB接続確認）

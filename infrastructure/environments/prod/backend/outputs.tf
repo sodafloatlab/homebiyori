@@ -44,10 +44,10 @@ output "health_check_function_name" {
   value       = module.lambda_functions["health-check-service"].function_name
 }
 
-output "admin_service_function_name" {
-  description = "Name of the admin service Lambda function"
-  value       = module.lambda_functions["admin-service"].function_name
-}
+# output "admin_service_function_name" {
+#   description = "Name of the admin service Lambda function"
+#   value       = module.lambda_functions["admin-service"].function_name
+# }
 
 # API Gateway Outputs
 output "user_api_gateway_url" {
@@ -55,30 +55,30 @@ output "user_api_gateway_url" {
   value       = module.user_api_gateway.invoke_url
 }
 
-output "admin_api_gateway_url" {
-  description = "URL of the Admin API Gateway"
-  value       = module.admin_api_gateway.invoke_url
-}
+# output "admin_api_gateway_url" {
+#   description = "URL of the Admin API Gateway"
+#   value       = module.admin_api_gateway.invoke_url
+# }
 
 output "user_api_gateway_id" {
   description = "ID of the User API Gateway"
   value       = module.user_api_gateway.rest_api_id
 }
 
-output "admin_api_gateway_id" {
-  description = "ID of the Admin API Gateway"
-  value       = module.admin_api_gateway.rest_api_id
-}
+# output "admin_api_gateway_id" {
+#   description = "ID of the Admin API Gateway"
+#   value       = module.admin_api_gateway.rest_api_id
+# }
 
 output "user_api_execution_arn" {
   description = "Execution ARN of the User API Gateway"
   value       = module.user_api_gateway.execution_arn
 }
 
-output "admin_api_execution_arn" {
-  description = "Execution ARN of the Admin API Gateway"
-  value       = module.admin_api_gateway.execution_arn
-}
+# output "admin_api_execution_arn" {
+#   description = "Execution ARN of the Admin API Gateway"
+#   value       = module.admin_api_gateway.execution_arn
+# }
 
 # Cognito Outputs - Users Pool
 output "user_pool_id" {
@@ -102,20 +102,20 @@ output "user_pool_domain" {
 }
 
 # Cognito Outputs - Admins Pool
-output "admin_pool_id" {
-  description = "ID of the Admins Pool"
-  value       = module.cognito_admins.user_pool_id
-}
+# output "admin_pool_id" {
+#   description = "ID of the Admins Pool"
+#   value       = module.cognito_admins.user_pool_id
+# }
 
-output "admin_pool_arn" {
-  description = "ARN of the Admins Pool"
-  value       = module.cognito_admins.user_pool_arn
-}
+# output "admin_pool_arn" {
+#   description = "ARN of the Admins Pool"
+#   value       = module.cognito_admins.user_pool_arn
+# }
 
-output "admin_pool_client_id" {
-  description = "ID of the Admins Pool Client"
-  value       = module.cognito_admins.user_pool_client_id
-}
+# output "admin_pool_client_id" {
+#   description = "ID of the Admins Pool Client"
+#   value       = module.cognito_admins.user_pool_client_id
+# }
 
 # Bedrock outputs
 output "bedrock_logging_configuration_id" {
@@ -215,7 +215,7 @@ output "api_gateway_log_group_names" {
   description = "Map of API Gateway types to CloudWatch log group names"
   value = {
     user  = module.user_api_gateway.cloudwatch_log_group_name
-    admin = module.admin_api_gateway.cloudwatch_log_group_name
+    # admin = module.admin_api_gateway.cloudwatch_log_group_name
   }
 }
 
@@ -223,7 +223,7 @@ output "api_gateway_log_group_arns" {
   description = "Map of API Gateway types to CloudWatch log group ARNs"
   value = {
     user  = module.user_api_gateway.cloudwatch_log_group_arn
-    admin = module.admin_api_gateway.cloudwatch_log_group_arn
+    # admin = module.admin_api_gateway.cloudwatch_log_group_arn
   }
 }
 

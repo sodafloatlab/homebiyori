@@ -46,34 +46,34 @@ else
     exit 1
 fi
 
-# Step 3: CloudFrontキャッシュ無効化
-echo -e "${YELLOW}🔄 Step 3: CloudFrontキャッシュ無効化実行中...${NC}"
-echo "Distribution ID: ${CLOUDFRONT_DISTRIBUTION_ID}"
+# # Step 3: CloudFrontキャッシュ無効化
+# echo -e "${YELLOW}🔄 Step 3: CloudFrontキャッシュ無効化実行中...${NC}"
+# echo "Distribution ID: ${CLOUDFRONT_DISTRIBUTION_ID}"
 
-aws cloudfront create-invalidation \
-    --distribution-id ${CLOUDFRONT_DISTRIBUTION_ID} \
-    --paths "/*"
+# aws cloudfront create-invalidation \
+#     --distribution-id ${CLOUDFRONT_DISTRIBUTION_ID} \
+#     --paths "/*"
 
-if [ $? -eq 0 ]; then
-    echo -e "${GREEN}✅ CloudFrontキャッシュ無効化開始${NC}"
-    echo "CloudFrontキャッシュ無効化が開始されました。完了まで1-3分お待ちください。"
-else
-    echo -e "${RED}❌ CloudFrontキャッシュ無効化に失敗しました${NC}"
-    exit 1
-fi
+# if [ $? -eq 0 ]; then
+#     echo -e "${GREEN}✅ CloudFrontキャッシュ無効化開始${NC}"
+#     echo "CloudFrontキャッシュ無効化が開始されました。完了まで1-3分お待ちください。"
+# else
+#     echo -e "${RED}❌ CloudFrontキャッシュ無効化に失敗しました${NC}"
+#     exit 1
+# fi
 
 # 完了メッセージ
 echo ""
 echo -e "${GREEN}🎉 デプロイが完了しました！${NC}"
 echo "=================================="
 echo -e "${BLUE}🌐 アプリケーションURL: https://homebiyori.com${NC}"
-echo -e "${YELLOW}⏳ CloudFrontキャッシュ無効化完了まで1-3分お待ちください${NC}"
+# echo -e "${YELLOW}⏳ CloudFrontキャッシュ無効化完了まで1-3分お待ちください${NC}"
 echo ""
 echo "📊 デプロイサマリー:"
 echo "  • ビルド: ✅ 完了"
 echo "  • S3アップロード: ✅ 完了"  
-echo "  • CloudFrontキャッシュ無効化: ⏳ 進行中"
+# echo "  • CloudFrontキャッシュ無効化: ⏳ 進行中"
 echo ""
 echo -e "${BLUE}💡 Tips:${NC}"
-echo "  • キャッシュ戦略: ブラウザキャッシュ無効化、CloudFrontキャッシュ優先"
-echo "  • CloudFrontキャッシュ無効化リスト確認: aws cloudfront list-invalidations --distribution-id ${CLOUDFRONT_DISTRIBUTION_ID}"
+# echo "  • キャッシュ戦略: ブラウザキャッシュ無効化、CloudFrontキャッシュ優先"
+# echo "  • CloudFrontキャッシュ無効化リスト確認: aws cloudfront list-invalidations --distribution-id ${CLOUDFRONT_DISTRIBUTION_ID}"

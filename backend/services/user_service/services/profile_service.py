@@ -53,17 +53,20 @@ class ProfileService:
         # AI設定取得（別テーブル）
         ai_preferences_item = await self.db.get_ai_preferences(user_id)
         
-        # UserProfileモデル作成（profile_modelに合わせて調整）
-        profile = UserProfile(
-            user_id=profile_item.user_id,
-            nickname=profile_item.nickname,
-            ai_character=ai_preferences_item.get("ai_character") if ai_preferences_item else profile_item.ai_character,
-            praise_level=ai_preferences_item.get("praise_level") if ai_preferences_item else profile_item.praise_level,
-            interaction_mode=ai_preferences_item.get("interaction_mode") if ai_preferences_item else profile_item.interaction_mode,
-            onboarding_completed=profile_item.onboarding_completed,
-            created_at=profile_item.created_at,
-            updated_at=profile_item.updated_at
-        )
+        # UserProfileモデル作成（profile_item既にUserProfileインスタンス）
+        # AI設定が存在する場合は上書き、なければprofile_itemの値を使用
+        profile_data = {
+            "user_id": profile_item.user_id,
+            "nickname": profile_item.nickname,
+            "ai_character": ai_preferences_item.get("ai_character") if ai_preferences_item else profile_item.ai_character,
+            "praise_level": ai_preferences_item.get("praise_level") if ai_preferences_item else profile_item.praise_level,
+            "interaction_mode": ai_preferences_item.get("interaction_mode") if ai_preferences_item else profile_item.interaction_mode,
+            "onboarding_completed": profile_item.onboarding_completed,
+            "created_at": profile_item.created_at,
+            "updated_at": profile_item.updated_at
+        }
+        
+        profile = UserProfile(**profile_data)
         
         logger.info(f"Successfully retrieved user profile for user_id: {user_id}")
         return profile
@@ -72,7 +75,7 @@ class ProfileService:
         self, 
         user_id: str, 
         profile_update: UserProfileUpdate
-    ) -> UserProfile:
+    ) -> Dict[str, str]:
         """
         ユーザープロフィール更新
 
@@ -125,7 +128,7 @@ class ProfileService:
         logger.info(
             "User profile updated successfully", extra={"user_id": user_id[:8] + "****"}
         )
-        return saved_profile
+        return {"message": "User profile updated successfully"}
     
     async def update_ai_preferences(
         self, 

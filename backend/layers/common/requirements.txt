@@ -5,9 +5,11 @@
 boto3==1.40.21            # AWS サービス連携（DynamoDB、Parameter Store、SQS等）
 botocore==1.40.21         # boto3の低レベル実装
 
-# Web Framework - API Lambda用 (2025年8月最新)
+# Web Framework - API Lambda用 (LangChain互換バージョン)
 fastapi==0.116.1          # メインWebフレームワーク
-pydantic==2.11.7          # データバリデーション・型安全性確保
+pydantic==2.10.3          # データバリデーション（LangChain要求 >=2.10.0）
+# pydantic-coreはpydanticが自動的に適切なバージョンを選択
+pydantic-settings==2.10.1 # 設定管理（LangChain要求 >=2.10.1）
 
 # Lambda Integration (2025年8月最新)
 mangum==0.19.0            # ASGI-Lambda間のアダプター
@@ -20,6 +22,7 @@ httpx==0.28.1             # 非同期HTTPクライアント、Lambda間通信
 
 # 日時処理 (安定版維持)
 python-dateutil==2.8.2   # タイムゾーン対応、日時計算用
+pytz==2024.1             # タイムゾーンサポート、JST処理用
 
 # JSON処理 (2025年8月最新)
 orjson==3.11.1            # 高速JSON処理、パフォーマンス最適化

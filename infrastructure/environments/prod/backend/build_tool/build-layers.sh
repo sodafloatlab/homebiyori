@@ -132,11 +132,19 @@ build_layer() {
     # Install layer dependencies
     if [[ -f "$layer_source_dir/requirements.txt" ]]; then
         log_info "  Installing dependencies for $layer_name..."
-        pip install -r "$layer_source_dir/requirements.txt" -t "$layer_build_dir/python" --quiet
+        
+        # Simple approach: let pip resolve all dependencies together
+        # This should ensure version compatibility
+        pip install -r "$layer_source_dir/requirements.txt" -t "$layer_build_dir/python" --upgrade --quiet --force-reinstall
         
         if [[ $? -ne 0 ]]; then
             log_error "Failed to install dependencies for $layer_name"
             return 1
+        fi
+        
+        # Check if we got Windows binaries and warn
+        if ls "$layer_build_dir/python/pydantic_core/"*win*.pyd 2>/dev/null; then
+            log_warning "  Windows binaries detected in pydantic-core - may cause Lambda runtime errors"
         fi
     fi
     

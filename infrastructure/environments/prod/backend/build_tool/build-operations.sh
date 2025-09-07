@@ -119,7 +119,7 @@ build_function() {
     local service_name="$1"
     local service_source_dir="$BACKEND_SOURCE_DIR/services/operation_service/$service_name"
     local function_build_dir="$BUILD_DIR/function_$service_name"
-    local function_output_zip="$FUNCTIONS_DIR/$service_name.zip"
+    local function_output_zip="$FUNCTIONS_DIR/${service_name//_/-}.zip"
     
     if [[ ! -d "$service_source_dir" ]]; then
         log_warning "Operation service source directory not found: $service_source_dir"
@@ -143,24 +143,15 @@ build_function() {
     if [[ -f "$function_build_dir/requirements.txt" ]]; then
         log_info "  Installing dependencies for $service_name..."
         
-        # Try standard pip install first
-        if pip install -r "$function_build_dir/requirements.txt" -t "$function_build_dir" --quiet 2>/dev/null; then
-            log_info "  Dependencies installed successfully with pip"
+        # Install with Linux platform target for Lambda compatibility
+        if pip install -r "$function_build_dir/requirements.txt" -t "$function_build_dir" \
+            --platform linux_x86_64 --implementation cp --python-version 3.13 \
+            --only-binary=:all: --upgrade --quiet 2>/dev/null; then
+            log_info "  Dependencies installed successfully with Linux platform target"
         else
-            log_warning "  Standard pip failed, trying alternative method..."
-            
-            # For problematic services, use full Python path with no-deps
-            if command -v "C:/Users/hplat/AppData/Local/Programs/Python/Python313/python.exe" >/dev/null 2>&1; then
-                if "C:/Users/hplat/AppData/Local/Programs/Python/Python313/python.exe" -m pip install -r "$function_build_dir/requirements.txt" -t "$function_build_dir" --no-deps --quiet 2>/dev/null; then
-                    log_info "  Dependencies installed with alternative method (no-deps)"
-                else
-                    log_error "Failed to install dependencies for $service_name with both methods"
-                    return 1
-                fi
-            else
-                log_error "Alternative Python path not found, dependencies installation failed for $service_name"
-                return 1
-            fi
+            log_warning "  Linux platform install failed, trying no-deps fallback..."
+            pip install -r "$function_build_dir/requirements.txt" -t "$function_build_dir" --no-deps --quiet
+            log_info "  Dependencies installed with no-deps fallback"
         fi
         
         # Remove requirements.txt from the package
@@ -245,9 +236,9 @@ if [[ -d "$FUNCTIONS_DIR" ]]; then
     for function in "$FUNCTIONS_DIR"/*.zip; do
         if [[ -f "$function" ]]; then
             function_name=$(basename "$function" .zip)
-            # Only show operation services
+            # Only show operation services (convert underscores to hyphens for comparison)
             for operation_service in "${OPERATION_SERVICES[@]}"; do
-                if [[ "$function_name" == "$operation_service" ]]; then
+                if [[ "$function_name" == "${operation_service//_/-}" ]]; then
                     function_size=$(du -h "$function" | cut -f1)
                     log_info "  - $function_name ($function_size)"
                     break

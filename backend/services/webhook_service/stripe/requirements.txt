@@ -8,8 +8,8 @@ boto3==1.40.21
 # Lambda runtime dependencies
 # (homebiyori_common provided via Lambda Layer)
 
-# Event processing
-pydantic==2.8.2
+# Event processing (provided by homebiyori-common-layer)
+# pydantic==2.11.7 provided via Lambda Layer
 
 # JSON handling (built-in to Python 3.11+)
 # json

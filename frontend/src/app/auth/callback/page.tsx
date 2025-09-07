@@ -96,22 +96,42 @@ export default function AuthCallbackPage() {
         const module = await import('@/stores/authStore');
         const useAuthStore = module.default;
         const store = useAuthStore.getState();
+        
+        // まず認証状態をチェックしてストアを更新
         await store.checkAuthStatus(); // 最新の認証状態を取得
+        
+        // 更新されたストア状態を確認
+        const updatedStore = useAuthStore.getState();
+        console.log('Updated auth store:', {
+          isLoggedIn: updatedStore.isLoggedIn,
+          userId: updatedStore.user?.userId,
+          email: updatedStore.user?.email
+        });
         
         setAuthState({
           status: 'success',
           message: 'ログイン成功！'
         });
 
-        // ダッシュボードにリダイレクト
-        setTimeout(() => {
+        // オンボーディング状態チェック後にリダイレクト
+        setTimeout(async () => {
           setAuthState({
             status: 'redirecting',
-            message: 'ダッシュボードに移動しています...'
+            message: '画面を準備しています...'
           });
           
+          // オンボーディング状態をチェック
+          const updatedStore = useAuthStore.getState();
+          const isOnboardingCompleted = await updatedStore.checkOnboardingStatus();
+          
           setTimeout(() => {
-            router.push('/dashboard');
+            if (isOnboardingCompleted) {
+              // オンボーディング完了済み → メインアプリ
+              router.push('/');
+            } else {
+              // オンボーディング未完了 → ニックネーム登録
+              router.push('/onboarding/nickname');
+            }
           }, 1500);
         }, 2000);
 
@@ -176,7 +196,7 @@ export default function AuthCallbackPage() {
     if (authState.status === 'error') {
       router.push('/auth/signin');
     } else if (authState.status === 'success') {
-      router.push('/dashboard');
+      router.push('/');
     } else {
       router.push('/');
     }
@@ -285,8 +305,8 @@ export default function AuthCallbackPage() {
             className="bg-emerald-50 border border-emerald-200 rounded-lg p-4 mb-4"
           >
             <p className="text-emerald-700 text-sm">
-              まもなくダッシュボードに移動します。<br />
-              そこで木の成長を確認できます！
+              まもなく初期設定に移動します。<br />
+              AIキャラクターの選択などを行います！
             </p>
           </motion.div>
         )}
@@ -334,7 +354,7 @@ export default function AuthCallbackPage() {
                   : 'bg-blue-500 text-white hover:bg-blue-600'
               }`}
             >
-              {authState.status === 'success' ? 'ダッシュボード' : '再試行'}
+              {authState.status === 'success' ? 'メインアプリ' : '再試行'}
             </button>
           </motion.div>
         )}

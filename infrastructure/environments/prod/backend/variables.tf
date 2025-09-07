@@ -138,3 +138,50 @@ variable "stripe_partner_event_source_id" {
     error_message = "Please set stripe_partner_event_source_id in terraform.tfvars. Copy the ID from Stripe Dashboard → Developers → Webhooks → EventBridge integration."
   }
 }
+
+# =====================================
+# API Gateway WAF Configuration
+# =====================================
+
+variable "api_rate_limit" {
+  description = "Rate limit for API requests per 5-minute period per IP"
+  type        = number
+  default     = 2000
+}
+
+variable "maintenance_mode" {
+  description = "Enable maintenance mode for API (blocks all traffic except allowed IPs)"
+  type        = bool
+  default     = false
+}
+
+variable "maintenance_allowed_ips" {
+  description = "List of IP addresses/CIDR blocks allowed during API maintenance mode"
+  type        = list(string)
+  default     = []
+}
+
+variable "blocked_countries" {
+  description = "List of country codes to block from API access (ISO 3166-1 alpha-2)"
+  type        = list(string)
+  default     = []
+}
+
+variable "blocked_ips" {
+  description = "List of IP addresses/CIDR blocks to block from API access"
+  type        = list(string)
+  default     = []
+}
+
+variable "enable_geo_blocking" {
+  description = "Enable geographic blocking for API based on country codes"
+  type        = bool
+  default     = false
+}
+
+variable "enable_api_waf_logging" {
+  description = "Enable API WAF access logging to S3"
+  type        = bool
+  default     = true
+}
+

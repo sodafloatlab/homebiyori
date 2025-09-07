@@ -34,7 +34,7 @@ variable "api_type" {
 variable "endpoint_type" {
   description = "The API Gateway endpoint type"
   type        = string
-  default     = "EDGE"
+  default     = "REGIONAL"
   
   validation {
     condition     = contains(["REGIONAL", "EDGE", "PRIVATE"], var.endpoint_type)
@@ -60,7 +60,7 @@ variable "lambda_services" {
     path_part             = string
     lambda_function_name  = string
     lambda_invoke_arn     = string
-    http_method          = string
+    http_methods         = list(string)
     require_auth         = bool
     use_proxy           = bool
     enable_cors         = bool
@@ -68,9 +68,11 @@ variable "lambda_services" {
   
   validation {
     condition = alltrue([
-      for k, v in var.lambda_services : contains(["GET", "POST", "PUT", "DELETE", "PATCH", "ANY"], v.http_method)
+      for k, v in var.lambda_services : alltrue([
+        for method in v.http_methods : contains(["GET", "POST", "PUT", "DELETE", "PATCH"], method)
+      ])
     ])
-    error_message = "HTTP method must be one of: GET, POST, PUT, DELETE, PATCH, ANY."
+    error_message = "HTTP methods must be one of: GET, POST, PUT, DELETE, PATCH."
   }
 }
 
@@ -130,3 +132,10 @@ variable "tags" {
   type        = map(string)
   default     = {}
 }
+
+# WAF Integration
+variable "waf_web_acl_arn" {
+  description = "ARN of the WAF Web ACL to associate with API Gateway"
+  type        = string
+}
+

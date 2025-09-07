@@ -78,30 +78,52 @@ resource "aws_api_gateway_resource" "service_proxies" {
   path_part   = "{proxy+}"
 }
 
-# Dynamic methods for services
+# Dynamic methods for services - Create a method for each HTTP method per service
 resource "aws_api_gateway_method" "service_methods" {
-  for_each = var.lambda_services
+  for_each = {
+    for combination in flatten([
+      for service_key, service in var.lambda_services : [
+        for method in service.http_methods : {
+          key         = "${service_key}-${method}"
+          service_key = service_key
+          service     = service
+          method      = method
+        }
+      ]
+    ]) : combination.key => combination
+  }
   
   rest_api_id   = aws_api_gateway_rest_api.this.id
-  resource_id   = each.value.use_proxy ? aws_api_gateway_resource.service_proxies[each.key].id : aws_api_gateway_resource.services[each.key].id
-  http_method   = each.value.http_method
-  authorization = each.value.require_auth ? "COGNITO_USER_POOLS" : "NONE"
-  authorizer_id = each.value.require_auth && var.cognito_user_pool_arn != null ? aws_api_gateway_authorizer.cognito[0].id : null
+  resource_id   = each.value.service.use_proxy ? aws_api_gateway_resource.service_proxies[each.value.service_key].id : aws_api_gateway_resource.services[each.value.service_key].id
+  http_method   = each.value.method
+  authorization = each.value.service.require_auth ? "COGNITO_USER_POOLS" : "NONE"
+  authorizer_id = each.value.service.require_auth && var.cognito_user_pool_arn != null ? aws_api_gateway_authorizer.cognito[0].id : null
 }
 
 # Dynamic integrations for services
 resource "aws_api_gateway_integration" "service_integrations" {
-  for_each = var.lambda_services
+  for_each = {
+    for combination in flatten([
+      for service_key, service in var.lambda_services : [
+        for method in service.http_methods : {
+          key         = "${service_key}-${method}"
+          service_key = service_key
+          service     = service
+          method      = method
+        }
+      ]
+    ]) : combination.key => combination
+  }
   
   rest_api_id             = aws_api_gateway_rest_api.this.id
-  resource_id             = each.value.use_proxy ? aws_api_gateway_resource.service_proxies[each.key].id : aws_api_gateway_resource.services[each.key].id
+  resource_id             = each.value.service.use_proxy ? aws_api_gateway_resource.service_proxies[each.value.service_key].id : aws_api_gateway_resource.services[each.value.service_key].id
   http_method             = aws_api_gateway_method.service_methods[each.key].http_method
   integration_http_method = "POST"
   type                   = "AWS_PROXY"
-  uri                    = each.value.lambda_invoke_arn
+  uri                    = each.value.service.lambda_invoke_arn
 }
 
-# CORS configuration
+# CORS configuration - OPTIONS method for all resources (including proxy)
 resource "aws_api_gateway_method" "cors_options" {
   for_each = {
     for k, v in var.lambda_services : k => v
@@ -110,6 +132,19 @@ resource "aws_api_gateway_method" "cors_options" {
   
   rest_api_id   = aws_api_gateway_rest_api.this.id
   resource_id   = each.value.use_proxy ? aws_api_gateway_resource.service_proxies[each.key].id : aws_api_gateway_resource.services[each.key].id
+  http_method   = "OPTIONS"
+  authorization = "NONE"  # OPTIONSは常に認証なし
+}
+
+# Additional OPTIONS method for service root (non-proxy resources)
+resource "aws_api_gateway_method" "cors_options_root" {
+  for_each = {
+    for k, v in var.lambda_services : k => v
+    if v.enable_cors && v.use_proxy
+  }
+  
+  rest_api_id   = aws_api_gateway_rest_api.this.id
+  resource_id   = aws_api_gateway_resource.services[each.key].id
   http_method   = "OPTIONS"
   authorization = "NONE"
 }
@@ -123,6 +158,24 @@ resource "aws_api_gateway_integration" "cors_options" {
   rest_api_id = aws_api_gateway_rest_api.this.id
   resource_id = each.value.use_proxy ? aws_api_gateway_resource.service_proxies[each.key].id : aws_api_gateway_resource.services[each.key].id
   http_method = aws_api_gateway_method.cors_options[each.key].http_method
+  type        = "MOCK"
+
+  request_templates = {
+    "application/json" = jsonencode({
+      statusCode = 200
+    })
+  }
+}
+
+resource "aws_api_gateway_integration" "cors_options_root" {
+  for_each = {
+    for k, v in var.lambda_services : k => v
+    if v.enable_cors && v.use_proxy
+  }
+  
+  rest_api_id = aws_api_gateway_rest_api.this.id
+  resource_id = aws_api_gateway_resource.services[each.key].id
+  http_method = aws_api_gateway_method.cors_options_root[each.key].http_method
   type        = "MOCK"
 
   request_templates = {
@@ -150,6 +203,24 @@ resource "aws_api_gateway_method_response" "cors_options" {
   }
 }
 
+resource "aws_api_gateway_method_response" "cors_options_root" {
+  for_each = {
+    for k, v in var.lambda_services : k => v
+    if v.enable_cors && v.use_proxy
+  }
+  
+  rest_api_id = aws_api_gateway_rest_api.this.id
+  resource_id = aws_api_gateway_resource.services[each.key].id
+  http_method = aws_api_gateway_method.cors_options_root[each.key].http_method
+  status_code = "200"
+
+  response_parameters = {
+    "method.response.header.Access-Control-Allow-Headers" = true
+    "method.response.header.Access-Control-Allow-Methods" = true
+    "method.response.header.Access-Control-Allow-Origin"  = true
+  }
+}
+
 resource "aws_api_gateway_integration_response" "cors_options" {
   for_each = {
     for k, v in var.lambda_services : k => v
@@ -168,23 +239,44 @@ resource "aws_api_gateway_integration_response" "cors_options" {
   }
 }
 
+resource "aws_api_gateway_integration_response" "cors_options_root" {
+  for_each = {
+    for k, v in var.lambda_services : k => v
+    if v.enable_cors && v.use_proxy
+  }
+  
+  rest_api_id = aws_api_gateway_rest_api.this.id
+  resource_id = aws_api_gateway_resource.services[each.key].id
+  http_method = aws_api_gateway_method.cors_options_root[each.key].http_method
+  status_code = aws_api_gateway_method_response.cors_options_root[each.key].status_code
+
+  response_parameters = {
+    "method.response.header.Access-Control-Allow-Headers" = "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+    "method.response.header.Access-Control-Allow-Methods" = "'GET,OPTIONS,POST,PUT,DELETE'"
+    "method.response.header.Access-Control-Allow-Origin"  = var.cors_allow_origin
+  }
+}
+
 # API Gateway Deployment
 resource "aws_api_gateway_deployment" "this" {
   depends_on = [
     aws_api_gateway_integration.service_integrations,
     aws_api_gateway_integration.cors_options,
+    aws_api_gateway_integration.cors_options_root,
   ]
 
   rest_api_id = aws_api_gateway_rest_api.this.id
 
   triggers = {
     redeployment = sha1(jsonencode({
-      api_resources    = [for k, v in aws_api_gateway_resource.services : v.id]
-      proxy_resources  = [for k, v in aws_api_gateway_resource.service_proxies : v.id]
-      methods         = [for k, v in aws_api_gateway_method.service_methods : v.id]
-      integrations    = [for k, v in aws_api_gateway_integration.service_integrations : v.id]
-      cors_methods    = [for k, v in aws_api_gateway_method.cors_options : v.id]
-      cors_integrations = [for k, v in aws_api_gateway_integration.cors_options : v.id]
+      api_resources       = [for k, v in aws_api_gateway_resource.services : v.id]
+      proxy_resources     = [for k, v in aws_api_gateway_resource.service_proxies : v.id]
+      methods            = [for k, v in aws_api_gateway_method.service_methods : v.id]
+      integrations       = [for k, v in aws_api_gateway_integration.service_integrations : v.id]
+      cors_methods       = [for k, v in aws_api_gateway_method.cors_options : v.id]
+      cors_integrations  = [for k, v in aws_api_gateway_integration.cors_options : v.id]
+      cors_methods_root  = [for k, v in aws_api_gateway_method.cors_options_root : v.id]
+      cors_integrations_root = [for k, v in aws_api_gateway_integration.cors_options_root : v.id]
     }))
   }
 
@@ -200,6 +292,12 @@ resource "aws_api_gateway_stage" "this" {
   stage_name    = var.environment
 
   tags = local.tags
+}
+
+# WAF Association with API Gateway Stage
+resource "aws_wafv2_web_acl_association" "api_gateway" {
+  resource_arn = aws_api_gateway_stage.this.arn
+  web_acl_arn  = var.waf_web_acl_arn
 }
 
 # API Gateway Method Settings (if detailed logging is enabled)

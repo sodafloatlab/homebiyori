@@ -1,4 +1,5 @@
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 import time
 from datetime import datetime
 from typing import Dict, Any
@@ -22,6 +23,16 @@ app = FastAPI(
     title="Homebiyori Health Check Service",
     description="基本的な死活監視API（認証なし）",
     version="1.0.0"
+)
+
+# CORS設定
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["https://homebiyori.com"],
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=["Content-Type", "Authorization", "X-Requested-With"],
+    expose_headers=["Content-Length", "Content-Type"]
 )
 
 # 共通ミドルウェアをLambda Layerから適用

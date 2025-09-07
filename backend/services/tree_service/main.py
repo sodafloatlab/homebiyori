@@ -25,6 +25,7 @@ JWT認証必須、入力値検証、レート制限、適切なCORS設定
 """
 
 from fastapi import FastAPI, HTTPException, Request, Depends
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from typing import List, Optional, Dict, Any
 import os
@@ -74,6 +75,16 @@ app = FastAPI(
     version="1.0.0",
     docs_url="/docs" if os.getenv("ENVIRONMENT") != "prod" else None,
     redoc_url="/redoc" if os.getenv("ENVIRONMENT") != "prod" else None
+)
+
+# CORS設定
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["https://homebiyori.com"],
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=["Content-Type", "Authorization", "X-Requested-With"],
+    expose_headers=["Content-Length", "Content-Type"]
 )
 
 # データベースインスタンス

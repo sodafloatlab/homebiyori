@@ -112,21 +112,21 @@ locals {
     }
 
     # Admin Service - System administration and monitoring dashboard
-    admin-service = {
-      memory_size = 512
-      timeout     = 30
-      layers      = ["common"]
-      environment_variables = {
-        CORE_TABLE_NAME     = data.terraform_remote_state.datastore.outputs.core_table_name
-        CHATS_TABLE_NAME    = data.terraform_remote_state.datastore.outputs.chats_table_name
-        FRUITS_TABLE_NAME   = data.terraform_remote_state.datastore.outputs.fruits_table_name
-        FEEDBACK_TABLE_NAME = data.terraform_remote_state.datastore.outputs.feedback_table_name
-        PAYMENTS_TABLE_NAME = data.terraform_remote_state.datastore.outputs.payments_table_name
-        ENVIRONMENT         = var.environment
-      }
-      # JSONファイルから読み込み、プレースホルダー置換
-      iam_policy_template = "policies/admin_service_policy.json"
-    }
+    # admin-service = {
+    #   memory_size = 512
+    #   timeout     = 30
+    #   layers      = ["common"]
+    #   environment_variables = {
+    #     CORE_TABLE_NAME     = data.terraform_remote_state.datastore.outputs.core_table_name
+    #     CHATS_TABLE_NAME    = data.terraform_remote_state.datastore.outputs.chats_table_name
+    #     FRUITS_TABLE_NAME   = data.terraform_remote_state.datastore.outputs.fruits_table_name
+    #     FEEDBACK_TABLE_NAME = data.terraform_remote_state.datastore.outputs.feedback_table_name
+    #     PAYMENTS_TABLE_NAME = data.terraform_remote_state.datastore.outputs.payments_table_name
+    #     ENVIRONMENT         = var.environment
+    #   }
+    #   # JSONファイルから読み込み、プレースホルダー置換
+    #   iam_policy_template = "policies/admin_service_policy.json"
+    # }
 
     # Contact Service - Customer inquiry handling and SNS notifications
     contact-service = {
@@ -282,13 +282,30 @@ module "cognito_users" {
 }
 
 # Cognito User Pool for Admins (Email/Password authentication only)
-module "cognito_admins" {
-  source = "../../../modules/cognito/admin"
+# module "cognito_admins" {
+#   source = "../../../modules/cognito/admin"
+#   
+#   project_name    = local.project_name
+#   environment     = local.environment
+#   additional_tags = {}
+#   enable_mfa      = true  # Enhanced security for admin accounts
+# }
+
+# API Gateway WAF - Regional WAF for API protection
+module "api_waf" {
+  source = "../../../modules/waf-api"
   
-  project_name    = local.project_name
-  environment     = local.environment
-  additional_tags = {}
-  enable_mfa      = true  # Enhanced security for admin accounts
+  project_name                = local.project_name
+  environment                 = local.environment
+  api_rate_limit             = var.api_rate_limit
+  maintenance_mode           = var.maintenance_mode
+  maintenance_allowed_ips    = var.maintenance_allowed_ips
+  blocked_countries          = var.blocked_countries
+  blocked_ips                = var.blocked_ips
+  enable_geo_blocking        = var.enable_geo_blocking
+  enable_logging             = var.enable_api_waf_logging
+  waf_logs_bucket_name       = data.terraform_remote_state.datastore.outputs.waf_logs_bucket_name
+  waf_logs_prefix            = "api-waf-logs/"
 }
 
 # User API Gateway - Public and authenticated user endpoints
@@ -302,13 +319,14 @@ module "user_api_gateway" {
   cognito_user_pool_arn = module.cognito_users.user_pool_arn
   enable_cognito_auth   = true
   log_retention_days    = var.log_retention_days
+  waf_web_acl_arn       = module.api_waf.web_acl_arn
   
   lambda_services = {
     health = {
       path_part             = "health"
       lambda_function_name  = module.lambda_functions["health-check-service"].function_name
       lambda_invoke_arn     = module.lambda_functions["health-check-service"].invoke_arn
-      http_method          = "GET"
+      http_methods         = ["GET"]
       require_auth         = false
       use_proxy           = false
       enable_cors         = true
@@ -317,7 +335,7 @@ module "user_api_gateway" {
       path_part             = "user"
       lambda_function_name  = module.lambda_functions["user-service"].function_name
       lambda_invoke_arn     = module.lambda_functions["user-service"].invoke_arn
-      http_method          = "ANY"
+      http_methods         = ["GET", "PUT", "POST"]
       require_auth         = true
       use_proxy           = true
       enable_cors         = true
@@ -326,7 +344,7 @@ module "user_api_gateway" {
       path_part             = "chat"
       lambda_function_name  = module.lambda_functions["chat-service"].function_name
       lambda_invoke_arn     = module.lambda_functions["chat-service"].invoke_arn
-      http_method          = "ANY"
+      http_methods         = ["GET", "POST"]
       require_auth         = true
       use_proxy           = true
       enable_cors         = true
@@ -335,7 +353,7 @@ module "user_api_gateway" {
       path_part             = "tree"
       lambda_function_name  = module.lambda_functions["tree-service"].function_name
       lambda_invoke_arn     = module.lambda_functions["tree-service"].invoke_arn
-      http_method          = "ANY"
+      http_methods         = ["GET", "POST"]
       require_auth         = true
       use_proxy           = true
       enable_cors         = true
@@ -344,7 +362,7 @@ module "user_api_gateway" {
       path_part             = "billing"
       lambda_function_name  = module.lambda_functions["billing-service"].function_name
       lambda_invoke_arn     = module.lambda_functions["billing-service"].invoke_arn
-      http_method          = "ANY"
+      http_methods         = ["GET", "POST"]
       require_auth         = true
       use_proxy           = true
       enable_cors         = true
@@ -353,7 +371,7 @@ module "user_api_gateway" {
       path_part             = "notifications"
       lambda_function_name  = module.lambda_functions["notification-service"].function_name
       lambda_invoke_arn     = module.lambda_functions["notification-service"].invoke_arn
-      http_method          = "ANY"
+      http_methods         = ["GET", "POST"]
       require_auth         = true
       use_proxy           = true
       enable_cors         = true
@@ -362,14 +380,14 @@ module "user_api_gateway" {
       path_part             = "contact"
       lambda_function_name  = module.lambda_functions["contact-service"].function_name
       lambda_invoke_arn     = module.lambda_functions["contact-service"].invoke_arn
-      http_method          = "ANY"
+      http_methods         = ["GET", "POST"]
       require_auth         = false
       use_proxy           = true
       enable_cors         = true
     }
   }
   
-  cors_allow_origin       = "'*'"
+  cors_allow_origin       = "'https://homebiyori.com'"
   enable_detailed_logging = true
   
   tags = {
@@ -378,36 +396,37 @@ module "user_api_gateway" {
 }
 
 # Admin API Gateway - Administrative endpoints
-module "admin_api_gateway" {
-  source = "../../../modules/apigateway"
-  
-  project_name = local.project_name
-  environment  = local.environment
-  api_type     = "admin"
-  
-  cognito_user_pool_arn = module.cognito_admins.user_pool_arn
-  enable_cognito_auth   = true
-  log_retention_days    = var.log_retention_days
-  
-  lambda_services = {
-    admin = {
-      path_part             = "admin"
-      lambda_function_name  = module.lambda_functions["admin-service"].function_name
-      lambda_invoke_arn     = module.lambda_functions["admin-service"].invoke_arn
-      http_method          = "ANY"
-      require_auth         = true
-      use_proxy           = true
-      enable_cors         = false
-    }
-  }
-  
-  cors_allow_origin       = "'https://admin.homebiyori.com'"
-  enable_detailed_logging = true
-  
-  tags = {
-    APIType = "admin"
-  }
-}
+# module "admin_api_gateway" {
+#   source = "../../../modules/apigateway"
+#   
+#   project_name = local.project_name
+#   environment  = local.environment
+#   api_type     = "admin"
+#   
+#   cognito_user_pool_arn = module.cognito_admins.user_pool_arn
+#   enable_cognito_auth   = true
+#   log_retention_days    = var.log_retention_days
+#   waf_web_acl_arn       = module.api_waf.web_acl_arn
+#   
+#   lambda_services = {
+#     admin = {
+#       path_part             = "admin"
+#       lambda_function_name  = module.lambda_functions["admin-service"].function_name
+#       lambda_invoke_arn     = module.lambda_functions["admin-service"].invoke_arn
+#       http_method          = "ANY"
+#       require_auth         = true
+#       use_proxy           = true
+#       enable_cors         = false
+#     }
+#   }
+#   
+#   cors_allow_origin       = "'https://admin.homebiyori.com'"
+#   enable_detailed_logging = true
+#   
+#   tags = {
+#     APIType = "admin"
+#   }
+# }
 
 # Amazon Bedrock logging configuration
 module "bedrock" {

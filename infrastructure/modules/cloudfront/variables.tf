@@ -19,15 +19,6 @@ variable "static_bucket_domain_name" {
   type        = string
 }
 
-variable "api_gateway_url" {
-  description = "URL of the API Gateway"
-  type        = string
-}
-
-variable "api_gateway_stage_name" {
-  description = "Stage name of the API Gateway"
-  type        = string
-}
 
 
 variable "waf_web_acl_id" {

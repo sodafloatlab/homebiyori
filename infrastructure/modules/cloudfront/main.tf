@@ -4,6 +4,16 @@ provider "aws" {
   region = "us-east-1"
 }
 
+# 🚧 開発用キャッシュ設定変更メモ
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# 開発中はS3向けキャッシュを無効化しています
+# 
+# 本番復帰手順:
+# 1. line 71: cache_policy_id を Managed-CachingOptimized に戻す
+# 2. line 80-81: default_ttl, max_ttl を本番値（3600, 86400）に戻す  
+# 3. terraform apply で変更を適用
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
 # CloudFront Origin Access Control
 resource "aws_cloudfront_origin_access_control" "main" {
   name                              = "${var.environment}-${var.project_name}-oac"
@@ -43,22 +53,6 @@ resource "aws_cloudfront_distribution" "main" {
   }
 
 
-  # Origin for API Gateway
-  origin {
-    # Extract domain name from API Gateway URL
-    # Example: "https://abc123.execute-api.ap-northeast-1.amazonaws.com/prod" 
-    # -> "abc123.execute-api.ap-northeast-1.amazonaws.com"
-    domain_name = split("/", replace(var.api_gateway_url, "https://", ""))[0]
-    origin_id   = "API-Gateway"
-    origin_path = "/${var.api_gateway_stage_name}"
-
-    custom_origin_config {
-      http_port              = 80
-      https_port             = 443
-      origin_protocol_policy = "https-only"
-      origin_ssl_protocols   = ["TLSv1.2"]
-    }
-  }
 
   # Default cache behavior for static assets
   default_cache_behavior {
@@ -66,12 +60,24 @@ resource "aws_cloudfront_distribution" "main" {
     cached_methods   = ["GET", "HEAD"]
     target_origin_id = "S3-${var.static_bucket_name}"
 
-    cache_policy_id = "658327ea-f89d-4fab-a63d-7e88639e58f6" # AWS管理ポリシー: Managed-CachingOptimized
+    # 🚧 開発用: キャッシュ無効化設定
+    # 開発中は都度キャッシュクリアが手間なため、キャッシュを無効化
+    cache_policy_id = "4135ea2d-6df8-44a3-9df3-4b5a84be39ad" # AWS管理ポリシー: Managed-CachingDisabled
+    
+    # 🔄 本番用: キャッシュ最適化設定（開発完了後に戻す）
+    # cache_policy_id = "658327ea-f89d-4fab-a63d-7e88639e58f6" # AWS管理ポリシー: Managed-CachingOptimized
 
     viewer_protocol_policy = "redirect-to-https"
+    
+    # 🚧 開発用: キャッシュTTL無効化
     min_ttl                = 0
-    default_ttl            = 3600   # 1 hour
-    max_ttl                = 86400  # 24 hours
+    default_ttl            = 0      # No caching for development
+    max_ttl                = 0      # No caching for development
+    
+    # 🔄 本番用: キャッシュTTL設定（開発完了後に戻す）
+    # min_ttl                = 0
+    # default_ttl            = 3600   # 1 hour
+    # max_ttl                = 86400  # 24 hours
 
     compress = true
 
@@ -83,23 +89,6 @@ resource "aws_cloudfront_distribution" "main" {
   }
 
 
-  # Cache behavior for API requests
-  ordered_cache_behavior {
-    path_pattern     = "/api/*"
-    allowed_methods  = ["DELETE", "GET", "HEAD", "OPTIONS", "PATCH", "POST", "PUT"]
-    cached_methods   = ["GET", "HEAD"]
-    target_origin_id = "API-Gateway"
-
-    cache_policy_id          = "4135ea2d-6df8-44a3-9df3-4b5a84be39ad" # AWS管理ポリシー: Managed-CachingDisabled
-    origin_request_policy_id = "b689b0a8-53d0-40ab-baf2-68738e2966ac" # AWS Managed: AllViewerExceptHostHeader
-
-    viewer_protocol_policy = "redirect-to-https"
-    min_ttl                = 0
-    default_ttl            = 0      # No caching for API
-    max_ttl                = 0      # No caching for API
-
-    compress = false
-  }
 
   # Geographic restrictions
   restrictions {
