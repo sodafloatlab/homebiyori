@@ -359,6 +359,62 @@ def require_access(allow_during_trial: bool = True, require_premium: bool = Fals
     return decorator
 
 
+def require_authentication_only():
+    """
+    認証のみのアクセス制御デコレータ
+    
+    ■用途■
+    - オンボーディング関連エンドポイント
+    - プロフィール作成前でもアクセス必要な機能
+    - サブスクリプション状態に依存しない認証済み機能
+    
+    ■特徴■
+    - プロフィール存在チェックなし
+    - サブスクリプション状態チェックなし
+    - 認証（user_id取得）のみ必須
+    
+    ■対象エンドポイント■
+    - GET /api/user/account/onboarding-status
+    - POST /api/user/account/complete-onboarding
+    - 初回プロフィール作成系API
+    
+    Notes:
+        - 関数は user_id: str = Depends(get_current_user_id) を持つ前提
+        - 認証失敗時のみHTTPException発生
+        - DynamoDB参照なし、高速動作
+    """
+    def decorator(func: Callable):
+        @wraps(func)
+        async def wrapper(*args, **kwargs):
+            # 関数の引数からuser_idを取得
+            user_id = kwargs.get('user_id')
+            
+            if not user_id:
+                # kwargs内にuser_idがない場合、argsから探索
+                import inspect
+                sig = inspect.signature(func)
+                param_names = list(sig.parameters.keys())
+                
+                for i, arg_value in enumerate(args):
+                    if i < len(param_names) and param_names[i] == 'user_id':
+                        user_id = arg_value
+                        break
+            
+            if not user_id:
+                logger.error("user_id parameter not found in function arguments")
+                raise HTTPException(status_code=500, detail="Internal server error: user_id missing")
+            
+            # 認証済みユーザーIDがあればアクセス許可
+            # user_idの存在 = get_current_user_id()で認証成功済み
+            logger.info(f"Authentication-only access granted for user_id: {user_id[:8]}****")
+            
+            # 元の関数を実行
+            return await func(*args, **kwargs)
+        
+        return wrapper
+    return decorator
+
+
 # 便利関数
 def require_basic_access():
     """基本アクセス制御（トライアル期間中も許可）"""

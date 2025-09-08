@@ -182,6 +182,25 @@ const useAuthStore = create<AuthState>()(
           const { user, tokens } = await getCurrentUserInfo();
           
           if (user && tokens?.accessToken) {
+            // user.userId の必須チェック - 初期認証時
+            if (!user.userId) {
+              console.error('❌ Critical: user.userId is undefined in initial auth check', { 
+                user, 
+                userType: typeof user, 
+                userKeys: user ? Object.keys(user) : null,
+                hasUsername: !!user.username,
+                hasSignInDetails: !!user.signInDetails
+              });
+              
+              // フォールバック: usernameがある場合はそれを使用
+              if (user.username) {
+                console.warn('⚠️ Using username as fallback for userId:', user.username);
+                user.userId = user.username;
+              } else {
+                throw new Error('認証情報が正しく取得できませんでした。再度ログインしてください。');
+              }
+            }
+            
             // 認証済みユーザーの場合
             const authUser = {
               userId: user.userId,
@@ -195,17 +214,67 @@ const useAuthStore = create<AuthState>()(
             try {
               // Step 2: バックエンドから実際のプロフィール取得を試行
               const { default: UserService } = await import('@/lib/services/userService');
-              userProfile = await UserService.getProfile();
+              let backendProfile;
               
-              console.log('✅ Profile fetched from backend:', {
-                userId: userProfile.user_id,
-                aiCharacter: userProfile.ai_character,
-                onboardingCompleted: userProfile.onboarding_completed
+              try {
+                backendProfile = await UserService.getProfile();
+              } catch (apiError) {
+                console.error('🚫 API call failed:', {
+                  error: apiError,
+                  errorMessage: apiError instanceof Error ? apiError.message : String(apiError),
+                  errorStack: apiError instanceof Error ? apiError.stack : undefined
+                });
+                throw apiError; // re-throw to catch block
+              }
+              
+              // バックエンドレスポンスの構造を安全にチェック
+              console.log('🔍 Backend profile response:', {
+                response: backendProfile,
+                responseType: typeof backendProfile,
+                responseKeys: backendProfile ? Object.keys(backendProfile) : null,
+                hasUserId: backendProfile ? ('user_id' in backendProfile) : false,
+                hasUserId2: backendProfile ? ('userId' in backendProfile) : false
               });
+              
+              // レスポンス構造を正規化（user_id または userId に対応）
+              if (backendProfile && typeof backendProfile === 'object' && Object.keys(backendProfile).length > 0) {
+                // 型安全な方法でuserIdフィールドにアクセス
+                const backendAny = backendProfile as any;
+                
+                userProfile = {
+                  user_id: backendProfile.user_id || backendAny.userId || user.userId,
+                  nickname: backendProfile.nickname || authUser.nickname,
+                  ai_character: backendProfile.ai_character || 'mittyan',
+                  praise_level: backendProfile.praise_level || 'normal',
+                  interaction_mode: backendProfile.interaction_mode || backendAny.interaction_mode || 'praise',
+                  onboarding_completed: backendProfile.onboarding_completed || false,
+                  account_deleted: backendProfile.account_deleted || backendAny.account_deleted || false,
+                  created_at: backendProfile.created_at || new Date().toISOString(),
+                  updated_at: backendProfile.updated_at || new Date().toISOString()
+                };
+                
+                console.log('✅ Profile normalized from backend:', {
+                  userId: userProfile.user_id,
+                  aiCharacter: userProfile.ai_character,
+                  onboardingCompleted: userProfile.onboarding_completed
+                });
+              } else {
+                throw new Error('Backend returned empty profile');
+              }
               
             } catch (backendError) {
               // Step 3: バックエンドエラー時はGraceful Degradation
               console.warn('⚠️ Backend profile fetch failed, using local defaults:', backendError);
+              
+              // user.userId の安全性チェック
+              if (!user?.userId) {
+                console.error('❌ Critical: user.userId is undefined', { 
+                  user, 
+                  userType: typeof user, 
+                  userKeys: user ? Object.keys(user) : null 
+                });
+                throw new Error('認証情報が正しく取得できませんでした。再度ログインしてください。');
+              }
               
               // ローカルデフォルト値でプロフィール構築
               userProfile = {
@@ -213,7 +282,9 @@ const useAuthStore = create<AuthState>()(
                 nickname: authUser.nickname,
                 ai_character: 'mittyan' as const,
                 praise_level: 'normal' as const,
+                interaction_mode: 'praise',
                 onboarding_completed: false,
+                account_deleted: false,
                 created_at: new Date().toISOString(),
                 updated_at: new Date().toISOString()
               };
@@ -360,7 +431,27 @@ const useAuthStore = create<AuthState>()(
         try {
           // バックエンドからオンボーディング状態を取得
           const { default: UserService } = await import('@/lib/services/userService');
+          
+          console.log('🔍 Requesting onboarding status for user:', user?.userId);
           const onboardingStatus = await UserService.getOnboardingStatus();
+          
+          // 詳細なレスポンス分析
+          console.log('🔍 Raw onboarding status response:', {
+            response: onboardingStatus,
+            type: typeof onboardingStatus,
+            isNull: onboardingStatus === null,
+            isUndefined: onboardingStatus === undefined,
+            keys: onboardingStatus ? Object.keys(onboardingStatus) : null,
+            hasIsCompleted: onboardingStatus ? 'is_completed' in onboardingStatus : false,
+            isCompletedValue: onboardingStatus ? onboardingStatus.is_completed : 'N/A',
+            isCompletedType: onboardingStatus ? typeof onboardingStatus.is_completed : 'N/A'
+          });
+          
+          // レスポンスの安全性チェック
+          if (!onboardingStatus || typeof onboardingStatus.is_completed !== 'boolean') {
+            console.error('❌ Invalid onboarding status response:', onboardingStatus);
+            throw new Error('オンボーディング状態の取得に失敗しました');
+          }
 
           // プロフィールのオンボーディング状態を更新
           const currentProfile = get().profile;
@@ -368,13 +459,13 @@ const useAuthStore = create<AuthState>()(
             set({
               profile: {
                 ...currentProfile,
-                onboarding_completed: onboardingStatus.onboarding_completed
+                onboarding_completed: onboardingStatus.is_completed
               }
             });
           }
 
-          console.log('✅ Onboarding status checked:', onboardingStatus.onboarding_completed);
-          return onboardingStatus.onboarding_completed;
+          console.log('✅ Onboarding status checked:', onboardingStatus.is_completed);
+          return onboardingStatus.is_completed;
 
         } catch (error) {
           console.error('Onboarding status check failed:', error);

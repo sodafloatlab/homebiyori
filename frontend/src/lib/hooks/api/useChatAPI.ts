@@ -7,7 +7,8 @@ import { useState, useCallback } from 'react';
 import { chatAPI } from '@/lib/services/api/APIServiceManager';
 import type { 
   SendMessageRequest, 
-  SendMessageResponse
+  SendMessageResponse,
+  GroupChatResponse
 } from '@/lib/services/api/ChatAPIService';
 import type { ChatMessage } from '@/types';
 import { useErrorHandler } from '../utils/useErrorHandler';
@@ -21,7 +22,7 @@ export interface UseChatAPIReturn {
   // Chat Operations (実装済み機能のみ)
   sendMessage: (request: SendMessageRequest) => Promise<SendMessageResponse | null>;
   getChatHistory: (limit?: number, cursor?: string) => Promise<ChatMessage[]>;
-  sendGroupMessage: (message: string, conversationId: string) => Promise<SendMessageResponse | null>;
+  sendGroupMessage: (message: string, conversationId: string) => Promise<GroupChatResponse | null>;
   
   // Utility
   clearError: () => void;
@@ -71,7 +72,7 @@ export const useChatAPI = (): UseChatAPIReturn => {
   const sendGroupMessage = useCallback(async (
     message: string, 
     conversationId: string
-  ): Promise<SendMessageResponse | null> => {
+  ): Promise<GroupChatResponse | null> => {
     return execute(
       async () => {
         const response = await chatAPI().sendGroupMessage(message, conversationId);

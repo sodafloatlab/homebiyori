@@ -46,7 +46,7 @@ export default function AmplifyProvider({ children }: AmplifyProviderProps) {
         const amplifySuccess = initializeAmplify();
         
         if (!amplifySuccess) {
-          throw new Error('Amplify initialization failed');
+          throw new Error('認証システムの初期化に失敗しました');
         }
 
         // 認証状態初期化

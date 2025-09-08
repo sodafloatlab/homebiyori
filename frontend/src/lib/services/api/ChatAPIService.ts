@@ -21,12 +21,29 @@ export interface SendMessageRequest {
 }
 
 export interface SendMessageResponse {
-  ai_response: string;
-  emotion_detected?: string;
-  fruit_generated: boolean;
-  tree_updated: boolean;
   message_id: string;
-  conversation_id: string;
+  ai_response: string;
+  tree_growth: {
+    previous_stage: number;
+    current_stage: number;
+    previous_total: number;
+    current_total: number;
+    added_characters: number;
+    stage_changed: boolean;
+    growth_celebration?: string;
+  };
+  fruit_generated: boolean;
+  fruit_info?: {
+    fruit_id: string;
+    user_id: string;
+    user_message: string;
+    ai_response: string;
+    ai_character: string;
+    interaction_mode: string;
+    detected_emotion?: string;
+    created_at: string;
+  };
+  timestamp: string;
 }
 
 export interface ChatHistoryResponse extends PaginatedResponse<ChatMessage> {}
@@ -58,6 +75,37 @@ export interface AIResponseSampleRequest {
 export interface AIResponseSampleResponse {
   response: string;
   emotion: string;
+}
+
+export interface GroupChatResponse {
+  message_id: string;
+  ai_responses: Array<{
+    character: string;
+    response: string;
+    is_representative: boolean;
+  }>;
+  tree_growth: {
+    previous_stage: number;
+    current_stage: number;
+    previous_total: number;
+    current_total: number;
+    added_characters: number;
+    stage_changed: boolean;
+    growth_celebration?: string;
+  };
+  fruit_generated: boolean;
+  fruit_info?: {
+    fruit_id: string;
+    user_id: string;
+    user_message: string;
+    ai_response: string;
+    ai_character: string;
+    interaction_mode: string;
+    detected_emotion?: string;
+    created_at: string;
+  };
+  timestamp: string;
+  active_characters: string[];
 }
 
 // ============================================
@@ -101,9 +149,9 @@ export class ChatAPIService extends BaseAPIService {
   }
 
   // ✅ 既存API活用 - グループチャットメッセージ生成機能（パス修正）
-  async sendGroupMessage(message: string, conversationId?: string): Promise<SendMessageResponse> {
-    // PUT: グループチャット時のチャットメッセージ生成リクエスト機能
-    return this.put('/group-messages', {
+  async sendGroupMessage(message: string, conversationId?: string): Promise<GroupChatResponse> {
+    // POST: グループチャット時のチャットメッセージ生成リクエスト機能
+    return this.post('/group-messages', {
       message,
       conversation_id: conversationId
     });

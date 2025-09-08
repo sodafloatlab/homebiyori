@@ -11,7 +11,7 @@ from fastapi import APIRouter, HTTPException, Depends
 from typing import Dict
 from homebiyori_common import get_logger
 from homebiyori_common.middleware.authentication import get_current_user_id
-from homebiyori_common.middleware import require_basic_access
+from homebiyori_common.middleware import require_basic_access, require_authentication_only
 
 from ..models import OnboardingStatus, CompleteOnboardingRequest, AccountDeletionRequest
 from ..core.dependencies import get_db
@@ -23,7 +23,7 @@ router = APIRouter(tags=["account"])
 
 
 @router.get("/onboarding-status")
-@require_basic_access()
+@require_authentication_only()
 async def get_onboarding_status(
     user_id: str = Depends(get_current_user_id),
     db: UserServiceDatabase = Depends(get_db)
@@ -58,7 +58,7 @@ async def get_onboarding_status(
 
 
 @router.post("/complete-onboarding")
-@require_basic_access()
+@require_authentication_only()
 async def complete_onboarding(
     onboarding_request: CompleteOnboardingRequest,
     user_id: str = Depends(get_current_user_id),

@@ -344,9 +344,9 @@ export interface GroupMessageRequest {
 
 // オンボーディング機能型定義 (既存API活用)
 export interface OnboardingStatus {
-  onboarding_completed: boolean;
-  current_step?: string;
-  completed_steps?: string[];
+  user_id: string;
+  is_completed: boolean;
+  completed_at?: string;
 }
 
 export interface CompleteOnboardingRequest {

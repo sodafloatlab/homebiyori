@@ -21,6 +21,7 @@ from .error_handling import error_handling_middleware
 # アクセス制御
 from .access_control import (
     require_access,
+    require_authentication_only,
     require_basic_access,
     require_premium_access,
     require_paid_access,
@@ -38,6 +39,7 @@ __all__ = [
     'error_handling_middleware',
     # アクセス制御
     'require_access',
+    'require_authentication_only',
     'require_basic_access', 
     'require_premium_access',
     'require_paid_access',

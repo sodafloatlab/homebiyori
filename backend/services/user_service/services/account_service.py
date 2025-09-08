@@ -44,16 +44,22 @@ class AccountService:
             # ユーザープロフィール取得でオンボーディング状態確認
             profile = await self.db.get_user_profile(user_id)
             
-            # オンボーディング状態判定
-            is_completed = bool(profile and profile.onboarding_completed)
+            if profile:
+                # 既存プロフィールがある場合
+                is_completed = profile.onboarding_completed
+                completed_at = profile.updated_at if is_completed else None
+            else:
+                # 新規ユーザー（プロフィール未作成）の場合
+                is_completed = False
+                completed_at = None
             
             onboarding_status = OnboardingStatus(
                 user_id=user_id,
                 is_completed=is_completed,
-                completed_at=getattr(profile, 'onboarding_completed_at', None) if is_completed else None
+                completed_at=completed_at
             )
             
-            logger.info(f"Onboarding status retrieved for user_id: {user_id}, completed: {is_completed}")
+            logger.info(f"Onboarding status retrieved for user_id: {user_id}, completed: {is_completed}, profile_exists: {profile is not None}")
             return onboarding_status
             
         except Exception as e:

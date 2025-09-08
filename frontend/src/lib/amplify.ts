@@ -55,7 +55,7 @@ export const initializeAmplify = (): boolean => {
 // Google OAuth認証開始
 export const signInWithGoogle = async (): Promise<{ success: boolean; error?: string }> => {
   if (!initializeAmplify()) {
-    return { success: false, error: 'Amplify initialization failed' };
+    return { success: false, error: '認証システムの初期化に失敗しました' };
   }
 
   // まず既存の認証状態を確認
@@ -109,7 +109,7 @@ export const signInWithGoogle = async (): Promise<{ success: boolean; error?: st
 // ログアウト
 export const signOutUser = async (): Promise<{ success: boolean; error?: string }> => {
   if (!initializeAmplify()) {
-    return { success: false, error: 'Amplify initialization failed' };
+    return { success: false, error: '認証システムの初期化に失敗しました' };
   }
 
   try {
@@ -128,7 +128,7 @@ export const getCurrentUserInfo = async (): Promise<{
   error?: string;
 }> => {
   if (!initializeAmplify()) {
-    return { user: null, tokens: null, error: 'Amplify initialization failed' };
+    return { user: null, tokens: null, error: '認証システムの初期化に失敗しました' };
   }
 
   try {
@@ -165,7 +165,7 @@ export const handleAuthCallback = async (): Promise<{
   error?: string;
 }> => {
   if (!initializeAmplify()) {
-    return { success: false, error: 'Amplify initialization failed' };
+    return { success: false, error: '認証システムの初期化に失敗しました' };
   }
 
   try {
@@ -209,7 +209,7 @@ export class AuthService {
    */
   static async signInWithGoogle(): Promise<{ user: any }> {
     if (!initializeAmplify()) {
-      throw new Error('Amplify initialization failed');
+      throw new Error('認証システムの初期化に失敗しました');
     }
 
     try {

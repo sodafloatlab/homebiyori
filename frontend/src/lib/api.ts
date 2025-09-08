@@ -242,11 +242,29 @@ class APIClient {
   private handleResponse<T>(response: AxiosResponse<APIResponse<T>>): T {
     const { data } = response;
     
-    if (data.status === 'error') {
-      throw new Error(data.error || 'APIエラーが発生しました');
+    // デバッグ: レスポンス構造を詳しく調査
+    if (process.env.NODE_ENV === 'development') {
+      console.log('🔍 APIClient: Raw response analysis:', {
+        status: response.status,
+        headers: response.headers,
+        dataType: typeof data,
+        dataKeys: data ? Object.keys(data) : null,
+        hasStatusField: data ? 'status' in data : false,
+        hasDataField: data ? 'data' in data : false,
+        rawData: data
+      });
     }
-
-    return data.data as T;
+    
+    // APIResponse<T> 形式の場合
+    if (data && typeof data === 'object' && 'status' in data) {
+      if (data.status === 'error') {
+        throw new Error(data.error || 'APIエラーが発生しました');
+      }
+      return data.data as T;
+    }
+    
+    // 直接オブジェクトが返される場合（バックエンドがAPIResponseラッパーを使用していない）
+    return data as T;
   }
 
   // Amplify Auth統合ヘルパー

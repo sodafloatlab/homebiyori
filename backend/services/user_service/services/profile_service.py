@@ -48,7 +48,12 @@ class ProfileService:
                 "Profile not found, returning default",
                 extra={"user_id": user_id[:8] + "****"},
             )
-            return UserProfile(user_id=user_id)
+            return UserProfile(
+                user_id=user_id,
+                nickname="ユーザー",  # デフォルトニックネーム設定
+                onboarding_completed=False,
+                account_deleted=False
+            )
 
         # AI設定取得（別テーブル）
         ai_preferences_item = await self.db.get_ai_preferences(user_id)
@@ -62,6 +67,7 @@ class ProfileService:
             "praise_level": ai_preferences_item.get("praise_level") if ai_preferences_item else profile_item.praise_level,
             "interaction_mode": ai_preferences_item.get("interaction_mode") if ai_preferences_item else profile_item.interaction_mode,
             "onboarding_completed": profile_item.onboarding_completed,
+            "account_deleted": getattr(profile_item, 'account_deleted', False),
             "created_at": profile_item.created_at,
             "updated_at": profile_item.updated_at
         }

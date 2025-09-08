@@ -47,6 +47,35 @@ class ChatRequest(BaseModel):
     context_length: int = Field(10, ge=1, le=50, description="文脈履歴取得件数")
 
 
+class ChatResponse(BaseModel):
+    """チャット応答レスポンス（個別チャット用）"""
+    message_id: str = Field(description="メッセージID")
+    ai_response: str = Field(description="AI応答テキスト")
+    tree_growth: TreeGrowthInfo = Field(description="木の成長情報")
+    fruit_generated: bool = Field(description="実が生成されたかどうか")
+    fruit_info: Optional[FruitInfo] = Field(None, description="生成された実の情報")
+    timestamp: datetime = Field(description="処理完了時刻")
+
+    model_config = ConfigDict(
+        json_encoders={datetime: lambda v: v.isoformat()},
+        json_schema_extra={
+            "example": {
+                "message_id": "msg_12345678-1234-5678-9012-123456789012",
+                "ai_response": "今日も育児お疲れさまです！素晴らしいですね。",
+                "tree_growth": {
+                    "previous_stage": 1,
+                    "current_stage": 2,
+                    "previous_total": 480,
+                    "current_total": 520,
+                    "added_characters": 40,
+                    "stage_changed": True
+                },
+                "fruit_generated": True,
+                "timestamp": "2024-08-25T15:30:00+09:00"
+            }
+        }
+    )
+
 
 class GroupChatRequest(BaseModel):
     """

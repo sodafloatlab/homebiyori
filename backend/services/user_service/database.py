@@ -198,6 +198,7 @@ class UserServiceDatabase:
                 "user_id": profile.user_id,
                 "nickname": profile.nickname,
                 "onboarding_completed": profile.onboarding_completed,
+                "account_deleted": profile.account_deleted,
                 "created_at": profile.created_at,
                 "updated_at": profile.updated_at
             }

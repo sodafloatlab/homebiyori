@@ -80,7 +80,9 @@ export interface UserProfile {
   nickname?: string;
   ai_character: AICharacter;
   praise_level: PraiseLevel;
+  interaction_mode?: string; // AI対話モード（今日の気分設定）
   onboarding_completed: boolean;
+  account_deleted?: boolean;
   created_at: string;
   updated_at: string;
 }

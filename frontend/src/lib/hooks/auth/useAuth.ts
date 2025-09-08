@@ -170,8 +170,10 @@ export function useAuth(): UseAuthReturn {
     try {
       setError(null);
       
-      const updatedProfile = await UserService.updateProfile(updates);
-      setProfile(updatedProfile);
+      await UserService.updateProfile(updates);
+      // プロフィール更新後、最新のプロフィールを再取得
+      const refreshedProfile = await UserService.getProfile();
+      setProfile(refreshedProfile);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'プロフィールの更新に失敗しました';
       setError(errorMessage);

@@ -145,13 +145,13 @@ const ChatScreen = ({
         timestamp: Date.now(),
         aiRole: selectedAiRole,
         mood: currentMood,
-        emotion: response.emotion_detected
+        emotion: response.fruit_info?.detected_emotion || undefined
       };
       
       chat.addMessage(aiMessage);
 
       // 木の成長状態を更新
-      if (response.tree_updated) {
+      if (response.tree_growth?.stage_changed) {
         await tree.loadTreeStatus();
       }
 
@@ -160,7 +160,7 @@ const ChatScreen = ({
         setToastMessage({
           type: 'success',
           title: '🍎 ほめの実が生まれました！',
-          message: response.emotion_detected ? `「${response.emotion_detected}」な気持ちが実になりました` : '素敵な気持ちが実になりました'
+          message: response.fruit_info?.detected_emotion ? `「${response.fruit_info.detected_emotion}」な気持ちが実になりました` : '素敵な気持ちが実になりました'
         });
         setShowToast(true);
       }

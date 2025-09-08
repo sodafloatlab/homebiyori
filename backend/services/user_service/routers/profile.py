@@ -11,7 +11,7 @@ from fastapi import APIRouter, HTTPException, Depends
 from typing import Dict
 from homebiyori_common import get_logger
 from homebiyori_common.middleware.authentication import get_current_user_id
-from homebiyori_common.middleware import require_basic_access
+from homebiyori_common.middleware import require_basic_access, require_authentication_only
 
 from ..models import UserProfile, UserProfileUpdate, AIPreferencesUpdate
 from ..core.dependencies import get_db
@@ -23,7 +23,7 @@ logger = get_logger(__name__)
 router = APIRouter(tags=["profile"])
 
 @router.get("")
-# @require_basic_access()  # 一時的にコメントアウトして403原因を特定
+@require_authentication_only()
 async def get_user_profile(
     user_id: str = Depends(get_current_user_id),
     db: UserServiceDatabase = Depends(get_db)
@@ -59,7 +59,7 @@ async def get_user_profile(
 
 
 @router.put("")
-@require_basic_access()
+@require_authentication_only()
 async def update_user_profile(
     profile_update: UserProfileUpdate,
     user_id: str = Depends(get_current_user_id),
@@ -96,7 +96,7 @@ async def update_user_profile(
 
 
 @router.put("/ai-preferences")
-@require_basic_access()
+@require_authentication_only()
 async def update_ai_preferences(
     preferences_update: AIPreferencesUpdate,
     user_id: str = Depends(get_current_user_id),
