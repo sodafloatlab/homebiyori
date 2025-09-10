@@ -160,7 +160,11 @@ app = FastAPI(
 # ミドルウェア・共通処理
 # =====================================
 
-# CORS設定（最初に追加）
+# 共通ミドルウェアをLambda Layerから適用（従来方式・正しい実装）
+app.middleware("http")(maintenance_check_middleware)
+app.middleware("http")(error_handling_middleware)
+
+# CORS設定 - 他のミドルウェアの後に追加（重要）
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["https://homebiyori.com"],
@@ -169,10 +173,6 @@ app.add_middleware(
     allow_headers=["Content-Type", "Authorization", "X-Requested-With"],
     expose_headers=["Content-Length", "Content-Type"]
 )
-
-# 共通ミドルウェアをLambda Layerから適用
-app.middleware("http")(maintenance_check_middleware)
-app.middleware("http")(error_handling_middleware)
 
 
 # =====================================

@@ -60,7 +60,11 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# CORS設定（管理者画面専用）
+# 共通ミドルウェアをLambda Layerから適用（従来方式・正しい実装）
+app.middleware("http")(maintenance_check_middleware)
+app.middleware("http")(error_handling_middleware)
+
+# CORS設定（管理者画面専用）- 最後に追加
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["https://admin.homebiyori.com", "http://localhost:3000"],
@@ -68,10 +72,6 @@ app.add_middleware(
     allow_methods=["GET", "POST", "PUT", "DELETE"],
     allow_headers=["*"],
 )
-
-# 共通ミドルウェアをLambda Layerから適用
-app.middleware("http")(error_handling_middleware)
-app.middleware("http")(maintenance_check_middleware)
 
 # セキュリティ設定
 security = HTTPBearer()

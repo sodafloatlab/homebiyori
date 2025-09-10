@@ -37,9 +37,20 @@ async def error_handling_middleware(request: Request, call_next: Callable[[Reque
     - 構造化ログ出力
     - ユーザーフレンドリーなエラーメッセージ
     - セキュリティを考慮した情報制限
+    - CORS対応（BaseHTTPMiddleware実行順序対応）
     """
     try:
         response = await call_next(request)
+        
+        # 成功レスポンスにCORSヘッダーを確実に追加（BaseHTTPMiddleware実行順序対応）
+        origin = request.headers.get("origin", "")
+        if origin == "https://homebiyori.com":
+            response.headers["Access-Control-Allow-Origin"] = "https://homebiyori.com"
+            response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
+            response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization, X-Requested-With"
+            response.headers["Access-Control-Allow-Credentials"] = "true"
+            response.headers["Access-Control-Expose-Headers"] = "Content-Length, Content-Type"
+        
         return response
     except ValidationError as e:
         logger.warning(
@@ -59,8 +70,9 @@ async def error_handling_middleware(request: Request, call_next: Callable[[Reque
             headers={
                 "Access-Control-Allow-Origin": "https://homebiyori.com",
                 "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
-                "Access-Control-Allow-Headers": "Content-Type, Authorization",
-                "Access-Control-Allow-Credentials": "true"
+                "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Requested-With",
+                "Access-Control-Allow-Credentials": "true",
+                "Access-Control-Expose-Headers": "Content-Length, Content-Type"
             }
         )
     except AuthenticationError as e:
@@ -81,8 +93,9 @@ async def error_handling_middleware(request: Request, call_next: Callable[[Reque
             headers={
                 "Access-Control-Allow-Origin": "https://homebiyori.com",
                 "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
-                "Access-Control-Allow-Headers": "Content-Type, Authorization",
-                "Access-Control-Allow-Credentials": "true"
+                "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Requested-With",
+                "Access-Control-Allow-Credentials": "true",
+                "Access-Control-Expose-Headers": "Content-Length, Content-Type"
             }
         )
     except DatabaseError as e:
@@ -103,8 +116,9 @@ async def error_handling_middleware(request: Request, call_next: Callable[[Reque
             headers={
                 "Access-Control-Allow-Origin": "https://homebiyori.com",
                 "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
-                "Access-Control-Allow-Headers": "Content-Type, Authorization",
-                "Access-Control-Allow-Credentials": "true"
+                "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Requested-With",
+                "Access-Control-Allow-Credentials": "true",
+                "Access-Control-Expose-Headers": "Content-Length, Content-Type"
             }
         )
     except Exception as e:
@@ -125,7 +139,8 @@ async def error_handling_middleware(request: Request, call_next: Callable[[Reque
             headers={
                 "Access-Control-Allow-Origin": "https://homebiyori.com",
                 "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
-                "Access-Control-Allow-Headers": "Content-Type, Authorization",
-                "Access-Control-Allow-Credentials": "true"
+                "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Requested-With",
+                "Access-Control-Allow-Credentials": "true",
+                "Access-Control-Expose-Headers": "Content-Length, Content-Type"
             }
         )

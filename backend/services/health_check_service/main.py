@@ -25,7 +25,10 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# CORS設定
+# 共通ミドルウェアをLambda Layerから適用（従来方式・正しい実装）
+app.middleware("http")(error_handling_middleware)
+
+# CORS設定 - 他のミドルウェアの後に追加
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["https://homebiyori.com"],
@@ -34,9 +37,6 @@ app.add_middleware(
     allow_headers=["Content-Type", "Authorization", "X-Requested-With"],
     expose_headers=["Content-Length", "Content-Type"]
 )
-
-# 共通ミドルウェアをLambda Layerから適用
-app.middleware("http")(error_handling_middleware)
 
 @app.get("/api/health")
 async def basic_health_check() -> Dict[str, Any]:

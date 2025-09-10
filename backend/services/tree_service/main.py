@@ -77,15 +77,7 @@ app = FastAPI(
     redoc_url="/redoc" if os.getenv("ENVIRONMENT") != "prod" else None
 )
 
-# CORS設定
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["https://homebiyori.com"],
-    allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allow_headers=["Content-Type", "Authorization", "X-Requested-With"],
-    expose_headers=["Content-Length", "Content-Type"]
-)
+# 共通ミドルウェアをLambda Layerから適用 - 既存ミドルウェアと統合
 
 # データベースインスタンス
 db = get_tree_database()
@@ -170,9 +162,19 @@ def create_tree_status_from_db_data(
 # ミドルウェア・依存関数
 # =====================================
 
-# 共通ミドルウェアをLambda Layerから適用
+# 共通ミドルウェアをLambda Layerから適用（従来方式・正しい実装）
 app.middleware("http")(maintenance_check_middleware)
 app.middleware("http")(error_handling_middleware)
+
+# CORS設定 - 他のミドルウェアの後に追加
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["https://homebiyori.com"],
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=["Content-Type", "Authorization", "X-Requested-With"],
+    expose_headers=["Content-Length", "Content-Type"]
+)
 
 # =====================================
 # 木の成長状態管理エンドポイント
